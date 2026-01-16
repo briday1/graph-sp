@@ -11,10 +11,9 @@ To run this example:
 """
 
 import graph_sp
-import asyncio
 
 
-async def main():
+def main():
     print("=== graph-sp Python Example: Simple Pipeline ===\n")
     
     # Create a graph
@@ -92,7 +91,7 @@ async def main():
     # Execute
     print("=== Executing Graph ===")
     executor = graph_sp.Executor()
-    result = await executor.execute(graph)
+    result = executor.execute(graph)
     
     print("✓ Execution completed successfully!\n")
 
@@ -110,4 +109,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

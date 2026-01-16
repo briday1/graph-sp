@@ -6,10 +6,9 @@ using Maps, JSON, Lists, and binary data.
 """
 
 import graph_sp
-import asyncio
 
 
-async def main():
+def main():
     print("=== Complex Object Passing Example ===\n")
     
     # Example 1: Using Maps for structured objects
@@ -64,7 +63,7 @@ async def main():
     graph1.add_edge("user_creator", "user", "user_processor", "user")
     
     executor = graph_sp.Executor()
-    result1 = await executor.execute(graph1)
+    result1 = executor.execute(graph1)
     
     summary = result1.get_output("user_processor", "summary")
     print(f"Summary: {summary}\n")
@@ -122,7 +121,7 @@ async def main():
     
     graph2.add_edge("json_producer", "data", "json_consumer", "data")
     
-    result2 = await executor.execute(graph2)
+    result2 = executor.execute(graph2)
     
     description = result2.get_output("json_consumer", "description")
     print(f"Description: {description}\n")
@@ -171,7 +170,7 @@ async def main():
     
     graph3.add_edge("list_creator", "numbers", "list_processor", "numbers")
     
-    result3 = await executor.execute(graph3)
+    result3 = executor.execute(graph3)
     
     total = result3.get_output("list_processor", "sum")
     count = result3.get_output("list_processor", "count")
@@ -192,4 +191,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

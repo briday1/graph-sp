@@ -6,11 +6,11 @@ in parallel, showing the parallelization capabilities of the engine.
 """
 
 import graph_sp
-import asyncio
+
 import time
 
 
-async def main():
+def main():
     print("=== graph-sp Python Example: Parallel Execution ===\n")
     
     graph = graph_sp.Graph()
@@ -172,7 +172,7 @@ async def main():
     
     overall_start = time.time()
     executor = graph_sp.Executor()
-    result = await executor.execute(graph)
+    result = executor.execute(graph)
     total_time = time.time() - overall_start
     
     print(f"\n✓ Execution completed!\n")
@@ -204,4 +204,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

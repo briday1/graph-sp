@@ -217,15 +217,15 @@ impl Inspector {
             
             if incoming.is_empty() && !outgoing.is_empty() {
                 // Source node
-                output.push_str(&format!("    {}[\"🔵 {}\"]\n", safe_id, node_name));
+                output.push_str(&format!("    {}[\"{}\"]\n", safe_id, node_name));
                 output.push_str(&format!("    style {} fill:#e1f5ff,stroke:#01579b,stroke-width:2px\n", safe_id));
             } else if outgoing.is_empty() && !incoming.is_empty() {
                 // Sink node
-                output.push_str(&format!("    {}[\"🎯 {}\"]\n", safe_id, node_name));
+                output.push_str(&format!("    {}[\"{}\"]\n", safe_id, node_name));
                 output.push_str(&format!("    style {} fill:#f3e5f5,stroke:#4a148c,stroke-width:2px\n", safe_id));
             } else {
                 // Processing node
-                output.push_str(&format!("    {}[\"⚙️ {}\"]\n", safe_id, node_name));
+                output.push_str(&format!("    {}[\"{}\"]\n", safe_id, node_name));
                 output.push_str(&format!("    style {} fill:#fff3e0,stroke:#e65100,stroke-width:2px\n", safe_id));
             }
         }
