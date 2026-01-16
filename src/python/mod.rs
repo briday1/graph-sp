@@ -280,23 +280,31 @@ impl PyGraphAnalysis {
 #[cfg(feature = "python")]
 // Helper functions for Python<->Rust conversion
 fn python_to_port_data(value: &PyAny) -> PyResult<PortData> {
+    use pyo3::types::{PyBool, PyFloat, PyLong, PyString};
+    
     if value.is_none() {
         Ok(PortData::None)
-    } else if let Ok(b) = value.extract::<bool>() {
-        Ok(PortData::Bool(b))
-    } else if let Ok(i) = value.extract::<i64>() {
-        Ok(PortData::Int(i))
-    } else if let Ok(f) = value.extract::<f64>() {
-        Ok(PortData::Float(f))
-    } else if let Ok(s) = value.extract::<String>() {
-        Ok(PortData::String(s))
+    } else if value.downcast::<PyBool>().is_ok() {
+        // Check bool first as it's more specific
+        Ok(PortData::Bool(value.extract::<bool>()?))
+    } else if value.downcast::<PyLong>().is_ok() {
+        // Check for integer
+        Ok(PortData::Int(value.extract::<i64>()?))
+    } else if value.downcast::<PyFloat>().is_ok() {
+        // Check for float
+        Ok(PortData::Float(value.extract::<f64>()?))
+    } else if value.downcast::<PyString>().is_ok() {
+        // Check for string
+        Ok(PortData::String(value.extract::<String>()?))
     } else if let Ok(list) = value.downcast::<PyList>() {
+        // Check for list
         let mut items = Vec::new();
         for item in list.iter() {
             items.push(python_to_port_data(item)?);
         }
         Ok(PortData::List(items))
     } else if let Ok(dict) = value.downcast::<PyDict>() {
+        // Check for dict
         let mut map = HashMap::new();
         for (k, v) in dict.iter() {
             let key: String = k.extract()?;
