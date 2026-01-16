@@ -206,6 +206,21 @@ impl PyGraph {
         let analysis = Inspector::analyze(&self.inner);
         Ok(PyGraphAnalysis { inner: analysis })
     }
+
+    fn create_branch(&mut self, name: String) -> PyResult<()> {
+        self.inner
+            .create_branch(name)
+            .map(|_| ())
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    fn has_branch(&self, name: String) -> bool {
+        self.inner.has_branch(&name)
+    }
+
+    fn branch_names(&self) -> Vec<String> {
+        self.inner.branch_names()
+    }
 }
 
 #[cfg(feature = "python")]

@@ -146,6 +146,37 @@ impl Edge {
     }
 }
 
+/// Merge function type for combining outputs from multiple branches
+pub type MergeFunction =
+    Arc<dyn Fn(Vec<&PortData>) -> Result<PortData> + Send + Sync>;
+
+/// Configuration for merging branch outputs
+pub struct MergeConfig {
+    /// Branches to merge
+    pub branches: Vec<String>,
+    /// Output port name on each branch to merge
+    pub port: String,
+    /// Custom merge function (default: collect into list)
+    pub merge_fn: Option<MergeFunction>,
+}
+
+impl MergeConfig {
+    /// Create a new merge configuration
+    pub fn new(branches: Vec<String>, port: String) -> Self {
+        Self {
+            branches,
+            port,
+            merge_fn: None,
+        }
+    }
+
+    /// Set a custom merge function
+    pub fn with_merge_fn(mut self, merge_fn: MergeFunction) -> Self {
+        self.merge_fn = Some(merge_fn);
+        self
+    }
+}
+
 /// The main graph structure representing a DAG
 #[derive(Clone)]
 pub struct Graph {
@@ -153,6 +184,8 @@ pub struct Graph {
     graph: DiGraph<Node, Edge>,
     /// Map from node ID to graph index
     node_indices: HashMap<NodeId, NodeIndex>,
+    /// Named branches (subgraphs)
+    branches: HashMap<String, Graph>,
 }
 
 impl Graph {
@@ -161,6 +194,7 @@ impl Graph {
         Self {
             graph: DiGraph::new(),
             node_indices: HashMap::new(),
+            branches: HashMap::new(),
         }
     }
 
@@ -323,6 +357,106 @@ impl Graph {
             .edges_directed(*idx, Direction::Outgoing)
             .map(|e| e.weight())
             .collect())
+    }
+
+    /// Create a new branch (subgraph) with the given name
+    pub fn create_branch(&mut self, name: impl Into<String>) -> Result<&mut Graph> {
+        let name = name.into();
+        if self.branches.contains_key(&name) {
+            return Err(GraphError::InvalidGraph(format!(
+                "Branch '{}' already exists",
+                name
+            )));
+        }
+        self.branches.insert(name.clone(), Graph::new());
+        Ok(self.branches.get_mut(&name).unwrap())
+    }
+
+    /// Get a reference to a branch by name
+    pub fn get_branch(&self, name: &str) -> Result<&Graph> {
+        self.branches
+            .get(name)
+            .ok_or_else(|| GraphError::InvalidGraph(format!("Branch '{}' not found", name)))
+    }
+
+    /// Get a mutable reference to a branch by name
+    pub fn get_branch_mut(&mut self, name: &str) -> Result<&mut Graph> {
+        self.branches
+            .get_mut(name)
+            .ok_or_else(|| GraphError::InvalidGraph(format!("Branch '{}' not found", name)))
+    }
+
+    /// Get all branch names
+    pub fn branch_names(&self) -> Vec<String> {
+        self.branches.keys().cloned().collect()
+    }
+
+    /// Check if a branch exists
+    pub fn has_branch(&self, name: &str) -> bool {
+        self.branches.contains_key(name)
+    }
+
+    /// Create a merge node that combines outputs from multiple branches
+    /// 
+    /// The merge node will collect outputs from the specified branches and combine them
+    /// using the provided merge function (or collect into a list by default).
+    pub fn merge(
+        &mut self,
+        node_id: impl Into<NodeId>,
+        config: MergeConfig,
+    ) -> Result<()> {
+        // Validate that all branches exist
+        for branch_name in &config.branches {
+            if !self.has_branch(branch_name) {
+                return Err(GraphError::InvalidGraph(format!(
+                    "Branch '{}' not found for merge operation",
+                    branch_name
+                )));
+            }
+        }
+
+        let branch_names = config.branches.clone();
+        let port_name = config.port.clone();
+        
+        // Create the merge function
+        let merge_fn = config.merge_fn.unwrap_or_else(|| {
+            // Default merge function: collect into a list
+            Arc::new(|inputs: Vec<&PortData>| -> Result<PortData> {
+                Ok(PortData::List(inputs.iter().map(|&d| d.clone()).collect()))
+            })
+        });
+
+        // Create input ports - one for each branch
+        let input_ports: Vec<Port> = branch_names
+            .iter()
+            .map(|name| Port::new(name.clone(), format!("Input from {}", name)))
+            .collect();
+
+        // Create a merge node
+        let node_config = NodeConfig::new(
+            node_id,
+            "Merge Node",
+            input_ports,
+            vec![Port::new("merged", "Merged Output")],
+            Arc::new(move |inputs: &HashMap<PortId, PortData>| {
+                // Collect inputs in branch order
+                let mut collected_inputs = Vec::new();
+                for branch_name in &branch_names {
+                    if let Some(data) = inputs.get(branch_name.as_str()) {
+                        collected_inputs.push(data);
+                    }
+                }
+                
+                // Apply merge function
+                let merged = merge_fn(collected_inputs)?;
+                
+                let mut outputs = HashMap::new();
+                outputs.insert("merged".to_string(), merged);
+                Ok(outputs)
+            }),
+        );
+
+        self.add(Node::new(node_config))
     }
 }
 
@@ -488,5 +622,133 @@ mod tests {
             .unwrap();
 
         assert!(graph.validate().is_err());
+    }
+
+    #[test]
+    fn test_create_branch() {
+        let mut graph = Graph::new();
+        
+        // Create a branch
+        let branch = graph.create_branch("branch_a");
+        assert!(branch.is_ok());
+        
+        // Verify branch exists
+        assert!(graph.has_branch("branch_a"));
+        assert_eq!(graph.branch_names().len(), 1);
+        assert_eq!(graph.branch_names()[0], "branch_a");
+    }
+
+    #[test]
+    fn test_duplicate_branch_name() {
+        let mut graph = Graph::new();
+        
+        graph.create_branch("branch_a").unwrap();
+        let result = graph.create_branch("branch_a");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_branch_isolation() {
+        let mut graph = Graph::new();
+        
+        // Create two branches
+        let branch_a = graph.create_branch("branch_a").unwrap();
+        let config_a = NodeConfig::new(
+            "node_a",
+            "Node A",
+            vec![],
+            vec![Port::new("output", "Output")],
+            Arc::new(dummy_function),
+        );
+        branch_a.add(Node::new(config_a)).unwrap();
+        
+        let branch_b = graph.create_branch("branch_b").unwrap();
+        let config_b = NodeConfig::new(
+            "node_b",
+            "Node B",
+            vec![],
+            vec![Port::new("output", "Output")],
+            Arc::new(dummy_function),
+        );
+        branch_b.add(Node::new(config_b)).unwrap();
+        
+        // Verify each branch has only one node
+        assert_eq!(graph.get_branch("branch_a").unwrap().node_count(), 1);
+        assert_eq!(graph.get_branch("branch_b").unwrap().node_count(), 1);
+        
+        // Verify branches don't share nodes
+        assert!(graph.get_branch("branch_a").unwrap().get_node("node_b").is_err());
+        assert!(graph.get_branch("branch_b").unwrap().get_node("node_a").is_err());
+    }
+
+    #[test]
+    fn test_get_nonexistent_branch() {
+        let graph = Graph::new();
+        assert!(graph.get_branch("nonexistent").is_err());
+    }
+
+    #[test]
+    fn test_merge_basic() {
+        let mut graph = Graph::new();
+        
+        // Create two branches
+        graph.create_branch("branch_a").unwrap();
+        graph.create_branch("branch_b").unwrap();
+        
+        // Create merge configuration
+        let merge_config = MergeConfig::new(
+            vec!["branch_a".to_string(), "branch_b".to_string()],
+            "output".to_string(),
+        );
+        
+        // Create merge node
+        let result = graph.merge("merge_node", merge_config);
+        assert!(result.is_ok());
+        
+        // Verify merge node was created
+        assert_eq!(graph.node_count(), 1);
+        assert!(graph.get_node("merge_node").is_ok());
+    }
+
+    #[test]
+    fn test_merge_with_nonexistent_branch() {
+        let mut graph = Graph::new();
+        
+        graph.create_branch("branch_a").unwrap();
+        
+        let merge_config = MergeConfig::new(
+            vec!["branch_a".to_string(), "nonexistent".to_string()],
+            "output".to_string(),
+        );
+        
+        let result = graph.merge("merge_node", merge_config);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_merge_with_custom_function() {
+        let mut graph = Graph::new();
+        
+        graph.create_branch("branch_a").unwrap();
+        graph.create_branch("branch_b").unwrap();
+        
+        // Custom merge function that finds max
+        let max_merge = Arc::new(|inputs: Vec<&PortData>| -> Result<PortData> {
+            let mut max_val = i64::MIN;
+            for data in inputs {
+                if let PortData::Int(val) = data {
+                    max_val = max_val.max(*val);
+                }
+            }
+            Ok(PortData::Int(max_val))
+        });
+        
+        let merge_config = MergeConfig::new(
+            vec!["branch_a".to_string(), "branch_b".to_string()],
+            "output".to_string(),
+        ).with_merge_fn(max_merge);
+        
+        let result = graph.merge("merge_node", merge_config);
+        assert!(result.is_ok());
     }
 }
