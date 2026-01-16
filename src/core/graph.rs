@@ -227,6 +227,10 @@ pub struct Graph {
     node_indices: HashMap<NodeId, NodeIndex>,
     /// Named branches (subgraphs)
     branches: HashMap<String, Graph>,
+    /// Track node addition order for implicit mapping
+    node_order: Vec<NodeId>,
+    /// Whether to use strict edge mapping (explicit add_edge required)
+    strict_edge_mapping: bool,
 }
 
 impl Graph {
@@ -236,7 +240,27 @@ impl Graph {
             graph: DiGraph::new(),
             node_indices: HashMap::new(),
             branches: HashMap::new(),
+            node_order: Vec::new(),
+            strict_edge_mapping: false,
         }
+    }
+
+    /// Create a new graph with strict edge mapping enabled
+    /// When enabled, edges must be explicitly added with add_edge()
+    /// When disabled (default), edges are automatically created based on node order
+    pub fn with_strict_edges() -> Self {
+        Self {
+            graph: DiGraph::new(),
+            node_indices: HashMap::new(),
+            branches: HashMap::new(),
+            node_order: Vec::new(),
+            strict_edge_mapping: true,
+        }
+    }
+
+    /// Set strict edge mapping mode
+    pub fn set_strict_edge_mapping(&mut self, strict: bool) {
+        self.strict_edge_mapping = strict;
     }
 
     /// Add a node to the graph
@@ -251,7 +275,53 @@ impl Graph {
         }
 
         let index = self.graph.add_node(node);
-        self.node_indices.insert(node_id, index);
+        self.node_indices.insert(node_id.clone(), index);
+        
+        // Implicit edge mapping: connect to previous node if not in strict mode
+        if !self.strict_edge_mapping && !self.node_order.is_empty() {
+            self.auto_connect_to_previous(&node_id)?;
+        }
+        
+        self.node_order.push(node_id);
+        Ok(())
+    }
+
+    /// Automatically connect the new node to the previous node based on port names
+    fn auto_connect_to_previous(&mut self, new_node_id: &str) -> Result<()> {
+        let edges_to_add = if let Some(prev_node_id) = self.node_order.last().cloned() {
+            let prev_node = self.get_node(&prev_node_id)?;
+            let new_node = self.get_node(new_node_id)?;
+            
+            let mut edges = Vec::new();
+            // Match output ports from previous node to input ports of new node
+            for out_port in &prev_node.config.output_ports {
+                for in_port in &new_node.config.input_ports {
+                    // Connect if port names match or if they're the only ports
+                    let should_connect = out_port.id == in_port.id || 
+                        (prev_node.config.output_ports.len() == 1 && 
+                         new_node.config.input_ports.len() == 1);
+                    
+                    if should_connect {
+                        edges.push(Edge::new(
+                            &prev_node_id,
+                            &out_port.id,
+                            new_node_id,
+                            &in_port.id,
+                        ));
+                        break; // Only connect first matching port
+                    }
+                }
+            }
+            edges
+        } else {
+            Vec::new()
+        };
+        
+        // Add all collected edges
+        for edge in edges_to_add {
+            self.add_edge(edge)?;
+        }
+        
         Ok(())
     }
 
@@ -613,7 +683,7 @@ mod tests {
 
     #[test]
     fn test_add_edge() {
-        let mut graph = Graph::new();
+        let mut graph = Graph::with_strict_edges();
 
         let config1 = NodeConfig::new(
             "node1",
@@ -895,5 +965,74 @@ mod tests {
         let config2 = VariantConfig::new("test", 2, "param", variant_fn);
         let result = graph.create_variants(config2);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_implicit_edge_mapping() {
+        // Default mode: implicit edge mapping
+        let mut graph = Graph::new();
+
+        let config1 = NodeConfig::new(
+            "source",
+            "Source",
+            vec![],
+            vec![Port::new("output", "Output")],
+            Arc::new(dummy_function),
+        );
+
+        let config2 = NodeConfig::new(
+            "processor",
+            "Processor",
+            vec![Port::new("output", "Input")],  // Port name matches prev output
+            vec![Port::new("result", "Result")],
+            Arc::new(dummy_function),
+        );
+
+        let config3 = NodeConfig::new(
+            "sink",
+            "Sink",
+            vec![Port::new("result", "Input")],  // Port name matches prev output
+            vec![],
+            Arc::new(dummy_function),
+        );
+
+        // Add nodes - edges should be created automatically
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
+        graph.add(Node::new(config3)).unwrap();
+
+        // Should have 2 edges (source->processor, processor->sink)
+        assert_eq!(graph.edge_count(), 2);
+        assert_eq!(graph.node_count(), 3);
+    }
+
+    #[test]
+    fn test_strict_edge_mapping() {
+        // Strict mode: explicit edges required
+        let mut graph = Graph::with_strict_edges();
+
+        let config1 = NodeConfig::new(
+            "source",
+            "Source",
+            vec![],
+            vec![Port::new("output", "Output")],
+            Arc::new(dummy_function),
+        );
+
+        let config2 = NodeConfig::new(
+            "sink",
+            "Sink",
+            vec![Port::new("output", "Input")],
+            vec![],
+            Arc::new(dummy_function),
+        );
+
+        // Add nodes - NO edges should be created automatically
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
+
+        // Should have 0 edges in strict mode
+        assert_eq!(graph.edge_count(), 0);
+        assert_eq!(graph.node_count(), 2);
     }
 }

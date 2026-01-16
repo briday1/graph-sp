@@ -9,7 +9,7 @@ use std::sync::Arc;
 #[tokio::test]
 async fn test_full_pipeline() {
     // Create a comprehensive graph that tests multiple features
-    let mut graph = Graph::new();
+    let mut graph = Graph::with_strict_edges();
 
     // Node 1: Source that outputs multiple values
     let source = NodeConfig::new(
