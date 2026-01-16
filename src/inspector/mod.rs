@@ -91,7 +91,12 @@ impl Inspector {
                 .copied()
                 .unwrap_or(0);
             
-            levels.insert(node_id.clone(), if incoming.is_empty() { 0 } else { max_pred_level + 1 });
+            let level = if incoming.is_empty() { 
+                0 
+            } else { 
+                max_pred_level + 1 
+            };
+            levels.insert(node_id.clone(), level);
         }
 
         let depth = levels.values().max().copied().unwrap_or(0) + 1;

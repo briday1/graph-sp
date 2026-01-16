@@ -149,6 +149,7 @@ async fn test_graph_with_optional_ports() {
     let result = executor.execute(&mut graph).await.unwrap();
 
     // Should succeed even without optional input
+    // Test that the node executes successfully even when the optional input port is not provided
     assert!(result.is_success());
     assert_eq!(
         result.get_output("optional_node", "output"),

@@ -284,18 +284,18 @@ fn python_to_port_data(value: &PyAny) -> PyResult<PortData> {
     
     if value.is_none() {
         Ok(PortData::None)
-    } else if value.downcast::<PyBool>().is_ok() {
+    } else if let Ok(b) = value.downcast::<PyBool>() {
         // Check bool first as it's more specific
-        Ok(PortData::Bool(value.extract::<bool>()?))
-    } else if value.downcast::<PyLong>().is_ok() {
+        Ok(PortData::Bool(b.extract()?))
+    } else if let Ok(i) = value.downcast::<PyLong>() {
         // Check for integer
-        Ok(PortData::Int(value.extract::<i64>()?))
-    } else if value.downcast::<PyFloat>().is_ok() {
+        Ok(PortData::Int(i.extract()?))
+    } else if let Ok(f) = value.downcast::<PyFloat>() {
         // Check for float
-        Ok(PortData::Float(value.extract::<f64>()?))
-    } else if value.downcast::<PyString>().is_ok() {
+        Ok(PortData::Float(f.extract()?))
+    } else if let Ok(s) = value.downcast::<PyString>() {
         // Check for string
-        Ok(PortData::String(value.extract::<String>()?))
+        Ok(PortData::String(s.extract()?))
     } else if let Ok(list) = value.downcast::<PyList>() {
         // Check for list
         let mut items = Vec::new();

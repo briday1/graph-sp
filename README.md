@@ -72,10 +72,9 @@ cargo build --release --features python
 ### Rust Example
 
 ```rust
-use graph_sp::core::{Graph, Node, NodeConfig, Port, PortData};
+use graph_sp::core::{Graph, Node, NodeConfig, Port, PortData, Edge};
 use graph_sp::executor::Executor;
-use std::collections::HashMap;
-use std::sync::Arc;
+use graph_sp::inspector::Inspector;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -115,7 +114,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     graph.add_node(Node::new(transform_config))?;
 
     // Connect nodes
-    use graph_sp::Edge;
     graph.add_edge(Edge::new("source", "output", "transform", "input"))?;
 
     // Validate graph
