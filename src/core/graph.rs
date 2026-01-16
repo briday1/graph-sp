@@ -177,6 +177,47 @@ impl MergeConfig {
     }
 }
 
+/// Variant function type for generating parameter variations
+pub type VariantFunction = Arc<dyn Fn(usize) -> PortData + Send + Sync>;
+
+/// Configuration for creating variants (config sweeps)
+pub struct VariantConfig {
+    /// Name prefix for variant branches
+    pub name_prefix: String,
+    /// Number of variants to create
+    pub count: usize,
+    /// Function to generate variant parameter values
+    pub variant_fn: VariantFunction,
+    /// Parameter name to vary
+    pub param_name: String,
+    /// Whether to enable parallel execution (default: true)
+    pub parallel: bool,
+}
+
+impl VariantConfig {
+    /// Create a new variant configuration
+    pub fn new(
+        name_prefix: impl Into<String>,
+        count: usize,
+        param_name: impl Into<String>,
+        variant_fn: VariantFunction,
+    ) -> Self {
+        Self {
+            name_prefix: name_prefix.into(),
+            count,
+            variant_fn,
+            param_name: param_name.into(),
+            parallel: true,
+        }
+    }
+
+    /// Set parallelization flag
+    pub fn with_parallel(mut self, parallel: bool) -> Self {
+        self.parallel = parallel;
+        self
+    }
+}
+
 /// The main graph structure representing a DAG
 #[derive(Clone)]
 pub struct Graph {
@@ -416,7 +457,7 @@ impl Graph {
         }
 
         let branch_names = config.branches.clone();
-        let port_name = config.port.clone();
+        let _port_name = config.port.clone();
         
         // Create the merge function
         let merge_fn = config.merge_fn.unwrap_or_else(|| {
@@ -457,6 +498,53 @@ impl Graph {
         );
 
         self.add(Node::new(node_config))
+    }
+
+    /// Create variant branches for config sweeps
+    /// 
+    /// This creates multiple isolated branches, each with a different parameter value.
+    /// Variants can be used for hyperparameter sweeps, A/B testing, or any scenario
+    /// where you want to run the same computation with different inputs.
+    /// 
+    /// Returns the names of the created variant branches.
+    pub fn create_variants(&mut self, config: VariantConfig) -> Result<Vec<String>> {
+        let mut branch_names = Vec::new();
+        
+        for i in 0..config.count {
+            let branch_name = format!("{}_{}", config.name_prefix, i);
+            
+            // Check if branch already exists
+            if self.has_branch(&branch_name) {
+                return Err(GraphError::InvalidGraph(format!(
+                    "Variant branch '{}' already exists",
+                    branch_name
+                )));
+            }
+            
+            // Create the branch
+            let branch = self.create_branch(&branch_name)?;
+            
+            // Add a source node to the branch with the variant parameter
+            let param_value = (config.variant_fn)(i);
+            let param_name = config.param_name.clone();
+            
+            let source_config = NodeConfig::new(
+                format!("{}_source", branch_name),
+                format!("Variant Source {}", i),
+                vec![],
+                vec![Port::new(&param_name, "Variant Parameter")],
+                Arc::new(move |_: &HashMap<PortId, PortData>| {
+                    let mut outputs = HashMap::new();
+                    outputs.insert(param_name.clone(), param_value.clone());
+                    Ok(outputs)
+                }),
+            );
+            
+            branch.add(Node::new(source_config))?;
+            branch_names.push(branch_name);
+        }
+        
+        Ok(branch_names)
     }
 }
 
@@ -750,5 +838,60 @@ mod tests {
         
         let result = graph.merge("merge_node", merge_config);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_variants() {
+        let mut graph = Graph::new();
+        
+        // Create variants with integer values
+        let variant_fn = Arc::new(|i: usize| PortData::Int(i as i64 * 10));
+        let config = VariantConfig::new("test_variant", 3, "param", variant_fn);
+        
+        let result = graph.create_variants(config);
+        assert!(result.is_ok());
+        
+        let branch_names = result.unwrap();
+        assert_eq!(branch_names.len(), 3);
+        assert_eq!(branch_names[0], "test_variant_0");
+        assert_eq!(branch_names[1], "test_variant_1");
+        assert_eq!(branch_names[2], "test_variant_2");
+        
+        // Verify each branch was created with a source node
+        for branch_name in &branch_names {
+            assert!(graph.has_branch(branch_name));
+            let branch = graph.get_branch(branch_name).unwrap();
+            assert_eq!(branch.node_count(), 1);
+        }
+    }
+
+    #[test]
+    fn test_variants_with_parallelization_flag() {
+        let mut graph = Graph::new();
+        
+        let variant_fn = Arc::new(|i: usize| PortData::Float(i as f64 * 0.5));
+        let config = VariantConfig::new("param_sweep", 5, "learning_rate", variant_fn)
+            .with_parallel(false);
+        
+        let result = graph.create_variants(config);
+        assert!(result.is_ok());
+        
+        let branch_names = result.unwrap();
+        assert_eq!(branch_names.len(), 5);
+    }
+
+    #[test]
+    fn test_duplicate_variant_branch() {
+        let mut graph = Graph::new();
+        
+        // Create initial variant
+        let variant_fn = Arc::new(|i: usize| PortData::Int(i as i64));
+        let config = VariantConfig::new("test", 2, "param", variant_fn.clone());
+        graph.create_variants(config).unwrap();
+        
+        // Try to create the same variants again
+        let config2 = VariantConfig::new("test", 2, "param", variant_fn);
+        let result = graph.create_variants(config2);
+        assert!(result.is_err());
     }
 }

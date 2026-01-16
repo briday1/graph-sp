@@ -10,6 +10,9 @@ A high-performance DAG (Directed Acyclic Graph) execution engine with true paral
 
 - **⚡ True Parallel Execution**: Automatic parallelization of independent nodes (44% faster for fan-out patterns)
 - **🔌 Port-based Architecture**: Type-safe data flow between nodes via named ports
+- **🌿 Branching & Nested Graphs**: Create isolated subgraphs for experiments and variants
+- **🔀 Merge Operations**: Combine outputs from multiple branches with custom merge functions
+- **🔄 Variants & Config Sweeps**: Automated parameter variation with cartesian product support
 - **🐍 Python & Rust APIs**: Full feature parity across both languages
 - **🔍 Graph Inspection**: Analysis, visualization, and Mermaid diagram generation
 - **✅ Cycle Detection**: Built-in DAG validation with detailed error reporting
@@ -215,6 +218,74 @@ mermaid = graph.to_mermaid()
 print(mermaid)  # GitHub-compatible markdown
 ```
 
+### Branching & Variants (New in v0.2.0)
+
+**Branches** allow you to create isolated subgraphs:
+
+```python
+# Create experimental branches
+graph.create_branch("experiment_a")
+graph.create_branch("experiment_b")
+
+# Check branches
+print(graph.branch_names())  # ["experiment_a", "experiment_b"]
+print(graph.has_branch("experiment_a"))  # True
+```
+
+**Variants** enable config sweeps and hyperparameter tuning:
+
+```rust
+use graph_sp::core::{VariantConfig, VariantFunction};
+
+// Create variants with different learning rates
+let variant_fn: VariantFunction = Arc::new(|i: usize| {
+    PortData::Float((i as f64 + 1.0) * 0.01)
+});
+
+let config = VariantConfig::new("lr", 3, "learning_rate", variant_fn);
+let branches = graph.create_variants(config)?;
+// Creates: lr_0 (0.01), lr_1 (0.02), lr_2 (0.03)
+```
+
+**Merge** combines outputs from multiple branches:
+
+```rust
+use graph_sp::core::MergeConfig;
+
+// Merge outputs from multiple branches
+let merge_config = MergeConfig::new(
+    vec!["branch_a".to_string(), "branch_b".to_string()],
+    "result".to_string()
+);
+graph.merge("merge_node", merge_config)?;
+
+// Or use custom merge function (e.g., max)
+let max_fn = Arc::new(|inputs: Vec<&PortData>| -> Result<PortData> {
+    let max = inputs.iter()
+        .filter_map(|d| if let PortData::Int(v) = d { Some(*v) } else { None })
+        .max()
+        .unwrap_or(0);
+    Ok(PortData::Int(max))
+});
+
+let config = MergeConfig::new(branches, "score".to_string())
+    .with_merge_fn(max_fn);
+```
+
+**Nested Variants** create cartesian products:
+
+```rust
+// 2 learning rates × 3 batch sizes = 6 total configurations
+let lr_config = VariantConfig::new("lr", 2, "learning_rate", lr_fn);
+let lr_branches = graph.create_variants(lr_config)?;
+
+for lr_branch in &lr_branches {
+    let branch = graph.get_branch_mut(lr_branch)?;
+    let batch_config = VariantConfig::new("batch", 3, "batch_size", batch_fn);
+    branch.create_variants(batch_config)?;
+}
+```
+
 ## Examples
 
 ### Python Examples
@@ -224,6 +295,7 @@ Located in `python_examples/`:
 - **simple_pipeline.py**: Basic 3-node pipeline with graph analysis
 - **complex_objects.py**: Demonstrates nested objects, JSON, and lists
 - **parallel_execution.py**: Shows 3-branch parallel execution with timing
+- **branching_example.py**: Demonstrates branch creation and management
 
 Run an example:
 
@@ -239,12 +311,14 @@ Located in `examples/`:
 - **simple_pipeline.rs**: 4-node data processing pipeline
 - **complex_objects.rs**: All PortData types with nested structures
 - **parallel_execution.rs**: Fan-out/fan-in pattern with performance analysis
+- **branching_and_variants.rs**: Comprehensive demo of branches, merge, and variants
 
 Run an example:
 
 ```bash
 cargo run --example simple_pipeline
 cargo run --example parallel_execution
+cargo run --example branching_and_variants
 ```
 
 ## Performance
