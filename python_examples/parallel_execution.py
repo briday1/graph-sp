@@ -197,8 +197,12 @@ def main():
     print("\nExpected times:")
     print("  - Sequential execution: ~0.9s (0.5 + 0.1 + 0.3)")
     print("  - Parallel execution: ~0.5s (max of branch times)")
-    print("\nNote: Current implementation executes sequentially following topological order.")
-    print("The architecture supports parallel execution - branches are independent!")
+    
+    if total_time < 0.7:
+        print("\n✓ Parallel execution confirmed! Branches executed concurrently.")
+        print("The executor identified 3 independent branches and ran them in parallel.")
+    else:
+        print("\n⚠ Sequential execution detected. Execution time matches sequential.")
     
     print("\n=== Example Complete ===")
 

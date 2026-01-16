@@ -3,12 +3,13 @@
 use crate::core::{Graph, Result, PortData};
 use dashmap::DashMap;
 use std::sync::Arc;
+use std::collections::HashMap;
+use tokio::sync::Semaphore;
 
 /// Executor for running graphs with parallel execution
 #[derive(Clone)]
 pub struct Executor {
-    /// Maximum number of concurrent tasks (reserved for future parallel execution)
-    #[allow(dead_code)]
+    /// Maximum number of concurrent tasks
     max_concurrency: usize,
 }
 
@@ -30,36 +31,67 @@ impl Executor {
         // Validate the graph first
         graph.validate()?;
 
-        // Get topological order
-        let order = graph.topological_order()?;
+        // Get topological order to determine dependencies
+        let topo_order = graph.topological_order()?;
 
         // Track execution state - map from node_id to outputs
-        let execution_state: Arc<DashMap<String, std::collections::HashMap<String, PortData>>> = 
+        let execution_state: Arc<DashMap<String, HashMap<String, PortData>>> = 
             Arc::new(DashMap::new());
         
-        // Execute nodes in topological order
-        for node_id in order {
-            // Get the node and prepare inputs from dependencies
-            let mut node = graph.get_node(&node_id)?.clone();
+        // Build dependency levels for parallel execution
+        let levels = self.build_dependency_levels(graph, &topo_order)?;
+        
+        // Create semaphore for concurrency control
+        let semaphore = Arc::new(Semaphore::new(self.max_concurrency));
+        
+        // Execute each level in parallel
+        for level in levels {
+            let mut handles = Vec::new();
             
-            // Collect inputs from incoming edges
-            for edge in graph.incoming_edges(&node_id)? {
-                if let Some(source_outputs) = execution_state.get(&edge.from_node) {
-                    if let Some(data) = source_outputs.get(&edge.from_port) {
-                        node.set_input(edge.to_port.clone(), data.clone());
+            for node_id in level {
+                let node = graph.get_node(&node_id)?.clone();
+                let edges = graph.incoming_edges(&node_id)?.iter().map(|e| (*e).clone()).collect::<Vec<_>>();
+                let state = Arc::clone(&execution_state);
+                let sem = Arc::clone(&semaphore);
+                
+                // Spawn a task for each node in this level
+                let handle = tokio::spawn(async move {
+                    // Acquire semaphore permit
+                    let _permit = sem.acquire().await.unwrap();
+                    
+                    let mut node = node;
+                    
+                    // Collect inputs from incoming edges
+                    for edge in edges {
+                        if let Some(source_outputs) = state.get(&edge.from_node) {
+                            if let Some(data) = source_outputs.get(&edge.from_port) {
+                                node.set_input(edge.to_port.clone(), data.clone());
+                            }
+                        }
                     }
-                }
+                    
+                    // Execute the node
+                    let result = node.execute();
+                    
+                    (node.config.id.clone(), node.outputs.clone(), result)
+                });
+                
+                handles.push(handle);
             }
-
-            // Execute the node
-            node.execute()?;
             
-            // Store outputs
-            execution_state.insert(node_id.clone(), node.outputs.clone());
+            // Wait for all nodes in this level to complete
+            for handle in handles {
+                let (node_id, outputs, result) = handle.await.map_err(|e| {
+                    crate::core::GraphError::ExecutionError(format!("Task join error: {}", e))
+                })?;
+                
+                result?;
+                execution_state.insert(node_id, outputs);
+            }
         }
 
         // Collect results
-        let mut node_outputs = std::collections::HashMap::new();
+        let mut node_outputs = HashMap::new();
         for entry in execution_state.iter() {
             node_outputs.insert(entry.key().clone(), entry.value().clone());
         }
@@ -69,6 +101,37 @@ impl Executor {
             node_outputs,
             errors: Vec::new(),
         })
+    }
+    
+    /// Build dependency levels for parallel execution
+    /// All nodes in the same level can execute in parallel
+    fn build_dependency_levels(&self, graph: &Graph, topo_order: &[String]) -> Result<Vec<Vec<String>>> {
+        let mut levels: Vec<Vec<String>> = Vec::new();
+        let mut node_level: HashMap<String, usize> = HashMap::new();
+        
+        // Assign each node to a level based on its dependencies
+        for node_id in topo_order {
+            let incoming = graph.incoming_edges(node_id)?;
+            
+            // Find the maximum level of all dependencies
+            let max_dep_level = incoming.iter()
+                .filter_map(|edge| node_level.get(&edge.from_node))
+                .max()
+                .copied();
+            
+            // This node goes one level after its dependencies
+            let level = max_dep_level.map(|l| l + 1).unwrap_or(0);
+            node_level.insert(node_id.clone(), level);
+            
+            // Ensure we have enough levels
+            while levels.len() <= level {
+                levels.push(Vec::new());
+            }
+            
+            levels[level].push(node_id.clone());
+        }
+        
+        Ok(levels)
     }
 }
 

@@ -217,8 +217,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nExpected times:");
     println!("  - Sequential execution: ~900ms (500 + 100 + 300)");
     println!("  - Parallel execution: ~500ms (max of branch times)");
-    println!("\nNote: Current implementation executes sequentially following topological order.");
-    println!("The architecture supports parallel execution - branches are independent!");
+    
+    if total_time.as_millis() < 700 {
+        println!("\n✓ Parallel execution confirmed! Branches executed concurrently.");
+        println!("The executor identified 3 independent branches and ran them in parallel.");
+    } else {
+        println!("\n⚠ Sequential execution detected. Execution time matches sequential.");
+    }
 
     println!("\n=== Example Complete ===");
 

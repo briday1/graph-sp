@@ -213,13 +213,21 @@ impl PyExecutor {
     fn execute(&self, graph: &mut PyGraph) -> PyResult<PyExecutionResult> {
         let mut graph_clone = graph.inner.clone();
         
-        // Use tokio runtime to execute async code
-        let rt = tokio::runtime::Runtime::new()
+        // Use tokio runtime with multi-threaded scheduler
+        // This is required for tokio::spawn to work
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(4)
+            .enable_all()
+            .build()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         
-        let result = rt.block_on(async {
-            self.inner.execute(&mut graph_clone).await
+        let inner_executor = self.inner.clone();
+        let result = rt.block_on(async move {
+            inner_executor.execute(&mut graph_clone).await
         }).map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        
+        // Explicitly shutdown the runtime to ensure all tasks complete
+        rt.shutdown_timeout(std::time::Duration::from_secs(10));
         
         Ok(PyExecutionResult { inner: result })
     }
