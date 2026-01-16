@@ -457,7 +457,6 @@ impl Graph {
         }
 
         let branch_names = config.branches.clone();
-        let _port_name = config.port.clone();
         
         // Create the merge function
         let merge_fn = config.merge_fn.unwrap_or_else(|| {
@@ -533,6 +532,8 @@ impl Graph {
                 format!("Variant Source {}", i),
                 vec![],
                 vec![Port::new(&param_name, "Variant Parameter")],
+                // Note: param_name and param_value must be cloned into the closure
+                // since the closure may outlive the current scope
                 Arc::new(move |_: &HashMap<PortId, PortData>| {
                     let mut outputs = HashMap::new();
                     outputs.insert(param_name.clone(), param_value.clone());
