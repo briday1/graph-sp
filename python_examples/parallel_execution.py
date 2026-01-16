@@ -85,7 +85,7 @@ def main():
     # Build the graph
     print("Building parallel graph...")
     
-    graph.add_node(
+    graph.add(
         "source",
         "Data Source",
         [],
@@ -93,7 +93,7 @@ def main():
         source_fn
     )
     
-    graph.add_node(
+    graph.add(
         "branch_a",
         "Branch A (Slow)",
         [graph_sp.Port("input", "Input")],
@@ -101,7 +101,7 @@ def main():
         branch_a_fn
     )
     
-    graph.add_node(
+    graph.add(
         "branch_b",
         "Branch B (Fast)",
         [graph_sp.Port("input", "Input")],
@@ -109,7 +109,7 @@ def main():
         branch_b_fn
     )
     
-    graph.add_node(
+    graph.add(
         "branch_c",
         "Branch C (Medium)",
         [graph_sp.Port("input", "Input")],
@@ -117,7 +117,7 @@ def main():
         branch_c_fn
     )
     
-    graph.add_node(
+    graph.add(
         "merger",
         "Result Merger",
         [

@@ -379,9 +379,9 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(config1)).unwrap();
-        graph.add_node(Node::new(config2)).unwrap();
-        graph.add_node(Node::new(config3)).unwrap();
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
+        graph.add(Node::new(config3)).unwrap();
 
         graph
             .add_edge(Edge::new("source", "out", "middle", "in"))
@@ -414,8 +414,8 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(config1)).unwrap();
-        graph.add_node(Node::new(config2)).unwrap();
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
 
         let optimizations = Inspector::suggest_optimizations(&graph);
 

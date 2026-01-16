@@ -98,7 +98,7 @@ impl PyGraph {
         }
     }
 
-    fn add_node(
+    fn add(
         &mut self,
         id: String,
         name: String,
@@ -149,8 +149,20 @@ impl PyGraph {
         let node = Node::new(config);
 
         self.inner
-            .add_node(node)
+            .add(node)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Alias for add() for backward compatibility
+    fn add_node(
+        &mut self,
+        id: String,
+        name: String,
+        input_ports: Vec<PyRef<PyPort>>,
+        output_ports: Vec<PyRef<PyPort>>,
+        function: PyObject,
+    ) -> PyResult<()> {
+        self.add(id, name, input_ports, output_ports, function)
     }
 
     fn add_edge(

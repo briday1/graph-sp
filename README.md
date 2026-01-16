@@ -35,14 +35,14 @@ import graph_sp
 graph = graph_sp.Graph()
 
 # Add nodes with Python functions
-graph.add_node(
+graph.add(
     "source", "Data Source",
     [],  # no inputs
     [graph_sp.Port("output", "Numbers")],
     lambda inputs: {"output": [1, 2, 3, 4, 5]}
 )
 
-graph.add_node(
+graph.add(
     "doubler", "Multiply by 2",
     [graph_sp.Port("input", "Input")],
     [graph_sp.Port("output", "Output")],
@@ -94,7 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     );
 
-    graph.add_node(Node::new(source))?;
+    graph.add(Node::new(source))?;
 
     // Execute
     let executor = Executor::new();

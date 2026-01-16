@@ -110,10 +110,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Add all nodes to the graph
     println!("Building graph...");
-    graph.add_node(Node::new(source_config))?;
-    graph.add_node(Node::new(multiplier_config))?;
-    graph.add_node(Node::new(sum_config))?;
-    graph.add_node(Node::new(avg_config))?;
+    graph.add(Node::new(source_config))?;
+    graph.add(Node::new(multiplier_config))?;
+    graph.add(Node::new(sum_config))?;
+    graph.add(Node::new(avg_config))?;
 
     // Connect the nodes
     graph.add_edge(Edge::new("data_source", "numbers", "multiplier", "input"))?;

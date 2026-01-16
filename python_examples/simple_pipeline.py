@@ -35,7 +35,7 @@ def main():
     print("Building graph...")
     
     # Add nodes
-    graph.add_node(
+    graph.add(
         "source",
         "Source Node",
         [],  # no input ports
@@ -43,7 +43,7 @@ def main():
         source_fn
     )
 
-    graph.add_node(
+    graph.add(
         "doubler",
         "Doubler Node",
         [graph_sp.Port("input", "Input")],
@@ -51,7 +51,7 @@ def main():
         double_fn
     )
     
-    graph.add_node(
+    graph.add(
         "adder",
         "Add Five Node",
         [graph_sp.Port("input", "Input")],

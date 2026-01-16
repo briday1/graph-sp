@@ -165,7 +165,7 @@ impl Graph {
     }
 
     /// Add a node to the graph
-    pub fn add_node(&mut self, node: Node) -> Result<()> {
+    pub fn add(&mut self, node: Node) -> Result<()> {
         let node_id = node.config.id.clone();
 
         if self.node_indices.contains_key(&node_id) {
@@ -178,6 +178,12 @@ impl Graph {
         let index = self.graph.add_node(node);
         self.node_indices.insert(node_id, index);
         Ok(())
+    }
+
+    /// Alias for add() for backward compatibility
+    #[deprecated(since = "0.2.0", note = "Use `add` instead")]
+    pub fn add_node(&mut self, node: Node) -> Result<()> {
+        self.add(node)
     }
 
     /// Add an edge to the graph
@@ -359,7 +365,7 @@ mod tests {
         );
 
         let node = Node::new(config);
-        assert!(graph.add_node(node).is_ok());
+        assert!(graph.add(node).is_ok());
         assert_eq!(graph.node_count(), 1);
     }
 
@@ -377,8 +383,8 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        assert!(graph.add_node(Node::new(config1)).is_ok());
-        assert!(graph.add_node(Node::new(config2)).is_err());
+        assert!(graph.add(Node::new(config1)).is_ok());
+        assert!(graph.add(Node::new(config2)).is_err());
     }
 
     #[test]
@@ -401,8 +407,8 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(config1)).unwrap();
-        graph.add_node(Node::new(config2)).unwrap();
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
 
         let edge = Edge::new("node1", "output", "node2", "input");
         assert!(graph.add_edge(edge).is_ok());
@@ -433,7 +439,7 @@ mod tests {
                 outputs,
                 Arc::new(dummy_function),
             );
-            graph.add_node(Node::new(config)).unwrap();
+            graph.add(Node::new(config)).unwrap();
         }
 
         graph
@@ -471,8 +477,8 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(config1)).unwrap();
-        graph.add_node(Node::new(config2)).unwrap();
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
 
         graph
             .add_edge(Edge::new("node1", "output", "node2", "input"))

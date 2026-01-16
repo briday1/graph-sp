@@ -61,9 +61,9 @@ async fn test_full_pipeline() {
     );
 
     // Add nodes
-    graph.add_node(Node::new(source)).unwrap();
-    graph.add_node(Node::new(adder)).unwrap();
-    graph.add_node(Node::new(multiplier)).unwrap();
+    graph.add(Node::new(source)).unwrap();
+    graph.add(Node::new(adder)).unwrap();
+    graph.add(Node::new(multiplier)).unwrap();
 
     // Connect nodes
     graph
@@ -147,7 +147,7 @@ async fn test_graph_with_optional_ports() {
     node.set_input("required", PortData::Int(42));
     // Note: not setting optional input
 
-    graph.add_node(node).unwrap();
+    graph.add(node).unwrap();
 
     let executor = Executor::new();
     let result = executor.execute(&mut graph).await.unwrap();
@@ -189,7 +189,7 @@ async fn test_complex_data_types() {
         }),
     );
 
-    graph.add_node(Node::new(config)).unwrap();
+    graph.add(Node::new(config)).unwrap();
 
     let executor = Executor::new();
     let result = executor.execute(&mut graph).await.unwrap();
@@ -222,7 +222,7 @@ fn test_graph_validation_rejects_cycles() {
             vec![Port::new("out", "Output")],
             Arc::new(|inputs: &HashMap<String, PortData>| Ok(inputs.clone())),
         );
-        graph.add_node(Node::new(config)).unwrap();
+        graph.add(Node::new(config)).unwrap();
     }
 
     graph.add_edge(Edge::new("A", "out", "B", "in")).unwrap();
@@ -245,7 +245,7 @@ fn test_inspector_visualization() {
         Arc::new(|_inputs: &HashMap<String, PortData>| Ok(HashMap::new())),
     );
 
-    graph.add_node(Node::new(config)).unwrap();
+    graph.add(Node::new(config)).unwrap();
 
     let visualization = Inspector::visualize(&graph).unwrap();
 
