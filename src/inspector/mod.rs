@@ -195,6 +195,59 @@ impl Inspector {
         
         Ok(output)
     }
+
+    /// Generate a Mermaid diagram representation of the graph
+    pub fn to_mermaid(graph: &Graph) -> Result<String> {
+        let mut output = String::new();
+        
+        output.push_str("```mermaid\n");
+        output.push_str("graph TD\n");
+        
+        // Add nodes with styling
+        for node in graph.nodes() {
+            let node_id = &node.config.id;
+            let node_name = &node.config.name;
+            
+            // Sanitize node ID for Mermaid (replace special chars)
+            let safe_id = node_id.replace('-', "_").replace(' ', "_");
+            
+            // Style nodes based on whether they're source/sink
+            let incoming = graph.incoming_edges(node_id).unwrap_or_default();
+            let outgoing = graph.outgoing_edges(node_id).unwrap_or_default();
+            
+            if incoming.is_empty() && !outgoing.is_empty() {
+                // Source node
+                output.push_str(&format!("    {}[\"🔵 {}\"]\n", safe_id, node_name));
+                output.push_str(&format!("    style {} fill:#e1f5ff,stroke:#01579b,stroke-width:2px\n", safe_id));
+            } else if outgoing.is_empty() && !incoming.is_empty() {
+                // Sink node
+                output.push_str(&format!("    {}[\"🎯 {}\"]\n", safe_id, node_name));
+                output.push_str(&format!("    style {} fill:#f3e5f5,stroke:#4a148c,stroke-width:2px\n", safe_id));
+            } else {
+                // Processing node
+                output.push_str(&format!("    {}[\"⚙️ {}\"]\n", safe_id, node_name));
+                output.push_str(&format!("    style {} fill:#fff3e0,stroke:#e65100,stroke-width:2px\n", safe_id));
+            }
+        }
+        
+        output.push('\n');
+        
+        // Add edges with labels
+        for edge in graph.edges() {
+            let from_safe = edge.from_node.replace('-', "_").replace(' ', "_");
+            let to_safe = edge.to_node.replace('-', "_").replace(' ', "_");
+            let label = format!("{}→{}", edge.from_port, edge.to_port);
+            
+            output.push_str(&format!(
+                "    {} -->|\"{}\"| {}\n",
+                from_safe, label, to_safe
+            ));
+        }
+        
+        output.push_str("```\n");
+        
+        Ok(output)
+    }
 }
 
 /// Analysis results for a graph

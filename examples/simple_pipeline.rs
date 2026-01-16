@@ -138,6 +138,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let visualization = Inspector::visualize(&graph)?;
     println!("{}", visualization);
 
+    // Generate Mermaid diagram
+    println!("=== Mermaid Diagram ===");
+    let mermaid = Inspector::to_mermaid(&graph)?;
+    println!("{}", mermaid);
+
     // Get optimization suggestions
     println!("=== Optimization Suggestions ===");
     let optimizations = Inspector::suggest_optimizations(&graph);

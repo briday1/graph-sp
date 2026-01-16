@@ -179,6 +179,11 @@ impl PyGraph {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
+    fn to_mermaid(&self) -> PyResult<String> {
+        Inspector::to_mermaid(&self.inner)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn analyze(&self) -> PyResult<PyGraphAnalysis> {
         let analysis = Inspector::analyze(&self.inner);
         Ok(PyGraphAnalysis { inner: analysis })

@@ -84,6 +84,11 @@ async def main():
     visualization = graph.visualize()
     print(visualization)
 
+    # Generate Mermaid diagram
+    print("=== Mermaid Diagram ===")
+    mermaid = graph.to_mermaid()
+    print(mermaid)
+
     # Execute
     print("=== Executing Graph ===")
     executor = graph_sp.Executor()
