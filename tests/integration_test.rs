@@ -1,6 +1,6 @@
 //! Integration tests for graph-sp
 
-use graph_sp::core::{Graph, Node, NodeConfig, Port, PortData, Edge};
+use graph_sp::core::{Edge, Graph, Node, NodeConfig, Port, PortData};
 use graph_sp::executor::Executor;
 use graph_sp::inspector::Inspector;
 use std::collections::HashMap;
@@ -66,9 +66,15 @@ async fn test_full_pipeline() {
     graph.add_node(Node::new(multiplier)).unwrap();
 
     // Connect nodes
-    graph.add_edge(Edge::new("source", "value1", "adder", "a")).unwrap();
-    graph.add_edge(Edge::new("source", "value2", "adder", "b")).unwrap();
-    graph.add_edge(Edge::new("adder", "sum", "multiplier", "input")).unwrap();
+    graph
+        .add_edge(Edge::new("source", "value1", "adder", "a"))
+        .unwrap();
+    graph
+        .add_edge(Edge::new("source", "value2", "adder", "b"))
+        .unwrap();
+    graph
+        .add_edge(Edge::new("adder", "sum", "multiplier", "input"))
+        .unwrap();
 
     // Validate
     assert!(graph.validate().is_ok());
@@ -87,7 +93,7 @@ async fn test_full_pipeline() {
 
     // Verify results
     assert!(result.is_success());
-    
+
     // Source outputs 10 and 20
     assert_eq!(
         result.get_output("source", "value1"),
@@ -97,13 +103,10 @@ async fn test_full_pipeline() {
         result.get_output("source", "value2"),
         Some(&PortData::Int(20))
     );
-    
+
     // Adder outputs 30 (10 + 20)
-    assert_eq!(
-        result.get_output("adder", "sum"),
-        Some(&PortData::Int(30))
-    );
-    
+    assert_eq!(result.get_output("adder", "sum"), Some(&PortData::Int(30)));
+
     // Multiplier outputs 60 (30 * 2)
     assert_eq!(
         result.get_output("multiplier", "output"),
@@ -127,7 +130,8 @@ async fn test_graph_with_optional_ports() {
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             if let Some(PortData::Int(req)) = inputs.get("required") {
-                let opt = inputs.get("optional")
+                let opt = inputs
+                    .get("optional")
                     .and_then(|d| match d {
                         PortData::Int(v) => Some(*v),
                         _ => None,
@@ -142,7 +146,7 @@ async fn test_graph_with_optional_ports() {
     let mut node = Node::new(config);
     node.set_input("required", PortData::Int(42));
     // Note: not setting optional input
-    
+
     graph.add_node(node).unwrap();
 
     let executor = Executor::new();
@@ -179,11 +183,7 @@ async fn test_complex_data_types() {
             outputs.insert("bool".to_string(), PortData::Bool(true));
             outputs.insert(
                 "list".to_string(),
-                PortData::List(vec![
-                    PortData::Int(1),
-                    PortData::Int(2),
-                    PortData::Int(3),
-                ]),
+                PortData::List(vec![PortData::Int(1), PortData::Int(2), PortData::Int(3)]),
             );
             Ok(outputs)
         }),
@@ -220,9 +220,7 @@ fn test_graph_validation_rejects_cycles() {
             id,
             vec![Port::new("in", "Input")],
             vec![Port::new("out", "Output")],
-            Arc::new(|inputs: &HashMap<String, PortData>| {
-                Ok(inputs.clone())
-            }),
+            Arc::new(|inputs: &HashMap<String, PortData>| Ok(inputs.clone())),
         );
         graph.add_node(Node::new(config)).unwrap();
     }
@@ -250,7 +248,7 @@ fn test_inspector_visualization() {
     graph.add_node(Node::new(config)).unwrap();
 
     let visualization = Inspector::visualize(&graph).unwrap();
-    
+
     assert!(visualization.contains("Test Node"));
     assert!(visualization.contains("test_node"));
     assert!(visualization.contains("Input Port"));

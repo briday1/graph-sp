@@ -1,5 +1,8 @@
 //! Python bindings for the graph execution engine.
 
+// Allow non-local definitions for PyO3 macros
+#![allow(non_local_definitions)]
+
 #[cfg(feature = "python")]
 use pyo3::prelude::*;
 #[cfg(feature = "python")]
@@ -8,11 +11,11 @@ use pyo3::types::{PyDict, PyList};
 use std::collections::HashMap;
 
 #[cfg(feature = "python")]
-use crate::core::{Graph, Node, NodeConfig, Port, Edge, PortData};
+use crate::core::{Edge, Graph, Node, NodeConfig, Port, PortData};
 #[cfg(feature = "python")]
-use crate::executor::{Executor, ExecutionResult};
+use crate::executor::{ExecutionResult, Executor};
 #[cfg(feature = "python")]
-use crate::inspector::{Inspector, GraphAnalysis};
+use crate::inspector::{GraphAnalysis, Inspector};
 
 #[cfg(feature = "python")]
 /// Python wrapper for PortData
@@ -145,7 +148,8 @@ impl PyGraph {
         let config = NodeConfig::new(id, name, inputs, outputs, node_func);
         let node = Node::new(config);
 
-        self.inner.add_node(node)
+        self.inner
+            .add_node(node)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
@@ -157,12 +161,14 @@ impl PyGraph {
         to_port: String,
     ) -> PyResult<()> {
         let edge = Edge::new(from_node, from_port, to_node, to_port);
-        self.inner.add_edge(edge)
+        self.inner
+            .add_edge(edge)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
     fn validate(&self) -> PyResult<()> {
-        self.inner.validate()
+        self.inner
+            .validate()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
@@ -213,7 +219,7 @@ impl PyExecutor {
     fn execute(&self, graph: &mut PyGraph, py: Python) -> PyResult<PyExecutionResult> {
         let mut graph_clone = graph.inner.clone();
         let inner_executor = self.inner.clone();
-        
+
         // Release the GIL before creating the runtime
         py.allow_threads(|| {
             // Use tokio runtime with multi-threaded scheduler
@@ -222,12 +228,12 @@ impl PyExecutor {
                 .enable_all()
                 .build()
                 .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-            
+
             // Block on the execution (GIL is released, so with_gil calls inside will work)
-            let result = rt.block_on(async move {
-                inner_executor.execute(&mut graph_clone).await
-            }).map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-            
+            let result = rt
+                .block_on(async move { inner_executor.execute(&mut graph_clone).await })
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
             Ok(PyExecutionResult { inner: result })
         })
     }
@@ -294,7 +300,7 @@ impl PyGraphAnalysis {
 // Helper functions for Python<->Rust conversion
 fn python_to_port_data(value: &PyAny) -> PyResult<PortData> {
     use pyo3::types::{PyBool, PyFloat, PyLong, PyString};
-    
+
     if value.is_none() {
         Ok(PortData::None)
     } else if let Ok(b) = value.downcast::<PyBool>() {

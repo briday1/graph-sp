@@ -11,14 +11,14 @@ impl Inspector {
     pub fn analyze(graph: &Graph) -> GraphAnalysis {
         let node_count = graph.node_count();
         let edge_count = graph.edge_count();
-        
+
         // Calculate depth and width
         let (depth, width) = Self::calculate_dimensions(graph);
-        
+
         // Find source and sink nodes
         let sources = Self::find_source_nodes(graph);
         let sinks = Self::find_sink_nodes(graph);
-        
+
         // Calculate complexity metrics
         let avg_connections = if node_count > 0 {
             edge_count as f64 / node_count as f64
@@ -44,7 +44,8 @@ impl Inspector {
             .nodes()
             .iter()
             .filter(|node| {
-                graph.incoming_edges(&node.config.id)
+                graph
+                    .incoming_edges(&node.config.id)
                     .map(|edges| edges.is_empty())
                     .unwrap_or(false)
             })
@@ -58,7 +59,8 @@ impl Inspector {
             .nodes()
             .iter()
             .filter(|node| {
-                graph.outgoing_edges(&node.config.id)
+                graph
+                    .outgoing_edges(&node.config.id)
                     .map(|edges| edges.is_empty())
                     .unwrap_or(false)
             })
@@ -80,7 +82,7 @@ impl Inspector {
 
         // Calculate level for each node
         let mut levels: HashMap<String, usize> = HashMap::new();
-        
+
         for node_id in &order {
             // Find max level of predecessors
             let incoming = graph.incoming_edges(node_id).unwrap_or_default();
@@ -90,11 +92,11 @@ impl Inspector {
                 .max()
                 .copied()
                 .unwrap_or(0);
-            
-            let level = if incoming.is_empty() { 
-                0 
-            } else { 
-                max_pred_level + 1 
+
+            let level = if incoming.is_empty() {
+                0
+            } else {
+                max_pred_level + 1
             };
             levels.insert(node_id.clone(), level);
         }
@@ -119,7 +121,7 @@ impl Inspector {
         for node in graph.nodes() {
             let incoming = graph.incoming_edges(&node.config.id).unwrap_or_default();
             let outgoing = graph.outgoing_edges(&node.config.id).unwrap_or_default();
-            
+
             if incoming.is_empty() && outgoing.is_empty() && graph.node_count() > 1 {
                 suggestions.push(Optimization {
                     optimization_type: OptimizationType::RemoveIsolatedNode,
@@ -153,14 +155,17 @@ impl Inspector {
     pub fn visualize(graph: &Graph) -> Result<String> {
         let order = graph.topological_order()?;
         let mut output = String::new();
-        
+
         output.push_str("Graph Structure:\n");
         output.push_str("================\n\n");
-        
+
         for node_id in order {
             let node = graph.get_node(&node_id)?;
-            output.push_str(&format!("Node: {} ({})\n", node.config.name, node.config.id));
-            
+            output.push_str(&format!(
+                "Node: {} ({})\n",
+                node.config.name, node.config.id
+            ));
+
             // Show inputs
             if !node.config.input_ports.is_empty() {
                 output.push_str("  Inputs:\n");
@@ -169,7 +174,7 @@ impl Inspector {
                     output.push_str(&format!("    - {}{} ({})\n", port.name, required, port.id));
                 }
             }
-            
+
             // Show outputs
             if !node.config.output_ports.is_empty() {
                 output.push_str("  Outputs:\n");
@@ -177,7 +182,7 @@ impl Inspector {
                     output.push_str(&format!("    - {} ({})\n", port.name, port.id));
                 }
             }
-            
+
             // Show connections
             let outgoing = graph.outgoing_edges(&node_id)?;
             if !outgoing.is_empty() {
@@ -189,63 +194,72 @@ impl Inspector {
                     ));
                 }
             }
-            
+
             output.push('\n');
         }
-        
+
         Ok(output)
     }
 
     /// Generate a Mermaid diagram representation of the graph
     pub fn to_mermaid(graph: &Graph) -> Result<String> {
         let mut output = String::new();
-        
+
         output.push_str("```mermaid\n");
         output.push_str("graph TD\n");
-        
+
         // Add nodes with styling
         for node in graph.nodes() {
             let node_id = &node.config.id;
             let node_name = &node.config.name;
-            
+
             // Sanitize node ID for Mermaid (replace special chars)
-            let safe_id = node_id.replace('-', "_").replace(' ', "_");
-            
+            let safe_id = node_id.replace(['-', ' '], "_");
+
             // Style nodes based on whether they're source/sink
             let incoming = graph.incoming_edges(node_id).unwrap_or_default();
             let outgoing = graph.outgoing_edges(node_id).unwrap_or_default();
-            
+
             if incoming.is_empty() && !outgoing.is_empty() {
                 // Source node
                 output.push_str(&format!("    {}[\"{}\"]\n", safe_id, node_name));
-                output.push_str(&format!("    style {} fill:#e1f5ff,stroke:#01579b,stroke-width:2px\n", safe_id));
+                output.push_str(&format!(
+                    "    style {} fill:#e1f5ff,stroke:#01579b,stroke-width:2px\n",
+                    safe_id
+                ));
             } else if outgoing.is_empty() && !incoming.is_empty() {
                 // Sink node
                 output.push_str(&format!("    {}[\"{}\"]\n", safe_id, node_name));
-                output.push_str(&format!("    style {} fill:#f3e5f5,stroke:#4a148c,stroke-width:2px\n", safe_id));
+                output.push_str(&format!(
+                    "    style {} fill:#f3e5f5,stroke:#4a148c,stroke-width:2px\n",
+                    safe_id
+                ));
             } else {
                 // Processing node
                 output.push_str(&format!("    {}[\"{}\"]\n", safe_id, node_name));
-                output.push_str(&format!("    style {} fill:#fff3e0,stroke:#e65100,stroke-width:2px\n", safe_id));
+                output.push_str(&format!(
+                    "    style {} fill:#fff3e0,stroke:#e65100,stroke-width:2px\n",
+                    safe_id
+                ));
             }
         }
-        
+
         output.push('\n');
-        
+
         // Add edges with labels
         for edge in graph.edges() {
-            let from_safe = edge.from_node.replace('-', "_").replace(' ', "_");
-            let to_safe = edge.to_node.replace('-', "_").replace(' ', "_");
+            let from_safe = edge.from_node.replace(['-', ' '], "_");
+            let to_safe = edge.to_node.replace(['-', ' '], "_");
             let label = format!("{}→{}", edge.from_port, edge.to_port);
-            
+
             output.push_str(&format!(
                 "    {} -->|\"{}\"| {}\n",
                 from_safe, label, to_safe
             ));
         }
-        
+
         output.push_str("```\n");
-        
+
         Ok(output)
     }
 }
@@ -315,9 +329,9 @@ pub enum OptimizationType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::{Node, NodeConfig, Port, Edge};
-    use std::sync::Arc;
+    use crate::core::{Edge, Node, NodeConfig, Port};
     use std::collections::HashMap;
+    use std::sync::Arc;
 
     fn dummy_function(
         _inputs: &HashMap<String, crate::core::PortData>,
@@ -329,7 +343,7 @@ mod tests {
     fn test_analyze_empty_graph() {
         let graph = Graph::new();
         let analysis = Inspector::analyze(&graph);
-        
+
         assert_eq!(analysis.node_count, 0);
         assert_eq!(analysis.edge_count, 0);
         assert_eq!(analysis.depth, 0);
@@ -339,7 +353,7 @@ mod tests {
     #[test]
     fn test_find_source_and_sink_nodes() {
         let mut graph = Graph::new();
-        
+
         // Create linear graph: source -> middle -> sink
         let config1 = NodeConfig::new(
             "source",
@@ -348,7 +362,7 @@ mod tests {
             vec![Port::new("out", "Output")],
             Arc::new(dummy_function),
         );
-        
+
         let config2 = NodeConfig::new(
             "middle",
             "Middle",
@@ -356,7 +370,7 @@ mod tests {
             vec![Port::new("out", "Output")],
             Arc::new(dummy_function),
         );
-        
+
         let config3 = NodeConfig::new(
             "sink",
             "Sink",
@@ -364,16 +378,20 @@ mod tests {
             vec![],
             Arc::new(dummy_function),
         );
-        
+
         graph.add_node(Node::new(config1)).unwrap();
         graph.add_node(Node::new(config2)).unwrap();
         graph.add_node(Node::new(config3)).unwrap();
-        
-        graph.add_edge(Edge::new("source", "out", "middle", "in")).unwrap();
-        graph.add_edge(Edge::new("middle", "out", "sink", "in")).unwrap();
-        
+
+        graph
+            .add_edge(Edge::new("source", "out", "middle", "in"))
+            .unwrap();
+        graph
+            .add_edge(Edge::new("middle", "out", "sink", "in"))
+            .unwrap();
+
         let analysis = Inspector::analyze(&graph);
-        
+
         assert_eq!(analysis.source_nodes.len(), 1);
         assert_eq!(analysis.source_nodes[0], "source");
         assert_eq!(analysis.sink_nodes.len(), 1);
@@ -385,15 +403,9 @@ mod tests {
     #[test]
     fn test_suggest_optimizations_isolated_node() {
         let mut graph = Graph::new();
-        
-        let config1 = NodeConfig::new(
-            "node1",
-            "Node 1",
-            vec![],
-            vec![],
-            Arc::new(dummy_function),
-        );
-        
+
+        let config1 = NodeConfig::new("node1", "Node 1", vec![], vec![], Arc::new(dummy_function));
+
         let config2 = NodeConfig::new(
             "node2",
             "Node 2",
@@ -401,12 +413,12 @@ mod tests {
             vec![Port::new("out", "Output")],
             Arc::new(dummy_function),
         );
-        
+
         graph.add_node(Node::new(config1)).unwrap();
         graph.add_node(Node::new(config2)).unwrap();
-        
+
         let optimizations = Inspector::suggest_optimizations(&graph);
-        
+
         assert!(!optimizations.is_empty());
         assert!(optimizations
             .iter()

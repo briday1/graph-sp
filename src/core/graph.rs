@@ -1,16 +1,17 @@
 //! Graph structure and node definitions for the DAG execution engine.
 
-use crate::core::data::{NodeId, Port, PortId, PortData};
+use crate::core::data::{NodeId, Port, PortData, PortId};
 use crate::core::error::{GraphError, Result};
-use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::algo::toposort;
+use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::Direction;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Function type for node execution
-pub type NodeFunction = Arc<dyn Fn(&HashMap<PortId, PortData>) -> Result<HashMap<PortId, PortData>> + Send + Sync>;
+pub type NodeFunction =
+    Arc<dyn Fn(&HashMap<PortId, PortData>) -> Result<HashMap<PortId, PortData>> + Send + Sync>;
 
 /// Configuration for a node in the graph
 #[derive(Clone)]
@@ -166,7 +167,7 @@ impl Graph {
     /// Add a node to the graph
     pub fn add_node(&mut self, node: Node) -> Result<()> {
         let node_id = node.config.id.clone();
-        
+
         if self.node_indices.contains_key(&node_id) {
             return Err(GraphError::InvalidGraph(format!(
                 "Node with ID '{}' already exists",
@@ -181,14 +182,23 @@ impl Graph {
 
     /// Add an edge to the graph
     pub fn add_edge(&mut self, edge: Edge) -> Result<()> {
-        let from_idx = self.node_indices.get(&edge.from_node)
+        let from_idx = self
+            .node_indices
+            .get(&edge.from_node)
             .ok_or_else(|| GraphError::NodeNotFound(edge.from_node.clone()))?;
-        let to_idx = self.node_indices.get(&edge.to_node)
+        let to_idx = self
+            .node_indices
+            .get(&edge.to_node)
             .ok_or_else(|| GraphError::NodeNotFound(edge.to_node.clone()))?;
 
         // Check if the output port exists
         let from_node = &self.graph[*from_idx];
-        if !from_node.config.output_ports.iter().any(|p| p.id == edge.from_port) {
+        if !from_node
+            .config
+            .output_ports
+            .iter()
+            .any(|p| p.id == edge.from_port)
+        {
             return Err(GraphError::PortError(format!(
                 "Output port '{}' not found on node '{}'",
                 edge.from_port, edge.from_node
@@ -197,7 +207,12 @@ impl Graph {
 
         // Check if the input port exists
         let to_node = &self.graph[*to_idx];
-        if !to_node.config.input_ports.iter().any(|p| p.id == edge.to_port) {
+        if !to_node
+            .config
+            .input_ports
+            .iter()
+            .any(|p| p.id == edge.to_port)
+        {
             return Err(GraphError::PortError(format!(
                 "Input port '{}' not found on node '{}'",
                 edge.to_port, edge.to_node
@@ -210,14 +225,18 @@ impl Graph {
 
     /// Get a node by ID
     pub fn get_node(&self, node_id: &str) -> Result<&Node> {
-        let idx = self.node_indices.get(node_id)
+        let idx = self
+            .node_indices
+            .get(node_id)
             .ok_or_else(|| GraphError::NodeNotFound(node_id.to_string()))?;
         Ok(&self.graph[*idx])
     }
 
     /// Get a mutable reference to a node by ID
     pub fn get_node_mut(&mut self, node_id: &str) -> Result<&mut Node> {
-        let idx = self.node_indices.get(node_id)
+        let idx = self
+            .node_indices
+            .get(node_id)
             .ok_or_else(|| GraphError::NodeNotFound(node_id.to_string()))?;
         Ok(&mut self.graph[*idx])
     }
@@ -235,11 +254,10 @@ impl Graph {
 
     /// Get a topological ordering of the nodes
     pub fn topological_order(&self) -> Result<Vec<NodeId>> {
-        let sorted = toposort(&self.graph, None)
-            .map_err(|cycle| {
-                let node = &self.graph[cycle.node_id()];
-                GraphError::CycleDetected(node.config.id.clone())
-            })?;
+        let sorted = toposort(&self.graph, None).map_err(|cycle| {
+            let node = &self.graph[cycle.node_id()];
+            GraphError::CycleDetected(node.config.id.clone())
+        })?;
 
         Ok(sorted
             .into_iter()
@@ -249,12 +267,18 @@ impl Graph {
 
     /// Get all nodes in the graph
     pub fn nodes(&self) -> Vec<&Node> {
-        self.graph.node_indices().map(|idx| &self.graph[idx]).collect()
+        self.graph
+            .node_indices()
+            .map(|idx| &self.graph[idx])
+            .collect()
     }
 
     /// Get all edges in the graph
     pub fn edges(&self) -> Vec<&Edge> {
-        self.graph.edge_indices().map(|idx| &self.graph[idx]).collect()
+        self.graph
+            .edge_indices()
+            .map(|idx| &self.graph[idx])
+            .collect()
     }
 
     /// Get the number of nodes
@@ -269,10 +293,13 @@ impl Graph {
 
     /// Get incoming edges for a node
     pub fn incoming_edges(&self, node_id: &str) -> Result<Vec<&Edge>> {
-        let idx = self.node_indices.get(node_id)
+        let idx = self
+            .node_indices
+            .get(node_id)
             .ok_or_else(|| GraphError::NodeNotFound(node_id.to_string()))?;
-        
-        Ok(self.graph
+
+        Ok(self
+            .graph
             .edges_directed(*idx, Direction::Incoming)
             .map(|e| e.weight())
             .collect())
@@ -280,10 +307,13 @@ impl Graph {
 
     /// Get outgoing edges for a node
     pub fn outgoing_edges(&self, node_id: &str) -> Result<Vec<&Edge>> {
-        let idx = self.node_indices.get(node_id)
+        let idx = self
+            .node_indices
+            .get(node_id)
             .ok_or_else(|| GraphError::NodeNotFound(node_id.to_string()))?;
-        
-        Ok(self.graph
+
+        Ok(self
+            .graph
             .edges_directed(*idx, Direction::Outgoing)
             .map(|e| e.weight())
             .collect())
@@ -319,7 +349,7 @@ mod tests {
     #[test]
     fn test_add_node() {
         let mut graph = Graph::new();
-        
+
         let config = NodeConfig::new(
             "node1",
             "Node 1",
@@ -327,7 +357,7 @@ mod tests {
             vec![Port::new("output", "Output")],
             Arc::new(dummy_function),
         );
-        
+
         let node = Node::new(config);
         assert!(graph.add_node(node).is_ok());
         assert_eq!(graph.node_count(), 1);
@@ -336,15 +366,9 @@ mod tests {
     #[test]
     fn test_duplicate_node_id() {
         let mut graph = Graph::new();
-        
-        let config1 = NodeConfig::new(
-            "node1",
-            "Node 1",
-            vec![],
-            vec![],
-            Arc::new(dummy_function),
-        );
-        
+
+        let config1 = NodeConfig::new("node1", "Node 1", vec![], vec![], Arc::new(dummy_function));
+
         let config2 = NodeConfig::new(
             "node1",
             "Node 1 Duplicate",
@@ -352,7 +376,7 @@ mod tests {
             vec![],
             Arc::new(dummy_function),
         );
-        
+
         assert!(graph.add_node(Node::new(config1)).is_ok());
         assert!(graph.add_node(Node::new(config2)).is_err());
     }
@@ -360,7 +384,7 @@ mod tests {
     #[test]
     fn test_add_edge() {
         let mut graph = Graph::new();
-        
+
         let config1 = NodeConfig::new(
             "node1",
             "Node 1",
@@ -368,7 +392,7 @@ mod tests {
             vec![Port::new("output", "Output")],
             Arc::new(dummy_function),
         );
-        
+
         let config2 = NodeConfig::new(
             "node2",
             "Node 2",
@@ -376,10 +400,10 @@ mod tests {
             vec![],
             Arc::new(dummy_function),
         );
-        
+
         graph.add_node(Node::new(config1)).unwrap();
         graph.add_node(Node::new(config2)).unwrap();
-        
+
         let edge = Edge::new("node1", "output", "node2", "input");
         assert!(graph.add_edge(edge).is_ok());
         assert_eq!(graph.edge_count(), 1);
@@ -388,12 +412,20 @@ mod tests {
     #[test]
     fn test_topological_order() {
         let mut graph = Graph::new();
-        
+
         // Create a simple linear graph: node1 -> node2 -> node3
         for i in 1..=3 {
-            let outputs = if i < 3 { vec![Port::new("output", "Output")] } else { vec![] };
-            let inputs = if i > 1 { vec![Port::new("input", "Input")] } else { vec![] };
-            
+            let outputs = if i < 3 {
+                vec![Port::new("output", "Output")]
+            } else {
+                vec![]
+            };
+            let inputs = if i > 1 {
+                vec![Port::new("input", "Input")]
+            } else {
+                vec![]
+            };
+
             let config = NodeConfig::new(
                 format!("node{}", i),
                 format!("Node {}", i),
@@ -403,10 +435,14 @@ mod tests {
             );
             graph.add_node(Node::new(config)).unwrap();
         }
-        
-        graph.add_edge(Edge::new("node1", "output", "node2", "input")).unwrap();
-        graph.add_edge(Edge::new("node2", "output", "node3", "input")).unwrap();
-        
+
+        graph
+            .add_edge(Edge::new("node1", "output", "node2", "input"))
+            .unwrap();
+        graph
+            .add_edge(Edge::new("node2", "output", "node3", "input"))
+            .unwrap();
+
         let order = graph.topological_order().unwrap();
         assert_eq!(order.len(), 3);
         assert_eq!(order[0], "node1");
@@ -417,7 +453,7 @@ mod tests {
     #[test]
     fn test_cycle_detection() {
         let mut graph = Graph::new();
-        
+
         // Create a cycle: node1 -> node2 -> node1
         let config1 = NodeConfig::new(
             "node1",
@@ -426,7 +462,7 @@ mod tests {
             vec![Port::new("output", "Output")],
             Arc::new(dummy_function),
         );
-        
+
         let config2 = NodeConfig::new(
             "node2",
             "Node 2",
@@ -434,13 +470,17 @@ mod tests {
             vec![Port::new("output", "Output")],
             Arc::new(dummy_function),
         );
-        
+
         graph.add_node(Node::new(config1)).unwrap();
         graph.add_node(Node::new(config2)).unwrap();
-        
-        graph.add_edge(Edge::new("node1", "output", "node2", "input")).unwrap();
-        graph.add_edge(Edge::new("node2", "output", "node1", "input")).unwrap();
-        
+
+        graph
+            .add_edge(Edge::new("node1", "output", "node2", "input"))
+            .unwrap();
+        graph
+            .add_edge(Edge::new("node2", "output", "node1", "input"))
+            .unwrap();
+
         assert!(graph.validate().is_err());
     }
 }

@@ -1,6 +1,6 @@
 //! Example: Simple pipeline demonstrating graph-sp capabilities
 
-use graph_sp::core::{Graph, Node, NodeConfig, Port, PortData, Edge};
+use graph_sp::core::{Edge, Graph, Node, NodeConfig, Port, PortData};
 use graph_sp::executor::Executor;
 use graph_sp::inspector::Inspector;
 use std::collections::HashMap;
@@ -119,7 +119,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     graph.add_edge(Edge::new("data_source", "numbers", "multiplier", "input"))?;
     graph.add_edge(Edge::new("multiplier", "output", "sum_calculator", "input"))?;
     graph.add_edge(Edge::new("sum_calculator", "sum", "avg_calculator", "sum"))?;
-    graph.add_edge(Edge::new("sum_calculator", "count", "avg_calculator", "count"))?;
+    graph.add_edge(Edge::new(
+        "sum_calculator",
+        "count",
+        "avg_calculator",
+        "count",
+    ))?;
 
     println!("Graph built successfully!\n");
 
@@ -159,14 +164,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Executing Graph ===");
     let executor = Executor::new();
     println!("Running parallel execution...");
-    
+
     let result = executor.execute(&mut graph).await?;
-    
+
     println!("✓ Execution completed successfully!\n");
 
     // Display results
     println!("=== Results ===");
-    
+
     // Get original numbers from data source
     if let Some(PortData::List(numbers)) = result.get_output("data_source", "numbers") {
         print!("Original numbers: [");

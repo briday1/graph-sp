@@ -73,6 +73,6 @@ pub mod inspector;
 pub mod python;
 
 // Re-export commonly used types
-pub use core::{Graph, Node, NodeConfig, Port, PortData, GraphData, Edge, GraphError, Result};
-pub use executor::{Executor, ExecutionResult};
-pub use inspector::{Inspector, GraphAnalysis, Optimization, OptimizationType};
+pub use core::{Edge, Graph, GraphData, GraphError, Node, NodeConfig, Port, PortData, Result};
+pub use executor::{ExecutionResult, Executor};
+pub use inspector::{GraphAnalysis, Inspector, Optimization, OptimizationType};

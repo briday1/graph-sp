@@ -161,8 +161,7 @@ mod tests {
 
     #[test]
     fn test_optional_port() {
-        let port = Port::optional("opt1", "Optional 1")
-            .with_description("An optional port");
+        let port = Port::optional("opt1", "Optional 1").with_description("An optional port");
         assert!(!port.required);
         assert_eq!(port.description.unwrap(), "An optional port");
     }
@@ -170,18 +169,18 @@ mod tests {
     #[test]
     fn test_graph_data_operations() {
         let mut data = GraphData::new();
-        
+
         // Test set and get
         data.set("port1", PortData::Int(42));
         assert!(data.has("port1"));
         assert_eq!(data.len(), 1);
-        
+
         if let Some(PortData::Int(val)) = data.get("port1") {
             assert_eq!(*val, 42);
         } else {
             panic!("Expected Int(42)");
         }
-        
+
         // Test remove
         let removed = data.remove("port1");
         assert!(removed.is_some());
@@ -192,12 +191,12 @@ mod tests {
     #[test]
     fn test_port_data_types() {
         let mut data = GraphData::new();
-        
+
         data.set("bool", PortData::Bool(true));
         data.set("int", PortData::Int(123));
         data.set("float", PortData::Float(3.14));
         data.set("string", PortData::String("hello".to_string()));
-        
+
         assert_eq!(data.len(), 4);
         assert!(data.has("bool"));
         assert!(data.has("int"));
