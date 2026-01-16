@@ -4,7 +4,7 @@ use crate::core::{Graph, Result, PortData};
 use dashmap::DashMap;
 use std::sync::Arc;
 use std::collections::HashMap;
-use tokio::sync::Semaphore;
+use futures::stream::{FuturesUnordered, StreamExt};
 
 /// Executor for running graphs with parallel execution
 #[derive(Clone)]
@@ -41,24 +41,17 @@ impl Executor {
         // Build dependency levels for parallel execution
         let levels = self.build_dependency_levels(graph, &topo_order)?;
         
-        // Create semaphore for concurrency control
-        let semaphore = Arc::new(Semaphore::new(self.max_concurrency));
-        
         // Execute each level in parallel
         for level in levels {
-            let mut handles = Vec::new();
+            let mut tasks = FuturesUnordered::new();
             
             for node_id in level {
                 let node = graph.get_node(&node_id)?.clone();
                 let edges = graph.incoming_edges(&node_id)?.iter().map(|e| (*e).clone()).collect::<Vec<_>>();
                 let state = Arc::clone(&execution_state);
-                let sem = Arc::clone(&semaphore);
                 
-                // Spawn a task for each node in this level
-                let handle = tokio::spawn(async move {
-                    // Acquire semaphore permit
-                    let _permit = sem.acquire().await.unwrap();
-                    
+                // Spawn a blocking task for each node (nodes execute synchronously)
+                let task = tokio::task::spawn_blocking(move || {
                     let mut node = node;
                     
                     // Collect inputs from incoming edges
@@ -76,16 +69,15 @@ impl Executor {
                     (node.config.id.clone(), node.outputs.clone(), result)
                 });
                 
-                handles.push(handle);
+                tasks.push(task);
             }
             
             // Wait for all nodes in this level to complete
-            for handle in handles {
-                let (node_id, outputs, result) = handle.await.map_err(|e| {
+            while let Some(result) = tasks.next().await {
+                let (node_id, outputs, exec_result) = result.map_err(|e| {
                     crate::core::GraphError::ExecutionError(format!("Task join error: {}", e))
                 })?;
-                
-                result?;
+                exec_result?;
                 execution_state.insert(node_id, outputs);
             }
         }

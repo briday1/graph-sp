@@ -210,26 +210,26 @@ impl PyExecutor {
         Self { inner }
     }
 
-    fn execute(&self, graph: &mut PyGraph) -> PyResult<PyExecutionResult> {
+    fn execute(&self, graph: &mut PyGraph, py: Python) -> PyResult<PyExecutionResult> {
         let mut graph_clone = graph.inner.clone();
-        
-        // Use tokio runtime with multi-threaded scheduler
-        // This is required for tokio::spawn to work
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(4)
-            .enable_all()
-            .build()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
-        
         let inner_executor = self.inner.clone();
-        let result = rt.block_on(async move {
-            inner_executor.execute(&mut graph_clone).await
-        }).map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         
-        // Explicitly shutdown the runtime to ensure all tasks complete
-        rt.shutdown_timeout(std::time::Duration::from_secs(10));
-        
-        Ok(PyExecutionResult { inner: result })
+        // Release the GIL before creating the runtime
+        py.allow_threads(|| {
+            // Use tokio runtime with multi-threaded scheduler
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(4)
+                .enable_all()
+                .build()
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            
+            // Block on the execution (GIL is released, so with_gil calls inside will work)
+            let result = rt.block_on(async move {
+                inner_executor.execute(&mut graph_clone).await
+            }).map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+            
+            Ok(PyExecutionResult { inner: result })
+        })
     }
 }
 
