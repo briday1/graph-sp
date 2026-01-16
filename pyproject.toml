@@ -1,0 +1,41 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "graph-sp"
+version = "0.1.0"
+description = "High-performance DAG execution engine with true parallel execution, built in Rust with Python bindings"
+readme = "python_examples/README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+keywords = ["dag", "graph", "parallel", "execution", "workflow", "pipeline"]
+authors = [
+    {name = "briday1"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: System :: Distributed Computing",
+]
+
+[project.urls]
+Homepage = "https://github.com/briday1/graph-sp"
+Repository = "https://github.com/briday1/graph-sp"
+Issues = "https://github.com/briday1/graph-sp/issues"
+Documentation = "https://github.com/briday1/graph-sp#readme"
+
+[tool.maturin]
+features = ["python"]
+module-name = "graph_sp"
+python-source = "python"
