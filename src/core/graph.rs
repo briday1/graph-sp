@@ -533,7 +533,8 @@ impl Graph {
                 vec![],
                 vec![Port::new(&param_name, "Variant Parameter")],
                 // Note: param_name and param_value must be cloned into the closure
-                // since the closure may outlive the current scope
+                // because the closure is moved into an Arc and needs to own these values
+                // to ensure they remain valid for the lifetime of the node function
                 Arc::new(move |_: &HashMap<PortId, PortData>| {
                     let mut outputs = HashMap::new();
                     outputs.insert(param_name.clone(), param_value.clone());

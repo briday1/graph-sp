@@ -258,13 +258,16 @@ impl Inspector {
             for branch_name in &branch_names {
                 // Try to extract prefix (e.g., "lr_0" -> "lr")
                 if let Some(underscore_pos) = branch_name.rfind('_') {
-                    let prefix = &branch_name[..underscore_pos];
-                    // Check if the suffix is a number
-                    if branch_name[underscore_pos + 1..].parse::<usize>().is_ok() {
-                        variant_groups.entry(prefix.to_string())
-                            .or_insert_with(Vec::new)
-                            .push(branch_name.clone());
-                        continue;
+                    // Ensure there's at least one character after the underscore
+                    if underscore_pos + 1 < branch_name.len() {
+                        let prefix = &branch_name[..underscore_pos];
+                        // Check if the suffix is a number
+                        if branch_name[underscore_pos + 1..].parse::<usize>().is_ok() {
+                            variant_groups.entry(prefix.to_string())
+                                .or_insert_with(Vec::new)
+                                .push(branch_name.clone());
+                            continue;
+                        }
                     }
                 }
                 // If not a numbered variant, add as single branch

@@ -1,6 +1,6 @@
-//! Example: Mermaid Visualization with Variants
+//! Example: Mermaid Visualization with Variants.
 //!
-//! This example demonstrates how variants are visualized in Mermaid diagrams
+//! This example demonstrates how variants are visualized in Mermaid diagrams.
 
 use graph_sp::core::{Graph, MergeConfig, VariantConfig, VariantFunction, PortData};
 use graph_sp::inspector::Inspector;
