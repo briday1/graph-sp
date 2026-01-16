@@ -8,7 +8,7 @@ use pyo3::types::{PyDict, PyList};
 use std::collections::HashMap;
 
 #[cfg(feature = "python")]
-use crate::core::{Graph, Node, NodeConfig, Port, Edge, PortData, GraphData};
+use crate::core::{Graph, Node, NodeConfig, Port, Edge, PortData};
 #[cfg(feature = "python")]
 use crate::executor::{Executor, ExecutionResult};
 #[cfg(feature = "python")]
@@ -318,7 +318,7 @@ fn port_data_to_python(py: Python, data: &PortData) -> PyResult<PyObject> {
         PortData::Int(i) => Ok(i.into_py(py)),
         PortData::Float(f) => Ok(f.into_py(py)),
         PortData::String(s) => Ok(s.into_py(py)),
-        PortData::Bytes(b) => Ok(b.into_py(py)),
+        PortData::Bytes(b) => Ok(b.clone().into_py(py)),
         PortData::Json(j) => Ok(j.to_string().into_py(py)),
         PortData::List(items) => {
             let list = PyList::empty(py);

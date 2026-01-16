@@ -11,7 +11,7 @@ pub type PortId = String;
 pub type NodeId = String;
 
 /// Represents data that can be passed between nodes through ports
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum PortData {
     /// No data (unit type)
     None,
