@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  1. Port name matching (e.g., 'output' -> 'output')");
     println!("  2. Single port auto-connect (if only 1 output and 1 input)\n");
 
-    let mut implicit_graph = Graph::new();  // Default: implicit mapping ON
+    let mut implicit_graph = Graph::new(); // Default: implicit mapping ON
 
     // Example 1a: Simple pipeline with matching port names
     println!("Example 1a: Pipeline with matching port names");
@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let processor1 = NodeConfig::new(
         "processor1",
         "Data Processor",
-        vec![Port::new("data", "Input Data")],  // Matches "data" output
+        vec![Port::new("data", "Input Data")], // Matches "data" output
         vec![Port::new("result", "Processed")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sink1 = NodeConfig::new(
         "sink1",
         "Result Sink",
-        vec![Port::new("result", "Final")],  // Matches "result" output
+        vec![Port::new("result", "Final")], // Matches "result" output
         vec![],
         Arc::new(|_: &HashMap<String, PortData>| Ok(HashMap::new())),
     );
@@ -76,7 +76,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     implicit_graph.add(Node::new(sink1))?;
 
     println!("Added 3 nodes with matching port names");
-    println!("✅ Edges created automatically: {}", implicit_graph.edge_count());
+    println!(
+        "✅ Edges created automatically: {}",
+        implicit_graph.edge_count()
+    );
     println!("   source1 (data) -> processor1 (data)");
     println!("   processor1 (result) -> sink1 (result)");
     println!();
@@ -94,7 +97,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "src",
         "Source",
         vec![],
-        vec![Port::new("out", "Only Output")],  // Only 1 output
+        vec![Port::new("out", "Only Output")], // Only 1 output
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             outputs.insert("out".to_string(), PortData::Int(100));
@@ -105,7 +108,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let proc2 = NodeConfig::new(
         "proc",
         "Processor",
-        vec![Port::new("in", "Only Input")],  // Only 1 input (different name!)
+        vec![Port::new("in", "Only Input")], // Only 1 input (different name!)
         vec![Port::new("result", "Output")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
@@ -121,7 +124,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Port names don't match ('out' vs 'in')");
     println!("BUT both have only 1 port each");
-    println!("✅ Auto-connected anyway: {} edge", implicit_graph2.edge_count());
+    println!(
+        "✅ Auto-connected anyway: {} edge",
+        implicit_graph2.edge_count()
+    );
     println!();
 
     println!("🎨 Mermaid Diagram:");
@@ -137,7 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("In strict mode, you MUST call add_edge() explicitly");
     println!("No automatic connections are made\n");
 
-    let mut explicit_graph = Graph::with_strict_edges();  // Strict mode ON
+    let mut explicit_graph = Graph::with_strict_edges(); // Strict mode ON
 
     println!("Example 2: Manual edge specification");
     println!("------------------------------------");
@@ -182,13 +188,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     explicit_graph.add(Node::new(sink3))?;
 
     println!("Added 3 nodes");
-    println!("Edges before manual connection: {}", explicit_graph.edge_count());
+    println!(
+        "Edges before manual connection: {}",
+        explicit_graph.edge_count()
+    );
 
     // NOW manually add edges
     explicit_graph.add_edge(Edge::new("source", "value", "doubler", "input"))?;
     explicit_graph.add_edge(Edge::new("doubler", "output", "sink", "final"))?;
 
-    println!("✅ After add_edge() calls: {} edges", explicit_graph.edge_count());
+    println!(
+        "✅ After add_edge() calls: {} edges",
+        explicit_graph.edge_count()
+    );
     println!("   Manually specified:");
     println!("   - source (value) -> doubler (input)");
     println!("   - doubler (output) -> sink (final)");
@@ -346,7 +358,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     toggle_graph.add(Node::new(n1))?;
     toggle_graph.add(Node::new(n2))?;
-    println!("Added 2 nodes → {} edge (auto-connected)", toggle_graph.edge_count());
+    println!(
+        "Added 2 nodes → {} edge (auto-connected)",
+        toggle_graph.edge_count()
+    );
 
     // Switch to strict mode
     toggle_graph.set_strict_edge_mapping(true);
@@ -361,7 +376,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     toggle_graph.add(Node::new(n3))?;
-    println!("Added another node → Still {} edge (no auto-connect in strict mode)", toggle_graph.edge_count());
+    println!(
+        "Added another node → Still {} edge (no auto-connect in strict mode)",
+        toggle_graph.edge_count()
+    );
     println!();
 
     // ========================================================================
