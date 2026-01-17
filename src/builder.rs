@@ -4,6 +4,160 @@ use crate::dag::Dag;
 use crate::node::{Node, NodeId};
 use std::sync::Arc;
 
+/// Trait for types that can be converted into variant values
+pub trait IntoVariantValues {
+    fn into_variant_values(self) -> Vec<String>;
+}
+
+/// Implement for Vec<String> - direct list of values
+impl IntoVariantValues for Vec<String> {
+    fn into_variant_values(self) -> Vec<String> {
+        self
+    }
+}
+
+/// Implement for Vec<&str> - direct list of string slices
+impl IntoVariantValues for Vec<&str> {
+    fn into_variant_values(self) -> Vec<String> {
+        self.into_iter().map(|s| s.to_string()).collect()
+    }
+}
+
+/// Implement for Vec<f64> - list of numeric values
+impl IntoVariantValues for Vec<f64> {
+    fn into_variant_values(self) -> Vec<String> {
+        self.into_iter().map(|v| v.to_string()).collect()
+    }
+}
+
+/// Implement for Vec<i32> - list of integer values
+impl IntoVariantValues for Vec<i32> {
+    fn into_variant_values(self) -> Vec<String> {
+        self.into_iter().map(|v| v.to_string()).collect()
+    }
+}
+
+/// Helper struct for linearly spaced values
+pub struct Linspace {
+    start: f64,
+    end: f64,
+    count: usize,
+}
+
+impl Linspace {
+    pub fn new(start: f64, end: f64, count: usize) -> Self {
+        Self { start, end, count }
+    }
+}
+
+impl IntoVariantValues for Linspace {
+    fn into_variant_values(self) -> Vec<String> {
+        if self.count == 0 {
+            return Vec::new();
+        }
+        
+        let step = if self.count > 1 {
+            (self.end - self.start) / (self.count - 1) as f64
+        } else {
+            0.0
+        };
+        
+        (0..self.count)
+            .map(|i| {
+                let value = self.start + step * i as f64;
+                value.to_string()
+            })
+            .collect()
+    }
+}
+
+/// Helper struct for logarithmically spaced values
+pub struct Logspace {
+    start: f64,
+    end: f64,
+    count: usize,
+}
+
+impl Logspace {
+    pub fn new(start: f64, end: f64, count: usize) -> Self {
+        Self { start, end, count }
+    }
+}
+
+impl IntoVariantValues for Logspace {
+    fn into_variant_values(self) -> Vec<String> {
+        if self.count == 0 || self.start <= 0.0 || self.end <= 0.0 {
+            return Vec::new();
+        }
+        
+        let log_start = self.start.ln();
+        let log_end = self.end.ln();
+        let step = if self.count > 1 {
+            (log_end - log_start) / (self.count - 1) as f64
+        } else {
+            0.0
+        };
+        
+        (0..self.count)
+            .map(|i| {
+                let value = (log_start + step * i as f64).exp();
+                value.to_string()
+            })
+            .collect()
+    }
+}
+
+/// Helper struct for geometric progression
+pub struct Geomspace {
+    start: f64,
+    ratio: f64,
+    count: usize,
+}
+
+impl Geomspace {
+    pub fn new(start: f64, ratio: f64, count: usize) -> Self {
+        Self { start, ratio, count }
+    }
+}
+
+impl IntoVariantValues for Geomspace {
+    fn into_variant_values(self) -> Vec<String> {
+        (0..self.count)
+            .map(|i| {
+                let value = self.start * self.ratio.powi(i as i32);
+                value.to_string()
+            })
+            .collect()
+    }
+}
+
+/// Helper struct for custom generator functions
+pub struct Generator<F>
+where
+    F: Fn(usize) -> String,
+{
+    count: usize,
+    generator: F,
+}
+
+impl<F> Generator<F>
+where
+    F: Fn(usize) -> String,
+{
+    pub fn new(count: usize, generator: F) -> Self {
+        Self { count, generator }
+    }
+}
+
+impl<F> IntoVariantValues for Generator<F>
+where
+    F: Fn(usize) -> String,
+{
+    fn into_variant_values(self) -> Vec<String> {
+        (0..self.count).map(|i| (self.generator)(i)).collect()
+    }
+}
+
 /// Graph builder for constructing graphs with implicit node connections
 pub struct Graph {
     /// All nodes in the graph
@@ -146,24 +300,50 @@ impl Graph {
     /// Create configuration sweep variants
     ///
     /// This method creates multiple copies of the remainder of the graph structure,
-    /// each with different configuration values.
+    /// each with different configuration values. It's generic and accepts multiple input types:
     ///
-    /// # Arguments
+    /// # Accepting a List of Values
     ///
-    /// * `variants` - Vector of variant configurations
+    /// ```ignore
+    /// graph.variant("learning_rate", vec!["0.001", "0.01", "0.1"]);
+    /// ```
+    ///
+    /// # Accepting a Generator Function
+    ///
+    /// ```ignore
+    /// graph.variant("learning_rate", |i, count| {
+    ///     format!("{}", 0.001 * 10_f64.powi(i as i32))
+    /// }, 5);
+    /// ```
+    ///
+    /// # Using Built-in Helpers
+    ///
+    /// ```ignore
+    /// use graph_sp::Linspace;
+    /// graph.variant("learning_rate", Linspace::new(0.001, 0.1, 10));
+    /// ```
     ///
     /// # Behavior
     ///
     /// - Copies all downstream nodes for each variant
     /// - Each variant gets a unique configuration value
     /// - Variants can execute in parallel
-    pub fn variant(&mut self, variants: Vec<(&str, String)>) -> &mut Self {
+    pub fn variant<V>(&mut self, param_name: &str, values: V) -> &mut Self
+    where
+        V: IntoVariantValues,
+    {
+        let variant_values = values.into_variant_values();
+        self.apply_variants(param_name, variant_values)
+    }
+
+    /// Internal method to apply variants given a list of values
+    fn apply_variants(&mut self, _param_name: &str, values: Vec<String>) -> &mut Self {
         // Store the current graph state as a template
         let template_nodes = self.nodes.clone();
         let template_last_id = self.last_node_id;
 
         // For each variant, create a copy of the downstream graph
-        for (idx, (_var_name, _var_value)) in variants.iter().enumerate() {
+        for (idx, _value) in values.iter().enumerate() {
             if idx == 0 {
                 // First variant reuses the current graph
                 // Mark nodes as part of variant 0
@@ -238,110 +418,6 @@ impl Graph {
         self.last_branch_point = None;
         
         self
-    }
-
-    /// Create configuration sweep variants with a parameter generator
-    ///
-    /// This creates multiple copies of the remainder of the graph structure,
-    /// each with different configuration values generated by the provided function.
-    ///
-    /// # Arguments
-    ///
-    /// * `param_name` - Name of the parameter being varied
-    /// * `count` - Number of variants to create
-    /// * `generator` - Function that takes an index and returns the parameter value
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// // Create 5 variants with learning rates from 0.001 to 0.1
-    /// graph.variant_sweep("learning_rate", 5, |i| {
-    ///     format!("{}", 0.001 * 10_f64.powi(i as i32))
-    /// });
-    /// ```
-    pub fn variant_sweep<F>(&mut self, param_name: &str, count: usize, generator: F) -> &mut Self
-    where
-        F: Fn(usize) -> String,
-    {
-        let variants: Vec<(&str, String)> = (0..count)
-            .map(|i| (param_name, generator(i)))
-            .collect();
-        
-        self.variant(variants)
-    }
-
-    /// Create variants with linearly spaced parameter values
-    ///
-    /// Generates `count` variants with parameter values evenly spaced between `start` and `end`.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// // Create 10 variants with learning rates from 0.001 to 0.1
-    /// graph.variant_linspace("learning_rate", 0.001, 0.1, 10);
-    /// ```
-    pub fn variant_linspace(&mut self, param_name: &str, start: f64, end: f64, count: usize) -> &mut Self {
-        if count == 0 {
-            return self;
-        }
-        
-        let step = if count > 1 {
-            (end - start) / (count - 1) as f64
-        } else {
-            0.0
-        };
-        
-        self.variant_sweep(param_name, count, move |i| {
-            let value = start + step * i as f64;
-            format!("{}", value)
-        })
-    }
-
-    /// Create variants with logarithmically spaced parameter values
-    ///
-    /// Generates `count` variants with parameter values logarithmically spaced between `start` and `end`.
-    /// Useful for hyperparameter searches where parameters span multiple orders of magnitude.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// // Create 5 variants with learning rates: 0.001, 0.003, 0.01, 0.03, 0.1
-    /// graph.variant_logspace("learning_rate", 0.001, 0.1, 5);
-    /// ```
-    pub fn variant_logspace(&mut self, param_name: &str, start: f64, end: f64, count: usize) -> &mut Self {
-        if count == 0 || start <= 0.0 || end <= 0.0 {
-            return self;
-        }
-        
-        let log_start = start.ln();
-        let log_end = end.ln();
-        let step = if count > 1 {
-            (log_end - log_start) / (count - 1) as f64
-        } else {
-            0.0
-        };
-        
-        self.variant_sweep(param_name, count, move |i| {
-            let value = (log_start + step * i as f64).exp();
-            format!("{}", value)
-        })
-    }
-
-    /// Create variants with geometric progression of parameter values
-    ///
-    /// Generates `count` variants where each value is multiplied by `ratio` from the previous.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// // Create 5 variants: 0.001, 0.01, 0.1, 1.0, 10.0 (ratio = 10)
-    /// graph.variant_geomspace("learning_rate", 0.001, 10.0, 5);
-    /// ```
-    pub fn variant_geomspace(&mut self, param_name: &str, start: f64, ratio: f64, count: usize) -> &mut Self {
-        self.variant_sweep(param_name, count, move |i| {
-            let value = start * ratio.powi(i as i32);
-            format!("{}", value)
-        })
     }
 
     /// Build the final DAG from the graph builder
