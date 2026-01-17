@@ -38,4 +38,3 @@ Documentation = "https://github.com/briday1/graph-sp#readme"
 [tool.maturin]
 features = ["python"]
 module-name = "graph_sp"
-python-source = "python"

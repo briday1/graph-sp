@@ -42,7 +42,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut outputs = HashMap::new();
             outputs.insert(
                 "data".to_string(),
-                PortData::List(vec![PortData::Int(10), PortData::Int(20), PortData::Int(30)]),
+                PortData::List(vec![
+                    PortData::Int(10),
+                    PortData::Int(20),
+                    PortData::Int(30),
+                ]),
             );
             Ok(outputs)
         }),
@@ -135,8 +139,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("📊 Branch Information:");
     println!("   Branches created: {:?}", graph2.branch_names());
-    println!("   Branch A nodes: {}", graph2.get_branch("experiment_a")?.node_count());
-    println!("   Branch B nodes: {}", graph2.get_branch("experiment_b")?.node_count());
+    println!(
+        "   Branch A nodes: {}",
+        graph2.get_branch("experiment_a")?.node_count()
+    );
+    println!(
+        "   Branch B nodes: {}",
+        graph2.get_branch("experiment_b")?.node_count()
+    );
     println!();
 
     println!("🎨 Main Graph Mermaid (showing branches):");
@@ -245,7 +255,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let lr_branches = graph5.create_variants(lr_config)?;
 
     println!("📊 Nested Variant Structure:");
-    println!("   Level 1 (Learning Rates): {} variants", lr_branches.len());
+    println!(
+        "   Level 1 (Learning Rates): {} variants",
+        lr_branches.len()
+    );
 
     // Second level: 3 batch sizes in each LR
     for (idx, lr_branch) in lr_branches.iter().enumerate() {

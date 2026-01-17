@@ -2,7 +2,7 @@
 //!
 //! This example demonstrates how variants are visualized in Mermaid diagrams.
 
-use graph_sp::core::{Graph, MergeConfig, VariantConfig, VariantFunction, PortData};
+use graph_sp::core::{Graph, MergeConfig, PortData, VariantConfig, VariantFunction};
 use graph_sp::inspector::Inspector;
 use std::sync::Arc;
 
@@ -12,25 +12,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Example 1: Simple graph with variants
     println!("Example 1: Hyperparameter Sweep with 5 Variants");
     println!("================================================\n");
-    
+
     let mut graph1 = Graph::new();
-    
+
     // Create 5 variants with different learning rates
-    let lr_fn: VariantFunction = Arc::new(|i: usize| {
-        PortData::Float((i as f64 + 1.0) * 0.01)
-    });
-    
+    let lr_fn: VariantFunction = Arc::new(|i: usize| PortData::Float((i as f64 + 1.0) * 0.01));
+
     let variant_config = VariantConfig::new("learning_rate", 5, "lr", lr_fn);
     graph1.create_variants(variant_config)?;
-    
+
     // Create merge node
-    let branch_names: Vec<String> = (0..5)
-        .map(|i| format!("learning_rate_{}", i))
-        .collect();
-    
+    let branch_names: Vec<String> = (0..5).map(|i| format!("learning_rate_{}", i)).collect();
+
     let merge_config = MergeConfig::new(branch_names, "result".to_string());
     graph1.merge("best_model", merge_config)?;
-    
+
     println!("Mermaid Diagram:");
     println!("{}\n", Inspector::to_mermaid(&graph1)?);
     

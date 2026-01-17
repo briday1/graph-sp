@@ -196,10 +196,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 0
             };
-            Ok(HashMap::from([(
-                "final".to_string(),
-                PortData::Int(a + b),
-            )]))
+            Ok(HashMap::from([("final".to_string(), PortData::Int(a + b))]))
         }),
     );
 
