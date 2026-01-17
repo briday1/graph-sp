@@ -44,7 +44,7 @@ def main():
         summary = f"{name} is {age} years old, lives in {city}, and has {hobby_count} hobbies"
         return {"summary": summary}
     
-    graph1.add_node(
+    graph1.add(
         "user_creator",
         "User Creator",
         [],
@@ -52,7 +52,7 @@ def main():
         user_creator
     )
     
-    graph1.add_node(
+    graph1.add(
         "user_processor",
         "User Processor",
         [graph_sp.Port("user", "User Object")],
@@ -103,7 +103,7 @@ def main():
         description = f"{name} - ${price:.2f} (CPU: {cpu}, Available: {available})"
         return {"description": description}
     
-    graph2.add_node(
+    graph2.add(
         "json_producer",
         "JSON Producer",
         [],
@@ -111,7 +111,7 @@ def main():
         json_producer
     )
     
-    graph2.add_node(
+    graph2.add(
         "json_consumer",
         "JSON Consumer",
         [graph_sp.Port("data", "JSON Data")],
@@ -148,7 +148,7 @@ def main():
             "average": average
         }
     
-    graph3.add_node(
+    graph3.add(
         "list_creator",
         "List Creator",
         [],
@@ -156,7 +156,7 @@ def main():
         list_creator
     )
     
-    graph3.add_node(
+    graph3.add(
         "list_processor",
         "List Processor",
         [graph_sp.Port("numbers", "Numbers")],

@@ -148,11 +148,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build the graph
     println!("Building parallel graph...");
-    graph.add_node(Node::new(source_config)).unwrap();
-    graph.add_node(Node::new(branch_a)).unwrap();
-    graph.add_node(Node::new(branch_b)).unwrap();
-    graph.add_node(Node::new(branch_c)).unwrap();
-    graph.add_node(Node::new(merge_config)).unwrap();
+    graph.add(Node::new(source_config)).unwrap();
+    graph.add(Node::new(branch_a)).unwrap();
+    graph.add(Node::new(branch_b)).unwrap();
+    graph.add(Node::new(branch_c)).unwrap();
+    graph.add(Node::new(merge_config)).unwrap();
 
     // Connect source to all branches (fan-out)
     graph

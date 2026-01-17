@@ -9,7 +9,7 @@ use std::sync::Arc;
 #[tokio::test]
 async fn test_full_pipeline() {
     // Create a comprehensive graph that tests multiple features
-    let mut graph = Graph::new();
+    let mut graph = Graph::with_strict_edges();
 
     // Node 1: Source that outputs multiple values
     let source = NodeConfig::new(
@@ -61,9 +61,9 @@ async fn test_full_pipeline() {
     );
 
     // Add nodes
-    graph.add_node(Node::new(source)).unwrap();
-    graph.add_node(Node::new(adder)).unwrap();
-    graph.add_node(Node::new(multiplier)).unwrap();
+    graph.add(Node::new(source)).unwrap();
+    graph.add(Node::new(adder)).unwrap();
+    graph.add(Node::new(multiplier)).unwrap();
 
     // Connect nodes
     graph
@@ -147,7 +147,7 @@ async fn test_graph_with_optional_ports() {
     node.set_input("required", PortData::Int(42));
     // Note: not setting optional input
 
-    graph.add_node(node).unwrap();
+    graph.add(node).unwrap();
 
     let executor = Executor::new();
     let result = executor.execute(&mut graph).await.unwrap();
@@ -189,7 +189,7 @@ async fn test_complex_data_types() {
         }),
     );
 
-    graph.add_node(Node::new(config)).unwrap();
+    graph.add(Node::new(config)).unwrap();
 
     let executor = Executor::new();
     let result = executor.execute(&mut graph).await.unwrap();
@@ -222,7 +222,7 @@ fn test_graph_validation_rejects_cycles() {
             vec![Port::new("out", "Output")],
             Arc::new(|inputs: &HashMap<String, PortData>| Ok(inputs.clone())),
         );
-        graph.add_node(Node::new(config)).unwrap();
+        graph.add(Node::new(config)).unwrap();
     }
 
     graph.add_edge(Edge::new("A", "out", "B", "in")).unwrap();
@@ -245,7 +245,7 @@ fn test_inspector_visualization() {
         Arc::new(|_inputs: &HashMap<String, PortData>| Ok(HashMap::new())),
     );
 
-    graph.add_node(Node::new(config)).unwrap();
+    graph.add(Node::new(config)).unwrap();
 
     let visualization = Inspector::visualize(&graph).unwrap();
 
@@ -253,4 +253,100 @@ fn test_inspector_visualization() {
     assert!(visualization.contains("test_node"));
     assert!(visualization.contains("Input Port"));
     assert!(visualization.contains("Output Port"));
+}
+
+#[tokio::test]
+async fn test_branch_and_merge_workflow() {
+    use graph_sp::core::{MergeConfig, VariantConfig, VariantFunction};
+    
+    let mut graph = Graph::new();
+
+    // Create variant branches for different learning rates
+    let variant_fn: VariantFunction = Arc::new(|i: usize| {
+        PortData::Float((i as f64 + 1.0) * 0.1)
+    });
+    
+    let variant_config = VariantConfig::new("lr", 3, "learning_rate", variant_fn);
+    let branch_names = graph.create_variants(variant_config).unwrap();
+    
+    assert_eq!(branch_names.len(), 3);
+    assert!(graph.has_branch("lr_0"));
+    assert!(graph.has_branch("lr_1"));
+    assert!(graph.has_branch("lr_2"));
+    
+    // Add processing nodes to each branch
+    for (i, branch_name) in branch_names.iter().enumerate() {
+        let branch = graph.get_branch_mut(branch_name).unwrap();
+        
+        // Add a processing node that multiplies the learning rate by 10
+        let processor = NodeConfig::new(
+            format!("processor_{}", i),
+            format!("Processor {}", i),
+            vec![Port::new("learning_rate", "Learning Rate")],
+            vec![Port::new("result", "Result")],
+            Arc::new(|inputs: &HashMap<String, PortData>| {
+                let mut outputs = HashMap::new();
+                if let Some(PortData::Float(lr)) = inputs.get("learning_rate") {
+                    outputs.insert("result".to_string(), PortData::Float(lr * 10.0));
+                }
+                Ok(outputs)
+            }),
+        );
+        
+        branch.add(Node::new(processor)).unwrap();
+        
+        // Connect the source to the processor
+        let source_id = format!("{}_source", branch_name);
+        branch
+            .add_edge(Edge::new(
+                source_id,
+                "learning_rate",
+                format!("processor_{}", i),
+                "learning_rate",
+            ))
+            .unwrap();
+    }
+    
+    // Create a merge node to collect results
+    let merge_config = MergeConfig::new(branch_names.clone(), "result".to_string());
+    graph.merge("merge_results", merge_config).unwrap();
+    
+    // Verify the graph structure
+    assert_eq!(graph.node_count(), 1); // Only the merge node in main graph
+    assert_eq!(graph.branch_names().len(), 3);
+}
+
+#[test]
+fn test_nested_variants_cartesian_product() {
+    use graph_sp::core::{VariantConfig, VariantFunction};
+    
+    let mut graph = Graph::new();
+    
+    // Create first set of variants (learning rates)
+    let lr_fn: VariantFunction = Arc::new(|i: usize| {
+        PortData::Float((i as f64 + 1.0) * 0.01)
+    });
+    let lr_config = VariantConfig::new("lr", 2, "learning_rate", lr_fn);
+    let lr_branches = graph.create_variants(lr_config).unwrap();
+    assert_eq!(lr_branches.len(), 2);
+    
+    // For each learning rate variant, create batch size variants
+    // This creates a cartesian product: 2 learning rates × 3 batch sizes = 6 combinations
+    for lr_branch in &lr_branches {
+        let branch = graph.get_branch_mut(lr_branch).unwrap();
+        
+        let batch_fn: VariantFunction = Arc::new(|i: usize| {
+            PortData::Int((i as i64 + 1) * 16)
+        });
+        let batch_config = VariantConfig::new("batch", 3, "batch_size", batch_fn);
+        let batch_branches = branch.create_variants(batch_config).unwrap();
+        assert_eq!(batch_branches.len(), 3);
+    }
+    
+    // Verify the nested structure
+    assert_eq!(graph.branch_names().len(), 2);
+    for lr_branch in &lr_branches {
+        let branch = graph.get_branch(lr_branch).unwrap();
+        assert_eq!(branch.branch_names().len(), 3);
+    }
 }

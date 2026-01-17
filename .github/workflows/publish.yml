@@ -2,13 +2,57 @@ name: Build and Publish Python Wheels
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
+  check-and-tag:
+    name: Generate Version Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.generate_version.outputs.version }}
+      should_publish: ${{ steps.generate_version.outputs.should_publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Generate version tag
+        id: generate_version
+        run: |
+          # Get current year
+          YEAR=$(date +%Y)
+          
+          # Get all tags for current year
+          LATEST_TAG=$(git tag -l "${YEAR}.*" | sort -V | tail -n 1)
+          
+          if [ -z "$LATEST_TAG" ]; then
+            # No tags for this year, start with v1
+            VERSION="${YEAR}.1"
+          else
+            # Extract version number and increment
+            VERSION_NUM=$(echo $LATEST_TAG | cut -d'.' -f2)
+            NEW_VERSION_NUM=$((VERSION_NUM + 1))
+            VERSION="${YEAR}.${NEW_VERSION_NUM}"
+          fi
+          
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "should_publish=true" >> $GITHUB_OUTPUT
+          echo "Generated version: ${VERSION}"
+          
+          # Create and push the tag
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${VERSION}"
+          git push origin "${VERSION}"
+
   build-wheels:
     name: Build wheels on ${{ matrix.os }}
+    needs: check-and-tag
+    if: needs.check-and-tag.outputs.should_publish == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -55,6 +99,8 @@ jobs:
 
   build-sdist:
     name: Build source distribution
+    needs: check-and-tag
+    if: needs.check-and-tag.outputs.should_publish == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -85,9 +131,9 @@ jobs:
 
   publish:
     name: Publish to PyPI
-    needs: [build-wheels, build-sdist]
+    needs: [check-and-tag, build-wheels, build-sdist]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: needs.check-and-tag.outputs.should_publish == 'true'
     
     steps:
       - name: Download all wheels
