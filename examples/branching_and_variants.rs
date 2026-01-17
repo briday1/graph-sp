@@ -171,9 +171,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut graph5 = Graph::new();
 
     // First level: learning rates
-    let lr_fn: VariantFunction = Arc::new(|i: usize| {
-        PortData::Float((i as f64 + 1.0) * 0.01)
-    });
+    let lr_fn: VariantFunction = Arc::new(|i: usize| PortData::Float((i as f64 + 1.0) * 0.01));
     let lr_config = VariantConfig::new("lr", 2, "learning_rate", lr_fn);
     let lr_branches = graph5.create_variants(lr_config)?;
 
@@ -184,12 +182,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for lr_branch in &lr_branches {
         let branch = graph5.get_branch_mut(lr_branch)?;
 
-        let batch_fn: VariantFunction = Arc::new(|i: usize| {
-            PortData::Int((i as i64 + 1) * 16)
-        });
+        let batch_fn: VariantFunction = Arc::new(|i: usize| PortData::Int((i as i64 + 1) * 16));
         let batch_config = VariantConfig::new("batch", 3, "batch_size", batch_fn);
         let batch_branches = branch.create_variants(batch_config)?;
-        
+
         total_combinations += batch_branches.len();
         println!(
             "  - {} has {} batch size variants",
@@ -211,11 +207,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create variants with parallelization disabled
     let param_fn: VariantFunction = Arc::new(|i: usize| PortData::Int(i as i64));
-    let config_sequential = VariantConfig::new("sequential", 4, "param", param_fn)
-        .with_parallel(false);
+    let config_sequential =
+        VariantConfig::new("sequential", 4, "param", param_fn).with_parallel(false);
 
     let branches = graph6.create_variants(config_sequential)?;
-    println!("✓ Created {} variants with parallelization disabled", branches.len());
+    println!(
+        "✅ Created {} variants with parallelization disabled",
+        branches.len()
+    );
     println!("  (Useful for debugging or when resources are limited)");
     println!();
 

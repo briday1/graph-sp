@@ -40,9 +40,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         vec![Port::new("data", "Output Data")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
-            outputs.insert("data".to_string(), PortData::List(vec![
-                PortData::Int(10), PortData::Int(20), PortData::Int(30)
-            ]));
+            outputs.insert(
+                "data".to_string(),
+                PortData::List(vec![PortData::Int(10), PortData::Int(20), PortData::Int(30)]),
+            );
             Ok(outputs)
         }),
     );
@@ -55,13 +56,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             if let Some(PortData::List(items)) = inputs.get("input") {
-                let doubled: Vec<PortData> = items.iter().map(|item| {
-                    if let PortData::Int(val) = item {
-                        PortData::Int(val * 2)
-                    } else {
-                        item.clone()
-                    }
-                }).collect();
+                let doubled: Vec<PortData> = items
+                    .iter()
+                    .map(|item| {
+                        if let PortData::Int(val) = item {
+                            PortData::Int(val * 2)
+                        } else {
+                            item.clone()
+                        }
+                    })
+                    .collect();
                 outputs.insert("output".to_string(), PortData::List(doubled));
             }
             Ok(outputs)
@@ -73,9 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Result Sink",
         vec![Port::new("input", "Final Data")],
         vec![],
-        Arc::new(|_inputs: &HashMap<String, PortData>| {
-            Ok(HashMap::new())
-        }),
+        Arc::new(|_inputs: &HashMap<String, PortData>| Ok(HashMap::new())),
     );
 
     graph1.add(Node::new(source))?;
@@ -150,9 +152,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut graph3 = Graph::new();
 
     // Create 5 learning rate variants
-    let lr_fn: VariantFunction = Arc::new(|i: usize| {
-        PortData::Float((i as f64 + 1.0) * 0.01)
-    });
+    let lr_fn: VariantFunction = Arc::new(|i: usize| PortData::Float((i as f64 + 1.0) * 0.01));
 
     let variant_config = VariantConfig::new("learning_rate", 5, "lr", lr_fn);
     let lr_branches = graph3.create_variants(variant_config)?;
@@ -210,7 +210,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let merge_config = MergeConfig::new(
-        vec!["model_0".to_string(), "model_1".to_string(), "model_2".to_string()],
+        vec![
+            "model_0".to_string(),
+            "model_1".to_string(),
+            "model_2".to_string(),
+        ],
         "score".to_string(),
     )
     .with_merge_fn(max_fn);
@@ -236,9 +240,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut graph5 = Graph::new();
 
     // First level: 2 learning rates
-    let lr_fn2: VariantFunction = Arc::new(|i: usize| {
-        PortData::Float((i as f64 + 1.0) * 0.01)
-    });
+    let lr_fn2: VariantFunction = Arc::new(|i: usize| PortData::Float((i as f64 + 1.0) * 0.01));
     let lr_config = VariantConfig::new("lr", 2, "learning_rate", lr_fn2);
     let lr_branches = graph5.create_variants(lr_config)?;
 
@@ -249,9 +251,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (idx, lr_branch) in lr_branches.iter().enumerate() {
         let branch = graph5.get_branch_mut(lr_branch)?;
 
-        let batch_fn: VariantFunction = Arc::new(|i: usize| {
-            PortData::Int((i as i64 + 1) * 16)
-        });
+        let batch_fn: VariantFunction = Arc::new(|i: usize| PortData::Int((i as i64 + 1) * 16));
         let batch_config = VariantConfig::new("batch", 3, "batch_size", batch_fn);
         let batch_branches = branch.create_variants(batch_config)?;
 
@@ -282,9 +282,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut graph6 = Graph::new();
 
     // Create 3 parameter variants
-    let param_fn: VariantFunction = Arc::new(|i: usize| {
-        PortData::Int((i + 1) as i64 * 10)
-    });
+    let param_fn: VariantFunction = Arc::new(|i: usize| PortData::Int((i + 1) as i64 * 10));
     let param_config = VariantConfig::new("param", 3, "parameter", param_fn);
     let param_branches = graph6.create_variants(param_config)?;
 
