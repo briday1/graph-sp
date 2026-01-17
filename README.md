@@ -355,12 +355,16 @@ for lr_branch in &lr_branches {
 
 Located in `python_examples/`:
 
-- **simple_pipeline.py**: Basic 3-node pipeline with graph analysis
-- **port_mapping_demo.py**: Port name separation (broadcast vs implementation)
+- **simple_pipeline.py**: Basic 3-node pipeline with implicit port mapping
+- **parallel_execution.py**: Fan-out/fan-in pattern with 3 parallel branches
 - **variants_demo.py**: Hyperparameter sweeps, custom merge, nested variants
-- **complex_objects.py**: Demonstrates nested objects, JSON, and lists
-- **parallel_execution.py**: Shows 3-branch parallel execution with timing
-- **branching_example.py**: Demonstrates branch creation and management
+- **port_mapping_demo.py**: ⭐ **Explicit port mapping** (broadcast vs implementation names)
+- **complex_objects.py**: Nested objects, JSON, and lists
+- **branching_example.py**: Branch creation and management
+- **All other examples**: Use simple implicit port mapping
+
+**Note:** Most examples use implicit port mapping where port names and function parameters match.  
+See `port_mapping_demo.py` for the one example showing explicit broadcast/implementation name separation.
 
 Run an example:
 
@@ -374,10 +378,14 @@ python variants_demo.py
 
 Located in `examples/`:
 
-- **simple_pipeline.rs**: 4-node data processing pipeline
-- **complex_objects.rs**: All PortData types with nested structures
+- **simple_pipeline.rs**: 4-node data processing pipeline with implicit ports
 - **parallel_execution.rs**: Fan-out/fan-in pattern with performance analysis
 - **branching_and_variants.rs**: Comprehensive demo of branches, merge, and variants
+- **all_features_demo.rs**: ⭐ **Shows both implicit and explicit port mapping**
+- **complex_objects.rs**: All PortData types with nested structures
+
+**Note:** Most examples use `Port::simple("name")` for implicit mapping.  
+See `all_features_demo.rs` for examples using `Port::new("broadcast", "impl")` for explicit mapping.
 
 Run an example:
 

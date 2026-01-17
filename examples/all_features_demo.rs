@@ -1,10 +1,16 @@
 //! Comprehensive Example: Showing Both Implicit and Explicit Edge Mapping
 //!
+//! ⭐ This is the primary example showing EXPLICIT port mapping in Rust.
+//!
 //! This example demonstrates ALL features with both mapping modes:
 //! - Implicit edge mapping (default): automatic connections based on port names
-//! - Explicit edge mapping (strict mode): manual add_edge() calls required
+//! - Explicit edge mapping (strict mode): manual add_edge() calls required  
+//! - Port::simple("name") vs Port::new("broadcast", "impl")
 //! - Branching, variants, merging
 //! - Complete mermaid diagram output for everything
+//!
+//! Most other examples use Port::simple() for implicit mapping.
+//! This example shows both approaches for comparison.
 
 use graph_sp::core::{
     Edge, Graph, MergeConfig, Node, NodeConfig, Port, PortData, VariantConfig, VariantFunction,

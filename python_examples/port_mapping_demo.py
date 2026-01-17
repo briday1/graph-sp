@@ -1,8 +1,11 @@
 """
-Port Mapping Demo
-=================
+Port Mapping Demo - EXPLICIT PORT MAPPING EXAMPLE
+==================================================
 
-This example demonstrates the difference between broadcast names and implementation names:
+⭐ This is the primary example showing EXPLICIT port name mapping.
+
+Most other examples use implicit port mapping (simple strings).
+This example demonstrates the ADVANCED feature of separating:
 - broadcast_name: External name used for connecting nodes via edges
 - impl_name: Internal parameter name used within the function
 

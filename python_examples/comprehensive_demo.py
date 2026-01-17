@@ -10,7 +10,7 @@ Note: Full merge and variant features are available in Rust API.
 Python bindings currently support basic branch operations.
 """
 
-import graph_sp
+import pygraph_sp as gs
 
 
 def main():

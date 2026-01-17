@@ -11,7 +11,7 @@ Note: Variants and merge features are available in Rust.
 Python bindings currently support basic operations and will be extended.
 """
 
-import graph_sp
+import pygraph_sp as gs
 
 
 def main():

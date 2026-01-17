@@ -5,7 +5,7 @@ This example demonstrates how to build graphs WITHOUT explicit add_edge() calls.
 Edges are automatically created by matching port names between nodes.
 """
 
-import graph_sp
+import pygraph_sp as gs
 
 
 def main():

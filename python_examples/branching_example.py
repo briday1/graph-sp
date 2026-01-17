@@ -7,7 +7,7 @@ This example demonstrates the new features:
 - Future: Merging and variants (coming soon to Python API)
 """
 
-import graph_sp
+import pygraph_sp as gs
 
 
 def main():

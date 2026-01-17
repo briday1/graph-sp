@@ -5,7 +5,7 @@ This example demonstrates passing complex data structures through ports
 using Maps, JSON, Lists, and binary data.
 """
 
-import graph_sp
+import pygraph_sp as gs
 
 
 def main():

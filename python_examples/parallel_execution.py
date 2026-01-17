@@ -5,15 +5,14 @@ This example demonstrates how independent branches of the DAG can execute
 in parallel, showing the parallelization capabilities of the engine.
 """
 
-import graph_sp
-
+import pygraph_sp as gs
 import time
 
 
 def main():
     print("=== graph-sp Python Example: Parallel Execution ===\n")
     
-    graph = graph_sp.Graph()
+    graph = gs.Graph()
     
     # Source node that outputs a value
     def source_fn(inputs):
@@ -86,58 +85,48 @@ def main():
     print("Building parallel graph...")
     
     graph.add(
-        "source",
-        "Data Source",
-        [],
-        [graph_sp.Port("value", "Value")],
-        source_fn
+        source_fn,
+        label="Data Source",
+        outputs=["value"]
     )
     
     graph.add(
-        "branch_a",
-        "Branch A (Slow)",
-        [graph_sp.Port("input", "Input")],
-        [graph_sp.Port("output", "Output")],
-        branch_a_fn
+        branch_a_fn,
+        label="Branch A (Slow)",
+        inputs=["input"],
+        outputs=["output"]
     )
     
     graph.add(
-        "branch_b",
-        "Branch B (Fast)",
-        [graph_sp.Port("input", "Input")],
-        [graph_sp.Port("output", "Output")],
-        branch_b_fn
+        branch_b_fn,
+        label="Branch B (Fast)",
+        inputs=["input"],
+        outputs=["output"]
     )
     
     graph.add(
-        "branch_c",
-        "Branch C (Medium)",
-        [graph_sp.Port("input", "Input")],
-        [graph_sp.Port("output", "Output")],
-        branch_c_fn
+        branch_c_fn,
+        label="Branch C (Medium)",
+        inputs=["input"],
+        outputs=["output"]
     )
     
     graph.add(
-        "merger",
-        "Result Merger",
-        [
-            graph_sp.Port("a", "Branch A Result"),
-            graph_sp.Port("b", "Branch B Result"),
-            graph_sp.Port("c", "Branch C Result")
-        ],
-        [graph_sp.Port("result", "Final Result")],
-        merger_fn
+        merger_fn,
+        label="Result Merger",
+        inputs=["a", "b", "c"],
+        outputs=["result"]
     )
     
     # Connect source to all branches (fan-out)
-    graph.add_edge("source", "value", "branch_a", "input")
-    graph.add_edge("source", "value", "branch_b", "input")
-    graph.add_edge("source", "value", "branch_c", "input")
+    graph.add_edge("source_fn", "value", "branch_a_fn", "input")
+    graph.add_edge("source_fn", "value", "branch_b_fn", "input")
+    graph.add_edge("source_fn", "value", "branch_c_fn", "input")
     
     # Connect all branches to merger (fan-in)
-    graph.add_edge("branch_a", "output", "merger", "a")
-    graph.add_edge("branch_b", "output", "merger", "b")
-    graph.add_edge("branch_c", "output", "merger", "c")
+    graph.add_edge("branch_a_fn", "output", "merger_fn", "a")
+    graph.add_edge("branch_b_fn", "output", "merger_fn", "b")
+    graph.add_edge("branch_c_fn", "output", "merger_fn", "c")
     
     print("✓ Graph built successfully!\n")
     
@@ -148,7 +137,7 @@ def main():
     
     # Analyze
     print("=== Graph Analysis ===")
-    analysis = graph.analyze()
+    analysis = gs.Inspector.analyze(graph)
     print(f"Node count: {analysis.node_count}")
     print(f"Edge count: {analysis.edge_count}")
     print(f"Depth: {analysis.depth}")
@@ -158,12 +147,12 @@ def main():
     
     # Visualize
     print("=== Graph Structure ===")
-    visualization = graph.visualize()
+    visualization = gs.Inspector.visualize(graph)
     print(visualization)
     
     # Generate Mermaid diagram
     print("=== Mermaid Diagram ===")
-    mermaid = graph.to_mermaid()
+    mermaid = gs.Inspector.to_mermaid(graph)
     print(mermaid)
     
     # Execute with timing
@@ -171,7 +160,7 @@ def main():
     print("Note: Branches A, B, and C will execute in parallel after the source completes.\n")
     
     overall_start = time.time()
-    executor = graph_sp.Executor()
+    executor = gs.Executor()
     result = executor.execute(graph)
     total_time = time.time() - overall_start
     
@@ -180,11 +169,11 @@ def main():
     # Display results
     print("=== Results ===")
     
-    source_val = result.get_output("source", "value")
-    branch_a_val = result.get_output("branch_a", "output")
-    branch_b_val = result.get_output("branch_b", "output")
-    branch_c_val = result.get_output("branch_c", "output")
-    final_val = result.get_output("merger", "result")
+    source_val = result.get_output("source_fn", "value")
+    branch_a_val = result.get_output("branch_a_fn", "output")
+    branch_b_val = result.get_output("branch_b_fn", "output")
+    branch_c_val = result.get_output("branch_c_fn", "output")
+    final_val = result.get_output("merger_fn", "result")
     
     print(f"Source value: {source_val}")
     print(f"Branch A result (×2): {branch_a_val}")
