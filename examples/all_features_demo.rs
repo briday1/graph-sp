@@ -317,7 +317,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let batch_fn: VariantFunction = Arc::new(|i: usize| PortData::Int((i as i64 + 1) * 32));
         let batch_cfg = VariantConfig::new("batch", 3, "batch_size", batch_fn);
         let batch_branches = branch.create_variants(batch_cfg)?;
-        println!("  └─ {}: {} batch size variants", lr_branch, batch_branches.len());
+        println!(
+            "  └─ {}: {} batch size variants",
+            lr_branch,
+            batch_branches.len()
+        );
     }
 
     println!("\nTotal combinations: 2 × 3 = 6 configurations");

@@ -197,20 +197,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Merge with MAX function
-    let max_fn = Arc::new(|inputs: Vec<&PortData>| -> graph_sp::core::Result<PortData> {
-        let mut max_val = i64::MIN;
-        for data in inputs {
-            if let PortData::Int(val) = data {
-                max_val = max_val.max(*val);
+    let max_fn = Arc::new(
+        |inputs: Vec<&PortData>| -> graph_sp::core::Result<PortData> {
+            let mut max_val = i64::MIN;
+            for data in inputs {
+                if let PortData::Int(val) = data {
+                    max_val = max_val.max(*val);
+                }
             }
-        }
-        Ok(PortData::Int(max_val))
-    });
+            Ok(PortData::Int(max_val))
+        },
+    );
 
     let merge_config = MergeConfig::new(
         vec!["model_0".to_string(), "model_1".to_string(), "model_2".to_string()],
         "score".to_string(),
-    ).with_merge_fn(max_fn);
+    )
+    .with_merge_fn(max_fn);
 
     graph4.merge("best_model", merge_config)?;
 
@@ -252,7 +255,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let batch_config = VariantConfig::new("batch", 3, "batch_size", batch_fn);
         let batch_branches = branch.create_variants(batch_config)?;
 
-        println!("   Level 2 in {}: {} batch size variants", lr_branch, batch_branches.len());
+        println!(
+            "   Level 2 in {}: {} batch size variants",
+            lr_branch,
+            batch_branches.len()
+        );
     }
 
     println!("   Total combinations: 2 × 3 = 6");

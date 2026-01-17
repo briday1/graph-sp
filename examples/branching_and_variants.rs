@@ -138,15 +138,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Create custom merge function that finds the maximum value
-    let max_merge = Arc::new(|inputs: Vec<&PortData>| -> graph_sp::core::Result<PortData> {
-        let mut max_val = i64::MIN;
-        for data in inputs {
-            if let PortData::Int(val) = data {
-                max_val = max_val.max(*val);
+    let max_merge = Arc::new(
+        |inputs: Vec<&PortData>| -> graph_sp::core::Result<PortData> {
+            let mut max_val = i64::MIN;
+            for data in inputs {
+                if let PortData::Int(val) = data {
+                    max_val = max_val.max(*val);
+                }
             }
-        }
-        Ok(PortData::Int(max_val))
-    });
+            Ok(PortData::Int(max_val))
+        },
+    );
 
     let merge_config = MergeConfig::new(
         vec![
