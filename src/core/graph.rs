@@ -275,12 +275,12 @@ impl Graph {
 
         let index = self.graph.add_node(node);
         self.node_indices.insert(node_id.clone(), index);
-        
+
         // Implicit edge mapping: connect to previous node if not in strict mode
         if !self.strict_edge_mapping && !self.node_order.is_empty() {
             self.auto_connect_to_previous(&node_id)?;
         }
-        
+
         self.node_order.push(node_id);
         Ok(())
     }
@@ -290,16 +290,16 @@ impl Graph {
         let edges_to_add = if let Some(prev_node_id) = self.node_order.last().cloned() {
             let prev_node = self.get_node(&prev_node_id)?;
             let new_node = self.get_node(new_node_id)?;
-            
+
             let mut edges = Vec::new();
             // Match output ports from previous node to input ports of new node
             for out_port in &prev_node.config.output_ports {
                 for in_port in &new_node.config.input_ports {
                     // Connect if port names match or if they're the only ports
-                    let should_connect = out_port.id == in_port.id || 
-                        (prev_node.config.output_ports.len() == 1 && 
+                    let should_connect = out_port.id == in_port.id ||
+                        (prev_node.config.output_ports.len() == 1 &&
                          new_node.config.input_ports.len() == 1);
-                    
+
                     if should_connect {
                         edges.push(Edge::new(
                             &prev_node_id,
@@ -315,12 +315,12 @@ impl Graph {
         } else {
             Vec::new()
         };
-        
+
         // Add all collected edges
         for edge in edges_to_add {
             self.add_edge(edge)?;
         }
-        
+
         Ok(())
     }
 
@@ -471,12 +471,12 @@ impl Graph {
 
     /// Automatically connect nodes based on matching port names
     /// This enables implicit edge mapping without explicit add_edge() calls
-    /// 
+    ///
     /// # Matching Strategy
     /// - Connects output ports to input ports with the same name
     /// - Only creates edges if the port names match exactly
     /// - Respects topological ordering to avoid cycles
-    /// 
+    ///
     /// # Returns
     /// The number of edges created
     pub fn auto_connect(&mut self) -> Result<usize> {
@@ -581,7 +581,7 @@ impl Graph {
     }
 
     /// Create a merge node that combines outputs from multiple branches
-    /// 
+    ///
     /// The merge node will collect outputs from the specified branches and combine them
     /// using the provided merge function (or collect into a list by default).
     pub fn merge(
@@ -600,7 +600,7 @@ impl Graph {
         }
 
         let branch_names = config.branches.clone();
-        
+
         // Create the merge function
         let merge_fn = config.merge_fn.unwrap_or_else(|| {
             // Default merge function: collect into a list
@@ -629,10 +629,10 @@ impl Graph {
                         collected_inputs.push(data);
                     }
                 }
-                
+
                 // Apply merge function
                 let merged = merge_fn(collected_inputs)?;
-                
+
                 let mut outputs = HashMap::new();
                 outputs.insert("merged".to_string(), merged);
                 Ok(outputs)
@@ -643,18 +643,18 @@ impl Graph {
     }
 
     /// Create variant branches for config sweeps
-    /// 
+    ///
     /// This creates multiple isolated branches, each with a different parameter value.
     /// Variants can be used for hyperparameter sweeps, A/B testing, or any scenario
     /// where you want to run the same computation with different inputs.
-    /// 
+    ///
     /// Returns the names of the created variant branches.
     pub fn create_variants(&mut self, config: VariantConfig) -> Result<Vec<String>> {
         let mut branch_names = Vec::new();
-        
+
         for i in 0..config.count {
             let branch_name = format!("{}_{}", config.name_prefix, i);
-            
+
             // Check if branch already exists
             if self.has_branch(&branch_name) {
                 return Err(GraphError::InvalidGraph(format!(
@@ -662,14 +662,14 @@ impl Graph {
                     branch_name
                 )));
             }
-            
+
             // Create the branch
             let branch = self.create_branch(&branch_name)?;
-            
+
             // Add a source node to the branch with the variant parameter
             let param_value = (config.variant_fn)(i);
             let param_name = config.param_name.clone();
-            
+
             let source_config = NodeConfig::new(
                 format!("{}_source", branch_name),
                 format!("Variant Source {}", i),

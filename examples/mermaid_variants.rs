@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let batch_config = VariantConfig::new("batch", 3, "batch_size", batch_fn);
         branch.create_variants(batch_config)?;
     }
-    
+
     println!("Main Graph Mermaid Diagram (showing LR variants):");
     println!("{}\n", Inspector::to_mermaid(&graph2)?);
 

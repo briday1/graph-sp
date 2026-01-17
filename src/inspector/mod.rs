@@ -222,7 +222,7 @@ impl Inspector {
 
             // Sanitize node ID for Mermaid (replace special chars)
             let safe_id = node_id.replace(['-', ' '], "_");
-            
+
             // Replace literal \n with <br/> for proper line breaks in Mermaid
             let formatted_name = node_name.replace("\\n", "<br/>");
 
@@ -287,7 +287,7 @@ impl Inspector {
         if has_branches {
             output.push('\n');
             output.push_str("    %% Variant Branches\n");
-            
+
             // Group variants by prefix (detect variant sets)
             let mut variant_groups: HashMap<String, Vec<String>> = HashMap::new();
             for branch_name in &branch_names {
@@ -310,7 +310,7 @@ impl Inspector {
                     .or_default()
                     .push(branch_name.clone());
             }
-            
+
             // Render variant groups
             for (prefix, branches) in &variant_groups {
                 let safe_prefix = prefix.replace(['-', ' '], "_");
@@ -367,7 +367,7 @@ impl Inspector {
         // Find nodes that fan out to multiple nodes at the same level
         for node in graph.nodes() {
             let outgoing = graph.outgoing_edges(&node.config.id).unwrap_or_default();
-            
+
             // Check if this node fans out to multiple nodes
             if outgoing.len() > 1 {
                 // Get all target nodes
