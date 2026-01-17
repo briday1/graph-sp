@@ -175,7 +175,7 @@ fn main() {
         );
 
         // Create 5 variants with learning rates from 0.001 to 0.1 (linearly spaced)
-        graph.variant_linspace("learning_rate", 0.001, 0.1, 5);
+        graph.variant("learning_rate", graph_sp::Linspace::new(0.001, 0.1, 5));
 
         let dag = graph.build();
         let stats = dag.stats();
@@ -216,7 +216,7 @@ fn main() {
         );
 
         // Create 4 variants with log-spaced learning rates (0.0001 to 0.1)
-        graph.variant_logspace("lr", 0.0001, 0.1, 4);
+        graph.variant("lr", graph_sp::Logspace::new(0.0001, 0.1, 4));
 
         let dag = graph.build();
         let stats = dag.stats();
@@ -256,9 +256,9 @@ fn main() {
         );
 
         // Custom generator: powers of 2
-        graph.variant_sweep("batch_size", 4, |i| {
+        graph.variant("batch_size", graph_sp::Generator::new(4, |i| {
             format!("{}", 2_u32.pow(i as u32 + 3)) // 8, 16, 32, 64
-        });
+        }));
 
         let dag = graph.build();
         let stats = dag.stats();
