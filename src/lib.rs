@@ -13,7 +13,7 @@
 //! ## Example
 //!
 //! ```rust
-//! use graph_sp::GraphBuilder;
+//! use graph_sp::Graph;
 //! use std::collections::HashMap;
 //!
 //! fn data_source(_: &HashMap<String, String>) -> HashMap<String, String> {
@@ -30,17 +30,17 @@
 //!     result
 //! }
 //!
-//! let mut builder = GraphBuilder::new();
-//! builder.add(data_source, Some("Source"), None, Some(vec!["output"]));
-//! builder.add(processor, Some("Processor"), Some(vec!["input"]), Some(vec!["output"]));
+//! let mut graph = Graph::new();
+//! graph.add(data_source, Some("Source"), None, Some(vec!["output"]));
+//! graph.add(processor, Some("Processor"), Some(vec!["input"]), Some(vec!["output"]));
 //!
-//! let dag = builder.build();
+//! let dag = graph.build();
 //! ```
 
 mod builder;
 mod dag;
 mod node;
 
-pub use builder::GraphBuilder;
+pub use builder::Graph;
 pub use dag::{Dag, ExecutionContext};
 pub use node::{NodeFunction, NodeId};

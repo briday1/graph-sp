@@ -1,6 +1,6 @@
 //! Comprehensive example showing all API features
 
-use graph_sp::GraphBuilder;
+use graph_sp::Graph;
 use std::collections::HashMap;
 
 fn main() {
@@ -9,10 +9,10 @@ fn main() {
     // Example 1: Simple sequential pipeline with implicit connections
     println!("--- Example 1: Simple Sequential Pipeline ---");
     {
-        let mut builder = GraphBuilder::new();
+        let mut graph = Graph::new();
 
         // Node 1: Data source (no inputs, produces "data")
-        builder.add(
+        graph.add(
             |_inputs| {
                 let mut outputs = HashMap::new();
                 outputs.insert("data".to_string(), "hello".to_string());
@@ -25,7 +25,7 @@ fn main() {
 
         // Node 2: Processor (consumes "data", produces "result")
         // Implicitly connected to Node 1
-        builder.add(
+        graph.add(
             |inputs| {
                 let mut outputs = HashMap::new();
                 if let Some(data) = inputs.get("data") {
@@ -40,7 +40,7 @@ fn main() {
 
         // Node 3: Final processor (consumes "result", produces "final")
         // Implicitly connected to Node 2
-        builder.add(
+        graph.add(
             |inputs| {
                 let mut outputs = HashMap::new();
                 if let Some(result) = inputs.get("result") {
@@ -53,7 +53,7 @@ fn main() {
             Some(vec!["final"]),
         );
 
-        let dag = builder.build();
+        let dag = graph.build();
         let result = dag.execute();
 
         println!("Input: hello");
@@ -61,13 +61,13 @@ fn main() {
         println!();
     }
 
-    // Example 2: Branching - parallel execution paths
-    println!("--- Example 2: Branching ---");
+    // Example 2: Branching with merge - parallel execution paths
+    println!("--- Example 2: Branching with Merge ---");
     {
-        let mut main_builder = GraphBuilder::new();
+        let mut graph = Graph::new();
 
         // Main path: source node
-        main_builder.add(
+        graph.add(
             |_| {
                 let mut outputs = HashMap::new();
                 outputs.insert("value".to_string(), "10".to_string());
@@ -79,7 +79,7 @@ fn main() {
         );
 
         // Branch A: multiply by 2
-        let mut branch_a = GraphBuilder::new();
+        let mut branch_a = Graph::new();
         branch_a.add(
             |inputs| {
                 let mut outputs = HashMap::new();
@@ -96,7 +96,7 @@ fn main() {
         );
 
         // Branch B: multiply by 3
-        let mut branch_b = GraphBuilder::new();
+        let mut branch_b = Graph::new();
         branch_b.add(
             |inputs| {
                 let mut outputs = HashMap::new();
@@ -113,25 +113,41 @@ fn main() {
         );
 
         // Add branches - they both branch from "Source"
-        main_builder.branch(branch_a);
-        main_builder.branch(branch_b);
+        graph.branch(branch_a);
+        graph.branch(branch_b);
+        graph.merge(); // Merge branches back together
 
-        let dag = main_builder.build();
+        // Add a node that combines results from both branches
+        graph.add(
+            |inputs| {
+                let mut outputs = HashMap::new();
+                let a = inputs.get("result_a").and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
+                let b = inputs.get("result_b").and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
+                outputs.insert("combined".to_string(), format!("Sum: {}", a + b));
+                outputs
+            },
+            Some("Combine"),
+            Some(vec!["result_a", "result_b"]),
+            Some(vec!["combined"]),
+        );
+
+        let dag = graph.build();
         let result = dag.execute();
 
         println!("Source value: 10");
-        println!("Branch A result: {}", result.get("result_a").unwrap_or(&"N/A".to_string()));
-        println!("Branch B result: {}", result.get("result_b").unwrap_or(&"N/A".to_string()));
+        println!("Branch A result (x2): {}", result.get("result_a").unwrap_or(&"N/A".to_string()));
+        println!("Branch B result (x3): {}", result.get("result_b").unwrap_or(&"N/A".to_string()));
+        println!("Combined: {}", result.get("combined").unwrap_or(&"N/A".to_string()));
         println!();
     }
 
-    // Example 3: Variants - config sweeps
-    println!("--- Example 3: Variants (Config Sweeps) ---");
+    // Example 3: Variants with linspace - parameter sweeps
+    println!("--- Example 3: Variants with Linspace ---");
     {
-        let mut builder = GraphBuilder::new();
+        let mut graph = Graph::new();
 
         // Source node
-        builder.add(
+        graph.add(
             |_| {
                 let mut outputs = HashMap::new();
                 outputs.insert("base_value".to_string(), "100".to_string());
@@ -143,12 +159,11 @@ fn main() {
         );
 
         // Processor node that will be replicated with variants
-        builder.add(
+        graph.add(
             |inputs| {
                 let mut outputs = HashMap::new();
                 if let Some(val) = inputs.get("base_value") {
                     if let Ok(num) = val.parse::<i32>() {
-                        // In a real variant, we'd use the variant config
                         outputs.insert("processed".to_string(), (num * 2).to_string());
                     }
                 }
@@ -159,28 +174,106 @@ fn main() {
             Some(vec!["processed"]),
         );
 
-        // Create 3 variants with different configs
-        builder.variant(vec![
-            ("rate", "0.1".to_string()),
-            ("rate", "0.5".to_string()),
-            ("rate", "1.0".to_string()),
-        ]);
+        // Create 5 variants with learning rates from 0.001 to 0.1 (linearly spaced)
+        graph.variant_linspace("learning_rate", 0.001, 0.1, 5);
 
-        let dag = builder.build();
+        let dag = graph.build();
         let stats = dag.stats();
 
-        println!("Created {} variants", stats.variant_count);
+        println!("Created {} variants (linspace: 0.001 to 0.1)", stats.variant_count);
         println!("Total nodes: {}", stats.node_count);
         println!("Max parallelism: {}", stats.max_parallelism);
         println!();
     }
 
-    // Example 4: Mermaid visualization
-    println!("--- Example 4: Mermaid Visualization ---");
+    // Example 4: Variants with logspace - logarithmic parameter sweeps
+    println!("--- Example 4: Variants with Logspace ---");
     {
-        let mut builder = GraphBuilder::new();
+        let mut graph = Graph::new();
 
-        builder.add(
+        graph.add(
+            |_| {
+                let mut outputs = HashMap::new();
+                outputs.insert("data".to_string(), "1000".to_string());
+                outputs
+            },
+            Some("Source"),
+            None,
+            Some(vec!["data"]),
+        );
+
+        graph.add(
+            |inputs| {
+                let mut outputs = HashMap::new();
+                if let Some(data) = inputs.get("data") {
+                    outputs.insert("result".to_string(), format!("Processed: {}", data));
+                }
+                outputs
+            },
+            Some("Model"),
+            Some(vec!["data"]),
+            Some(vec!["result"]),
+        );
+
+        // Create 4 variants with log-spaced learning rates (0.0001 to 0.1)
+        graph.variant_logspace("lr", 0.0001, 0.1, 4);
+
+        let dag = graph.build();
+        let stats = dag.stats();
+
+        println!("Created {} variants (logspace: 0.0001 to 0.1)", stats.variant_count);
+        println!("Total nodes: {}", stats.node_count);
+        println!();
+    }
+
+    // Example 5: Custom variant sweep with generator function
+    println!("--- Example 5: Custom Variant Sweep ---");
+    {
+        let mut graph = Graph::new();
+
+        graph.add(
+            |_| {
+                let mut outputs = HashMap::new();
+                outputs.insert("input".to_string(), "test".to_string());
+                outputs
+            },
+            Some("Input"),
+            None,
+            Some(vec!["input"]),
+        );
+
+        graph.add(
+            |inputs| {
+                let mut outputs = HashMap::new();
+                if let Some(input) = inputs.get("input") {
+                    outputs.insert("output".to_string(), format!("Output: {}", input));
+                }
+                outputs
+            },
+            Some("Process"),
+            Some(vec!["input"]),
+            Some(vec!["output"]),
+        );
+
+        // Custom generator: powers of 2
+        graph.variant_sweep("batch_size", 4, |i| {
+            format!("{}", 2_u32.pow(i as u32 + 3)) // 8, 16, 32, 64
+        });
+
+        let dag = graph.build();
+        let stats = dag.stats();
+
+        println!("Created {} variants with custom generator (powers of 2)", stats.variant_count);
+        println!("Batch sizes: 8, 16, 32, 64");
+        println!();
+    }
+
+    // Example 6: Mermaid visualization
+    println!("--- Example 6: Mermaid Visualization ---");
+    {
+        let mut graph = Graph::new();
+
+        graph.add(
             |_| {
                 let mut outputs = HashMap::new();
                 outputs.insert("data".to_string(), "start".to_string());
@@ -191,7 +284,7 @@ fn main() {
             Some(vec!["data"]),
         );
 
-        builder.add(
+        graph.add(
             |inputs| {
                 let mut outputs = HashMap::new();
                 if let Some(data) = inputs.get("data") {
@@ -204,7 +297,7 @@ fn main() {
             Some(vec!["step1"]),
         );
 
-        builder.add(
+        graph.add(
             |inputs| {
                 let mut outputs = HashMap::new();
                 if let Some(data) = inputs.get("step1") {
@@ -217,9 +310,9 @@ fn main() {
             Some(vec!["final"]),
         );
 
-        let dag = builder.build();
+        let dag = graph.build();
         println!("{}", dag.to_mermaid());
     }
 
-    println!("=== Demo Complete ===");
+    println!("\n=== Demo Complete ===");
 }
