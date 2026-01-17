@@ -147,8 +147,7 @@ impl Edge {
 }
 
 /// Merge function type for combining outputs from multiple branches
-pub type MergeFunction =
-    Arc<dyn Fn(Vec<&PortData>) -> Result<PortData> + Send + Sync>;
+pub type MergeFunction = Arc<dyn Fn(Vec<&PortData>) -> Result<PortData> + Send + Sync>;
 
 /// Configuration for merging branch outputs
 pub struct MergeConfig {
