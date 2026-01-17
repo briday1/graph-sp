@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "pygraph-sp"
-version = "2026.1"
+version = "2026.1.1"
 description = "High-performance DAG execution engine with true parallel execution, built in Rust with Python bindings"
 readme = "python_examples/README.md"
 requires-python = ">=3.7"
