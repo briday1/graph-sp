@@ -26,7 +26,7 @@ use crate::inspector::{GraphAnalysis, Inspector};
 /// Accepts: Port objects, strings (for simple ports), or tuples of (broadcast_name, impl_name)
 fn parse_ports(ports_any: &PyAny) -> PyResult<Vec<Port>> {
     let mut ports = Vec::new();
-    
+
     if let Ok(ports_list) = ports_any.downcast::<PyList>() {
         for item in ports_list.iter() {
             // Try to extract as PyPort
@@ -45,21 +45,21 @@ fn parse_ports(ports_any: &PyAny) -> PyResult<Vec<Port>> {
                     ports.push(Port::new(broadcast_name, impl_name));
                 } else {
                     return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        "Port tuples must have exactly 2 elements: (broadcast_name, impl_name)"
+                        "Port tuples must have exactly 2 elements: (broadcast_name, impl_name)",
                     ));
                 }
             } else {
                 return Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                    "Port must be a Port object, string, or tuple of (broadcast_name, impl_name)"
+                    "Port must be a Port object, string, or tuple of (broadcast_name, impl_name)",
                 ));
             }
         }
     } else {
         return Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-            "Ports must be a list"
+            "Ports must be a list",
         ));
     }
-    
+
     Ok(ports)
 }
 
@@ -170,7 +170,8 @@ impl PyGraph {
         Python::with_gil(|py| {
             // Generate ID from function name if available
             let id = if let Ok(name) = function.getattr(py, "__name__") {
-                name.extract::<String>(py).unwrap_or_else(|_| format!("node_{}", Uuid::new_v4()))
+                name.extract::<String>(py)
+                    .unwrap_or_else(|_| format!("node_{}", Uuid::new_v4()))
             } else {
                 format!("node_{}", Uuid::new_v4())
             };
@@ -301,33 +302,31 @@ impl PyGraph {
         parallel: Option<bool>,
     ) -> PyResult<Vec<String>> {
         use crate::core::{VariantConfig, VariantFunction};
-        
+
         // Wrap the Python function as a VariantFunction
         let py_func = variant_function.clone();
-        let variant_fn: VariantFunction = Arc::new(
-            move |index: usize| {
-                Python::with_gil(|py| {
-                    // Call the Python function with the index
-                    let result = py_func.call1(py, (index,));
-                    match result {
-                        Ok(py_value) => {
-                            // Convert the result to PortData
-                            match python_to_port_data(py_value.as_ref(py)) {
-                                Ok(port_data) => port_data,
-                                Err(e) => {
-                                    eprintln!("Error converting variant function result: {}", e);
-                                    PortData::None
-                                }
+        let variant_fn: VariantFunction = Arc::new(move |index: usize| {
+            Python::with_gil(|py| {
+                // Call the Python function with the index
+                let result = py_func.call1(py, (index,));
+                match result {
+                    Ok(py_value) => {
+                        // Convert the result to PortData
+                        match python_to_port_data(py_value.as_ref(py)) {
+                            Ok(port_data) => port_data,
+                            Err(e) => {
+                                eprintln!("Error converting variant function result: {}", e);
+                                PortData::None
                             }
                         }
-                        Err(e) => {
-                            eprintln!("Error calling variant function: {}", e);
-                            PortData::None
-                        }
                     }
-                })
-            }
-        );
+                    Err(e) => {
+                        eprintln!("Error calling variant function: {}", e);
+                        PortData::None
+                    }
+                }
+            })
+        });
 
         // Create the config
         let mut config = VariantConfig::new(name_prefix, count, param_name, variant_fn);
@@ -350,42 +349,41 @@ impl PyGraph {
         merge_function: Option<PyObject>,
     ) -> PyResult<()> {
         use crate::core::{MergeConfig, MergeFunction};
-        
+
         let mut config = MergeConfig::new(branches, port);
-        
+
         // If a custom merge function is provided, wrap it
         if let Some(py_func) = merge_function {
-            let merge_fn: MergeFunction = Arc::new(
-                move |values: Vec<&PortData>| {
-                    Python::with_gil(|py| {
-                        // Convert PortData values to Python
-                        let py_list = PyList::empty(py);
-                        for value in values {
-                            match port_data_to_python(py, value) {
-                                Ok(py_value) => {
-                                    py_list.append(py_value).map_err(|e| 
-                                        crate::core::GraphError::ExecutionError(e.to_string())
-                                    )?;
-                                }
-                                Err(e) => {
-                                    return Err(crate::core::GraphError::ExecutionError(e.to_string()));
-                                }
+            let merge_fn: MergeFunction = Arc::new(move |values: Vec<&PortData>| {
+                Python::with_gil(|py| {
+                    // Convert PortData values to Python
+                    let py_list = PyList::empty(py);
+                    for value in values {
+                        match port_data_to_python(py, value) {
+                            Ok(py_value) => {
+                                py_list.append(py_value).map_err(|e| {
+                                    crate::core::GraphError::ExecutionError(e.to_string())
+                                })?;
+                            }
+                            Err(e) => {
+                                return Err(crate::core::GraphError::ExecutionError(e.to_string()));
                             }
                         }
-                        
-                        // Call the Python merge function
-                        let result = py_func.call1(py, (py_list,))
-                            .map_err(|e| crate::core::GraphError::ExecutionError(e.to_string()))?;
-                        
-                        // Convert result back to PortData
-                        python_to_port_data(result.as_ref(py))
-                            .map_err(|e| crate::core::GraphError::ExecutionError(e.to_string()))
-                    })
-                }
-            );
+                    }
+
+                    // Call the Python merge function
+                    let result = py_func
+                        .call1(py, (py_list,))
+                        .map_err(|e| crate::core::GraphError::ExecutionError(e.to_string()))?;
+
+                    // Convert result back to PortData
+                    python_to_port_data(result.as_ref(py))
+                        .map_err(|e| crate::core::GraphError::ExecutionError(e.to_string()))
+                })
+            });
             config = config.with_merge_fn(merge_fn);
         }
-        
+
         self.inner
             .merge(node_id, config)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))

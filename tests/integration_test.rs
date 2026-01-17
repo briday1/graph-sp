@@ -16,10 +16,7 @@ async fn test_full_pipeline() {
         "source",
         "Data Source",
         vec![],
-        vec![
-            Port::simple("value1"),
-            Port::simple("value2"),
-        ],
+        vec![Port::simple("value1"), Port::simple("value2")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             outputs.insert("value1".to_string(), PortData::Int(10));

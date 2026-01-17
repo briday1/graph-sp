@@ -179,10 +179,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let merger = NodeConfig::new(
         "merger",
         "Result Merger",
-        vec![
-            Port::simple("branch_a_out"),
-            Port::simple("branch_b_out"),
-        ],
+        vec![Port::simple("branch_a_out"), Port::simple("branch_b_out")],
         vec![Port::simple("final")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             println!("[merger] Merging...");

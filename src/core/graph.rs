@@ -114,7 +114,8 @@ impl Node {
         self.outputs.clear();
         for port in &self.config.output_ports {
             if let Some(data) = impl_outputs.get(&port.impl_name) {
-                self.outputs.insert(port.broadcast_name.clone(), data.clone());
+                self.outputs
+                    .insert(port.broadcast_name.clone(), data.clone());
             }
         }
 
