@@ -19,14 +19,14 @@ import graph_sp
 graph = graph_sp.Graph()
 
 # Add nodes
-graph.add_node(
+graph.add(
     "source", "Data Source",
     [],  # no inputs
     [graph_sp.Port("output", "Numbers")],
     lambda inputs: {"output": [1, 2, 3, 4, 5]}
 )
 
-graph.add_node(
+graph.add(
     "doubler", "Multiply by 2",
     [graph_sp.Port("input", "Input")],
     [graph_sp.Port("output", "Output")],
@@ -87,7 +87,7 @@ import graph_sp
 graph = graph_sp.Graph()
 
 # Add a node with a Python function
-graph.add_node(
+graph.add(
     "node_id",           # Unique identifier
     "Node Name",         # Display name
     [                    # Input ports
@@ -119,14 +119,14 @@ graph.validate()
 graph = graph_sp.Graph()
 
 # Add nodes with matching port names
-graph.add_node("source", "Data Source", [],
+graph.add("source", "Data Source", [],
     [graph_sp.Port("data", "Data")], source_fn)
 
-graph.add_node("processor", "Processor",
+graph.add("processor", "Processor",
     [graph_sp.Port("data", "Input")],  # Matches "data" output!
     [graph_sp.Port("result", "Result")], processor_fn)
 
-graph.add_node("sink", "Sink",
+graph.add("sink", "Sink",
     [graph_sp.Port("result", "Input")],  # Matches "result" output!
     [], sink_fn)
 

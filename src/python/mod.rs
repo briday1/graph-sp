@@ -154,19 +154,6 @@ impl PyGraph {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
-    /// Alias for add() for backward compatibility
-    #[pyo3(signature = (id, name, inputs, outputs, function))]
-    fn add_node(
-        &mut self,
-        id: String,
-        name: String,
-        inputs: Vec<PyRef<PyPort>>,
-        outputs: Vec<PyRef<PyPort>>,
-        function: PyObject,
-    ) -> PyResult<()> {
-        self.add(id, name, inputs, outputs, function)
-    }
-
     fn add_edge(
         &mut self,
         from_node: String,
