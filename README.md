@@ -3,7 +3,7 @@
 A high-performance DAG (Directed Acyclic Graph) execution engine with true parallel execution, built in Rust with Python bindings.
 
 [![CI](https://github.com/briday1/graph-sp/workflows/CI/badge.svg)](https://github.com/briday1/graph-sp/actions)
-[![PyPI](https://img.shields.io/pypi/v/graph-sp.svg)](https://pypi.org/project/graph-sp/)
+[![PyPI](https://img.shields.io/pypi/v/pygraph-sp.svg)](https://pypi.org/project/pygraph-sp/)
 [![Crates.io](https://img.shields.io/crates/v/graph-sp.svg)](https://crates.io/crates/graph-sp)
 
 ## Features
