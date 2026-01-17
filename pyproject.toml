@@ -3,7 +3,7 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "graph-sp"
+name = "pygraph-sp"
 version = "0.1.0"
 description = "High-performance DAG execution engine with true parallel execution, built in Rust with Python bindings"
 readme = "python_examples/README.md"
