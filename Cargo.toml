@@ -3,6 +3,10 @@ name = "graph-sp"
 version = "2026.1.1"
 authors = ["briday1 <your-email@example.com>"]
 edition = "2021"
+description = "High-performance DAG execution engine with Python bindings"
+license = "MIT"
+repository = "https://github.com/briday1/graph-sp"
+homepage = "https://github.com/briday1/graph-sp"
 
 [lib]
 name = "graph_sp"

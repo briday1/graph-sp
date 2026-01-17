@@ -167,6 +167,8 @@ jobs:
     needs: check-and-tag
     runs-on: ubuntu-latest
     if: needs.check-and-tag.outputs.should_publish == 'true'
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -176,6 +178,16 @@ jobs:
           toolchain: stable
           profile: minimal
           override: true
+
+      - name: Commit Cargo.lock if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock || true
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update Cargo.lock" || true
+            git push origin HEAD:${{ github.ref }} || true
+          fi
 
       - name: Publish to crates.io
         env:
