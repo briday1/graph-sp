@@ -208,6 +208,9 @@ impl Inspector {
         output.push_str("```mermaid\n");
         output.push_str("graph TD\n");
 
+        // Detect parallel execution patterns (fan-out/fan-in)
+        let parallel_groups = Self::detect_parallel_groups(graph);
+
         // Check for branches (variants)
         let branch_names = graph.branch_names();
         let has_branches = !branch_names.is_empty();
@@ -219,6 +222,9 @@ impl Inspector {
 
             // Sanitize node ID for Mermaid (replace special chars)
             let safe_id = node_id.replace(['-', ' '], "_");
+            
+            // Replace literal \n with <br/> for proper line breaks in Mermaid
+            let formatted_name = node_name.replace("\\n", "<br/>");
 
             // Style nodes based on whether they're source/sink
             let incoming = graph.incoming_edges(node_id).unwrap_or_default();
@@ -226,26 +232,55 @@ impl Inspector {
 
             if incoming.is_empty() && !outgoing.is_empty() {
                 // Source node
-                output.push_str(&format!("    {}[\"{}\"]\n", safe_id, node_name));
+                output.push_str(&format!("    {}[\"{}\"]\n", safe_id, formatted_name));
                 output.push_str(&format!(
                     "    style {} fill:#e1f5ff,stroke:#01579b,stroke-width:2px\n",
                     safe_id
                 ));
             } else if outgoing.is_empty() && !incoming.is_empty() {
-                // Sink node
-                output.push_str(&format!("    {}[\"{}\"]\n", safe_id, node_name));
+                // Sink node (potential merge point)
+                output.push_str(&format!("    {}[\"{}\"]\n", safe_id, formatted_name));
                 output.push_str(&format!(
                     "    style {} fill:#f3e5f5,stroke:#4a148c,stroke-width:2px\n",
                     safe_id
                 ));
             } else {
                 // Processing node
-                output.push_str(&format!("    {}[\"{}\"]\n", safe_id, node_name));
+                output.push_str(&format!("    {}[\"{}\"]\n", safe_id, formatted_name));
                 output.push_str(&format!(
                     "    style {} fill:#fff3e0,stroke:#e65100,stroke-width:2px\n",
                     safe_id
                 ));
             }
+        }
+
+        // Add comments for parallel execution groups if detected
+        if !parallel_groups.is_empty() {
+            output.push('\n');
+            output.push_str("    %% Parallel Execution Groups Detected\n");
+            for (i, group) in parallel_groups.iter().enumerate() {
+                output.push_str(&format!(
+                    "    %% Group {}: {} nodes executing in parallel\n",
+                    i + 1,
+                    group.parallel_nodes.len()
+                ));
+            }
+        }
+
+        // Group parallel branches using subgraphs for better visualization
+        for (i, group) in parallel_groups.iter().enumerate() {
+            output.push('\n');
+            output.push_str(&format!("    subgraph parallel_group_{}[\"⚡ Parallel Execution Group {}\"]\n", i + 1, i + 1));
+            output.push_str(&format!("        direction LR\n"));
+            for node_id in &group.parallel_nodes {
+                let safe_id = node_id.replace(['-', ' '], "_");
+                output.push_str(&format!("        {}\n", safe_id));
+            }
+            output.push_str("    end\n");
+            output.push_str(&format!(
+                "    style parallel_group_{} fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray: 5 5\n",
+                i + 1
+            ));
         }
 
         // Add variant branches as special nodes
@@ -324,6 +359,52 @@ impl Inspector {
 
         Ok(output)
     }
+
+    /// Detect parallel execution groups (fan-out/fan-in patterns)
+    fn detect_parallel_groups(graph: &Graph) -> Vec<ParallelGroup> {
+        let mut groups = Vec::new();
+
+        // Find nodes that fan out to multiple nodes at the same level
+        for node in graph.nodes() {
+            let outgoing = graph.outgoing_edges(&node.config.id).unwrap_or_default();
+            
+            // Check if this node fans out to multiple nodes
+            if outgoing.len() > 1 {
+                // Get all target nodes
+                let target_nodes: Vec<String> = outgoing
+                    .iter()
+                    .map(|e| e.to_node.clone())
+                    .collect();
+
+                // Check if these nodes converge to a common node (fan-in)
+                let mut common_targets: HashMap<String, usize> = HashMap::new();
+                for target_id in &target_nodes {
+                    if let Ok(target_outgoing) = graph.outgoing_edges(target_id) {
+                        for edge in target_outgoing {
+                            *common_targets.entry(edge.to_node.clone()).or_insert(0) += 1;
+                        }
+                    }
+                }
+
+                // If multiple nodes converge to the same target, we have a fan-in
+                let merge_nodes: Vec<String> = common_targets
+                    .iter()
+                    .filter(|(_, &count)| count > 1)
+                    .map(|(node, _)| node.clone())
+                    .collect();
+
+                if !merge_nodes.is_empty() {
+                    groups.push(ParallelGroup {
+                        source_node: node.config.id.clone(),
+                        parallel_nodes: target_nodes,
+                        merge_nodes,
+                    });
+                }
+            }
+        }
+
+        groups
+    }
 }
 
 /// Analysis results for a graph
@@ -386,6 +467,19 @@ pub enum OptimizationType {
     MergeNodes,
     /// Parallelize independent branches
     ParallelizeBranches,
+}
+
+/// Represents a parallel execution group (fan-out/fan-in pattern)
+#[derive(Debug, Clone)]
+struct ParallelGroup {
+    /// Source node that fans out
+    #[allow(dead_code)]
+    source_node: String,
+    /// Nodes executing in parallel
+    parallel_nodes: Vec<String>,
+    /// Nodes where parallel branches merge
+    #[allow(dead_code)]
+    merge_nodes: Vec<String>,
 }
 
 #[cfg(test)]
@@ -485,5 +579,176 @@ mod tests {
         assert!(optimizations
             .iter()
             .any(|o| o.optimization_type == OptimizationType::RemoveIsolatedNode));
+    }
+
+    #[test]
+    fn test_mermaid_newline_replacement() {
+        let mut graph = Graph::new();
+
+        // Create a node with \n in the name
+        let config = NodeConfig::new(
+            "test_node",
+            "Line 1\\nLine 2\\nLine 3",
+            vec![],
+            vec![Port::new("out", "Output")],
+            Arc::new(dummy_function),
+        );
+
+        graph.add(Node::new(config)).unwrap();
+
+        let mermaid = Inspector::to_mermaid(&graph).unwrap();
+
+        // Should replace \n with <br/>
+        assert!(mermaid.contains("<br/>"));
+        assert!(!mermaid.contains("\\n"));
+    }
+
+    #[test]
+    fn test_mermaid_parallel_group_detection() {
+        let mut graph = Graph::new();
+
+        // Create a fan-out/fan-in pattern
+        let source = NodeConfig::new(
+            "source",
+            "Source",
+            vec![],
+            vec![Port::new("out", "Output")],
+            Arc::new(dummy_function),
+        );
+
+        let branch1 = NodeConfig::new(
+            "branch1",
+            "Branch 1",
+            vec![Port::new("in", "Input")],
+            vec![Port::new("out", "Output")],
+            Arc::new(dummy_function),
+        );
+
+        let branch2 = NodeConfig::new(
+            "branch2",
+            "Branch 2",
+            vec![Port::new("in", "Input")],
+            vec![Port::new("out", "Output")],
+            Arc::new(dummy_function),
+        );
+
+        let merger = NodeConfig::new(
+            "merger",
+            "Merger",
+            vec![Port::new("in1", "Input 1"), Port::new("in2", "Input 2")],
+            vec![],
+            Arc::new(dummy_function),
+        );
+
+        graph.add(Node::new(source)).unwrap();
+        graph.add(Node::new(branch1)).unwrap();
+        graph.add(Node::new(branch2)).unwrap();
+        graph.add(Node::new(merger)).unwrap();
+
+        // Fan-out from source
+        graph
+            .add_edge(Edge::new("source", "out", "branch1", "in"))
+            .unwrap();
+        graph
+            .add_edge(Edge::new("source", "out", "branch2", "in"))
+            .unwrap();
+
+        // Fan-in to merger
+        graph
+            .add_edge(Edge::new("branch1", "out", "merger", "in1"))
+            .unwrap();
+        graph
+            .add_edge(Edge::new("branch2", "out", "merger", "in2"))
+            .unwrap();
+
+        let mermaid = Inspector::to_mermaid(&graph).unwrap();
+
+        // Should detect parallel group
+        assert!(mermaid.contains("Parallel Execution Groups Detected"));
+        assert!(mermaid.contains("subgraph parallel_group_"));
+        assert!(mermaid.contains("⚡ Parallel Execution Group"));
+    }
+
+    #[test]
+    fn test_mermaid_node_styling() {
+        let mut graph = Graph::new();
+
+        // Source node (no incoming edges)
+        let source = NodeConfig::new(
+            "source",
+            "Source",
+            vec![],
+            vec![Port::new("out", "Output")],
+            Arc::new(dummy_function),
+        );
+
+        // Processing node (both incoming and outgoing)
+        let processor = NodeConfig::new(
+            "processor",
+            "Processor",
+            vec![Port::new("in", "Input")],
+            vec![Port::new("out", "Output")],
+            Arc::new(dummy_function),
+        );
+
+        // Sink node (no outgoing edges)
+        let sink = NodeConfig::new(
+            "sink",
+            "Sink",
+            vec![Port::new("in", "Input")],
+            vec![],
+            Arc::new(dummy_function),
+        );
+
+        graph.add(Node::new(source)).unwrap();
+        graph.add(Node::new(processor)).unwrap();
+        graph.add(Node::new(sink)).unwrap();
+
+        graph
+            .add_edge(Edge::new("source", "out", "processor", "in"))
+            .unwrap();
+        graph
+            .add_edge(Edge::new("processor", "out", "sink", "in"))
+            .unwrap();
+
+        let mermaid = Inspector::to_mermaid(&graph).unwrap();
+
+        // Should have different styles for source, processor, and sink
+        assert!(mermaid.contains("#e1f5ff")); // Source color
+        assert!(mermaid.contains("#fff3e0")); // Processor color
+        assert!(mermaid.contains("#f3e5f5")); // Sink color
+    }
+
+    #[test]
+    fn test_mermaid_edge_labels() {
+        let mut graph = Graph::new();
+
+        let source = NodeConfig::new(
+            "source",
+            "Source",
+            vec![],
+            vec![Port::new("output_port", "Output")],
+            Arc::new(dummy_function),
+        );
+
+        let sink = NodeConfig::new(
+            "sink",
+            "Sink",
+            vec![Port::new("input_port", "Input")],
+            vec![],
+            Arc::new(dummy_function),
+        );
+
+        graph.add(Node::new(source)).unwrap();
+        graph.add(Node::new(sink)).unwrap();
+
+        graph
+            .add_edge(Edge::new("source", "output_port", "sink", "input_port"))
+            .unwrap();
+
+        let mermaid = Inspector::to_mermaid(&graph).unwrap();
+
+        // Should have edge label with port names
+        assert!(mermaid.contains("output_port→input_port"));
     }
 }

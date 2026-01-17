@@ -48,6 +48,7 @@ This directory contains complete Python examples:
 - **simple_pipeline.py**: Basic 3-node pipeline with graph analysis and Mermaid diagrams
 - **complex_objects.py**: Demonstrates nested objects, JSON, and lists
 - **parallel_execution.py**: Shows parallel execution with 3 independent branches
+- **implicit_edges.py**: Demonstrates auto_connect() with parallel branches and multi-line labels
 
 ### Running Examples
 
@@ -60,15 +61,19 @@ python complex_objects.py
 
 # Parallel execution (shows 44% speedup)
 python parallel_execution.py
+
+# Implicit edge mapping
+python implicit_edges.py
 ```
 
 ## Features
 
 - ⚡ **True Parallel Execution**: Independent nodes run concurrently (44% faster)
 - 🔌 **Port-based Architecture**: Type-safe data flow between nodes
+- 🔗 **Implicit Edge Mapping**: Auto-connect nodes by matching port names
 - 📊 **Rich Data Types**: Primitives, lists, nested dicts, JSON, binary data
 - 🔍 **Graph Analysis**: Depth, width, sources, sinks, and optimization suggestions
-- 📈 **Mermaid Diagrams**: Generate visual graph representations
+- 🎨 **Rich Mermaid Diagrams**: Color-coded nodes, parallel group detection, multi-line labels
 - ✅ **Cycle Detection**: Built-in DAG validation
 
 ## API Overview
@@ -100,8 +105,38 @@ graph.add_node(
 # Connect nodes
 graph.add_edge("source_node", "output_port", "target_node", "input_port")
 
+# OR use implicit edge mapping (auto-connect by port names)
+edges_created = graph.auto_connect()  # No explicit add_edge() needed!
+
 # Validate graph (checks for cycles)
 graph.validate()
+```
+
+### Implicit Edge Mapping (No add_edge() Needed!)
+
+```python
+# Build graphs by matching port names automatically
+graph = graph_sp.Graph()
+
+# Add nodes with matching port names
+graph.add_node("source", "Data Source", [],
+    [graph_sp.Port("data", "Data")], source_fn)
+
+graph.add_node("processor", "Processor",
+    [graph_sp.Port("data", "Input")],  # Matches "data" output!
+    [graph_sp.Port("result", "Result")], processor_fn)
+
+graph.add_node("sink", "Sink",
+    [graph_sp.Port("result", "Input")],  # Matches "result" output!
+    [], sink_fn)
+
+# Auto-connect based on port name matching
+edges_created = graph.auto_connect()
+print(f"✓ Created {edges_created} edges automatically!")
+
+# Generated Mermaid diagram shows all connections:
+# source -->|"data→data"| processor
+# processor -->|"result→result"| sink
 ```
 
 ### Executing Graphs
@@ -137,6 +172,69 @@ print(structure)
 mermaid = graph.to_mermaid()
 print(mermaid)
 ```
+
+### Mermaid Visualization with Parallel Groups
+
+Multi-line labels and parallel execution groups are automatically detected:
+
+```python
+# Example with parallel branches and multi-line labels
+graph = graph_sp.Graph()
+
+graph.add_node("source", "Value Source", [],
+    [graph_sp.Port("value", "Value")], source_fn)
+
+# Multi-line labels using \n
+graph.add_node("branch_a", "Branch A\\n(×2)",
+    [graph_sp.Port("value", "Input")],
+    [graph_sp.Port("out_a", "Output")], branch_a_fn)
+
+graph.add_node("branch_b", "Branch B\\n(+50)",
+    [graph_sp.Port("value", "Input")],
+    [graph_sp.Port("out_b", "Output")], branch_b_fn)
+
+graph.add_node("merger", "Merger",
+    [graph_sp.Port("out_a", "A"), graph_sp.Port("out_b", "B")],
+    [], merger_fn)
+
+graph.auto_connect()
+mermaid = graph.to_mermaid()
+```
+
+**Generated output:**
+
+```mermaid
+graph TD
+    source["Value Source"]
+    style source fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    branch_a["Branch A<br/>(×2)"]
+    style branch_a fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    branch_b["Branch B<br/>(+50)"]
+    style branch_b fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    merger["Merger"]
+    style merger fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+
+    %% Parallel Execution Groups Detected
+    %% Group 1: 2 nodes executing in parallel
+
+    subgraph parallel_group_1["⚡ Parallel Execution Group 1"]
+        direction LR
+        branch_b
+        branch_a
+    end
+    style parallel_group_1 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray: 5 5
+
+    source -->|"value→value"| branch_a
+    source -->|"value→value"| branch_b
+    branch_a -->|"out_a→out_a"| merger
+    branch_b -->|"out_b→out_b"| merger
+```
+
+Notice:
+- `\n` in node names becomes `<br/>` for proper line breaks
+- Parallel branches are grouped in a dashed green subgraph
+- Color-coded nodes: Blue (source), Orange (processing), Purple (sink)
+- All edges are properly connected (no disconnected nodes)
 
 ## Data Types
 

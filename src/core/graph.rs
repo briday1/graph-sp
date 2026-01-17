@@ -470,6 +470,80 @@ impl Graph {
             .collect())
     }
 
+    /// Automatically connect nodes based on matching port names
+    /// This enables implicit edge mapping without explicit add_edge() calls
+    /// 
+    /// # Matching Strategy
+    /// - Connects output ports to input ports with the same name
+    /// - Only creates edges if the port names match exactly
+    /// - Respects topological ordering to avoid cycles
+    /// 
+    /// # Returns
+    /// The number of edges created
+    pub fn auto_connect(&mut self) -> Result<usize> {
+        let mut edges_created = 0;
+        let node_ids: Vec<NodeId> = self.nodes().iter().map(|n| n.config.id.clone()).collect();
+
+        for from_node_id in &node_ids {
+            let from_node = self.get_node(from_node_id)?;
+            let output_ports: Vec<PortId> = from_node
+                .config
+                .output_ports
+                .iter()
+                .map(|p| p.id.clone())
+                .collect();
+
+            for to_node_id in &node_ids {
+                if from_node_id == to_node_id {
+                    continue;
+                }
+
+                let to_node = self.get_node(to_node_id)?;
+                let input_ports: Vec<PortId> = to_node
+                    .config
+                    .input_ports
+                    .iter()
+                    .map(|p| p.id.clone())
+                    .collect();
+
+                // Find matching port names
+                for output_port in &output_ports {
+                    for input_port in &input_ports {
+                        if output_port == input_port {
+                            // Check if edge already exists
+                            let edge_exists = self.edges().iter().any(|e| {
+                                e.from_node == *from_node_id
+                                    && e.from_port == *output_port
+                                    && e.to_node == *to_node_id
+                                    && e.to_port == *input_port
+                            });
+
+                            if !edge_exists {
+                                let edge = Edge::new(
+                                    from_node_id.clone(),
+                                    output_port.clone(),
+                                    to_node_id.clone(),
+                                    input_port.clone(),
+                                );
+                                self.add_edge(edge)?;
+                                edges_created += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(edges_created)
+    }
+
+    /// Build a graph with strict mode disabled - uses implicit edge mapping
+    /// This is a convenience method that calls auto_connect() after all nodes are added
+    pub fn with_auto_connect(mut self) -> Result<Self> {
+        self.auto_connect()?;
+        Ok(self)
+    }
+
     /// Create a new branch (subgraph) with the given name
     pub fn create_branch(&mut self, name: impl Into<String>) -> Result<&mut Graph> {
         let name = name.into();
@@ -1034,5 +1108,103 @@ mod tests {
         // Should have 0 edges in strict mode
         assert_eq!(graph.edge_count(), 0);
         assert_eq!(graph.node_count(), 2);
+    }
+
+    #[test]
+    fn test_auto_connect() {
+        let mut graph = Graph::with_strict_edges();
+
+        // Create nodes with matching port names
+        let config1 = NodeConfig::new(
+            "source",
+            "Source",
+            vec![],
+            vec![Port::new("data", "Data")],
+            Arc::new(dummy_function),
+        );
+
+        let config2 = NodeConfig::new(
+            "processor",
+            "Processor",
+            vec![Port::new("data", "Data")], // Matches source output!
+            vec![Port::new("result", "Result")],
+            Arc::new(dummy_function),
+        );
+
+        let config3 = NodeConfig::new(
+            "sink",
+            "Sink",
+            vec![Port::new("result", "Result")], // Matches processor output!
+            vec![],
+            Arc::new(dummy_function),
+        );
+
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
+        graph.add(Node::new(config3)).unwrap();
+
+        // Initially no edges in strict mode
+        assert_eq!(graph.edge_count(), 0);
+
+        // Auto-connect should create 2 edges
+        let edges_created = graph.auto_connect().unwrap();
+        assert_eq!(edges_created, 2);
+        assert_eq!(graph.edge_count(), 2);
+
+        // Graph should be valid
+        assert!(graph.validate().is_ok());
+    }
+
+    #[test]
+    fn test_auto_connect_parallel_branches() {
+        let mut graph = Graph::with_strict_edges();
+
+        // Source with output "value"
+        let source = NodeConfig::new(
+            "source",
+            "Source",
+            vec![],
+            vec![Port::new("value", "Value")],
+            Arc::new(dummy_function),
+        );
+
+        // Two branches with same input port name
+        let branch1 = NodeConfig::new(
+            "branch1",
+            "Branch 1",
+            vec![Port::new("value", "Value")],
+            vec![Port::new("out1", "Output 1")],
+            Arc::new(dummy_function),
+        );
+
+        let branch2 = NodeConfig::new(
+            "branch2",
+            "Branch 2",
+            vec![Port::new("value", "Value")],
+            vec![Port::new("out2", "Output 2")],
+            Arc::new(dummy_function),
+        );
+
+        // Merger with inputs matching branch outputs
+        let merger = NodeConfig::new(
+            "merger",
+            "Merger",
+            vec![Port::new("out1", "Input 1"), Port::new("out2", "Input 2")],
+            vec![],
+            Arc::new(dummy_function),
+        );
+
+        graph.add(Node::new(source)).unwrap();
+        graph.add(Node::new(branch1)).unwrap();
+        graph.add(Node::new(branch2)).unwrap();
+        graph.add(Node::new(merger)).unwrap();
+
+        // Auto-connect should create 4 edges (fan-out + fan-in)
+        let edges_created = graph.auto_connect().unwrap();
+        assert_eq!(edges_created, 4);
+        assert_eq!(graph.edge_count(), 4);
+
+        // Graph should be valid
+        assert!(graph.validate().is_ok());
     }
 }

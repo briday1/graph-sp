@@ -178,6 +178,12 @@ impl PyGraph {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
+    fn auto_connect(&mut self) -> PyResult<usize> {
+        self.inner
+            .auto_connect()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
     fn validate(&self) -> PyResult<()> {
         self.inner
             .validate()

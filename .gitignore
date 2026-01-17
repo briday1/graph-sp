@@ -38,6 +38,7 @@ wheels/
 venv/
 .venv/
 ENV/
+python/
 
 # OS files
 .DS_Store
