@@ -269,7 +269,7 @@ The Python examples produce **identical output** to their Rust counterparts, dem
 5. **Graph Analysis**: Identical graph structure analysis (depth, width, sources, sinks)
 
 ### Key Differences:
-- **Syntax**: Python uses `graph_sp.Graph()` vs Rust's `Graph::new()`
+- **Syntax**: Python uses `pygraphsp.Graph()` vs Rust's `Graph::new()`
 - **Function Definition**: Python uses simple functions vs Rust's `Arc<Fn>`
 - **Execution**: Python uses `await executor.execute(graph)` vs Rust's async pattern
 - **Type System**: Python is dynamically typed, Rust is statically typed
