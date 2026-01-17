@@ -10,7 +10,7 @@ Variants allow you to:
 4. Enable parallelization for faster execution
 """
 
-import pygraph_sp as gs
+import pygraphsp as gs
 
 
 def train_model(inputs):

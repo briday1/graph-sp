@@ -16,7 +16,7 @@ for connections, which is useful when:
 3. You're working with multiple functions that have conflicting parameter names
 """
 
-import pygraph_sp as gs
+import pygraphsp as gs
 
 
 def data_source():

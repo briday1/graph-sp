@@ -292,6 +292,10 @@ impl PyGraph {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
     }
 
+    fn set_strict_edge_mapping(&mut self, strict: bool) {
+        self.inner.set_strict_edge_mapping(strict);
+    }
+
     #[pyo3(signature = (name_prefix, count, param_name, variant_function, parallel=None))]
     fn create_variants(
         &mut self,
@@ -569,7 +573,7 @@ fn port_data_to_python(py: Python, data: &PortData) -> PyResult<PyObject> {
 #[cfg(feature = "python")]
 /// Python module initialization
 #[pymodule]
-fn graph_sp(_py: Python, m: &PyModule) -> PyResult<()> {
+fn pygraphsp(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyPortData>()?;
     m.add_class::<PyPort>()?;
     m.add_class::<PyGraph>()?;

@@ -116,7 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Execute
     println!("=== Executing Graph ===");
     let executor = Executor::new();
-    let result = executor.execute(&mut graph).await?;
+    let _result = executor.execute(&mut graph).await?;
     println!("✓ Execution completed!\n");
 
     // Example 2: Parallel branches with implicit connections
@@ -232,7 +232,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Execute
     println!("=== Executing Graph ===");
-    let result2 = executor.execute(&mut graph2).await?;
+    let _result2 = executor.execute(&mut graph2).await?;
     println!("✓ Execution completed!\n");
 
     println!("=== Example Complete ===");

@@ -5,7 +5,7 @@ This example demonstrates passing complex data structures through ports
 using Maps, JSON, Lists, and binary data.
 """
 
-import pygraph_sp as gs
+import pygraphsp as gs
 
 
 def main():
@@ -14,7 +14,7 @@ def main():
     # Example 1: Using Maps for structured objects
     print("Example 1: Using Maps for structured objects\n")
     
-    graph1 = graph_sp.Graph()
+    graph1 = gs.Graph()
     
     def user_creator(inputs):
         """Create a user object with nested structure"""
@@ -45,24 +45,21 @@ def main():
         return {"summary": summary}
     
     graph1.add(
-        "user_creator",
-        "User Creator",
-        [],
-        [graph_sp.Port("user", "User Object")],
-        user_creator
+        user_creator,
+        label="User Creator",
+        outputs=["user"]
     )
     
     graph1.add(
-        "user_processor",
-        "User Processor",
-        [graph_sp.Port("user", "User Object")],
-        [graph_sp.Port("summary", "Summary")],
-        user_processor
+        user_processor,
+        label="User Processor",
+        inputs=["user"],
+        outputs=["summary"]
     )
     
     graph1.add_edge("user_creator", "user", "user_processor", "user")
     
-    executor = graph_sp.Executor()
+    executor = gs.Executor()
     result1 = executor.execute(graph1)
     
     summary = result1.get_output("user_processor", "summary")
@@ -71,7 +68,7 @@ def main():
     # Example 2: Using JSON for arbitrary structures
     print("Example 2: Using JSON for arbitrary structures\n")
     
-    graph2 = graph_sp.Graph()
+    graph2 = gs.Graph()
     
     def json_producer(inputs):
         """Create complex JSON object"""
@@ -104,19 +101,16 @@ def main():
         return {"description": description}
     
     graph2.add(
-        "json_producer",
-        "JSON Producer",
-        [],
-        [graph_sp.Port("data", "JSON Data")],
-        json_producer
+        json_producer,
+        label="JSON Producer",
+        outputs=["data"]
     )
     
     graph2.add(
-        "json_consumer",
-        "JSON Consumer",
-        [graph_sp.Port("data", "JSON Data")],
-        [graph_sp.Port("description", "Description")],
-        json_consumer
+        json_consumer,
+        label="JSON Consumer",
+        inputs=["data"],
+        outputs=["description"]
     )
     
     graph2.add_edge("json_producer", "data", "json_consumer", "data")
@@ -129,7 +123,7 @@ def main():
     # Example 3: Using Lists
     print("Example 3: Using Lists for collections\n")
     
-    graph3 = graph_sp.Graph()
+    graph3 = gs.Graph()
     
     def list_creator(inputs):
         """Create a list of numbers"""
@@ -149,23 +143,16 @@ def main():
         }
     
     graph3.add(
-        "list_creator",
-        "List Creator",
-        [],
-        [graph_sp.Port("numbers", "Numbers")],
-        list_creator
+        list_creator,
+        label="List Creator",
+        outputs=["numbers"]
     )
     
     graph3.add(
-        "list_processor",
-        "List Processor",
-        [graph_sp.Port("numbers", "Numbers")],
-        [
-            graph_sp.Port("sum", "Sum"),
-            graph_sp.Port("count", "Count"),
-            graph_sp.Port("average", "Average")
-        ],
-        list_processor
+        list_processor,
+        label="List Processor",
+        inputs=["numbers"],
+        outputs=["sum", "count", "average"]
     )
     
     graph3.add_edge("list_creator", "numbers", "list_processor", "numbers")

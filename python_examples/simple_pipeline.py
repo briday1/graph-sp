@@ -9,7 +9,7 @@ To run this example:
 2. Run: python simple_pipeline.py
 """
 
-import pygraph_sp as gs
+import pygraphsp as gs
 
 
 def main():
@@ -46,8 +46,6 @@ def main():
         inputs=["input"],
         outputs=["output"]
     )
-        double_fn
-    )
     
     graph.add(
         add_five_fn,
@@ -56,34 +54,14 @@ def main():
         outputs=["output"]
     )
 
-    # Connect nodes
-    graph.add_edge("source_fn", "output", "double_fn", "input")
-    graph.add_edge("double_fn", "output", "add_five_fn", "input")
+    # Auto-connect nodes with matching port names
+    graph.auto_connect()
 
     print("✓ Graph built successfully!\n")
 
     # Validate
     graph.validate()
     print("✓ Graph is valid (no cycles detected)\n")
-
-    # Analyze
-    analysis = gs.Inspector.analyze(graph)
-    print(f"=== Graph Analysis ===")
-    print(f"Node count: {analysis.node_count}")
-    print(f"Edge count: {analysis.edge_count}")
-    print(f"Depth: {analysis.depth}")
-    print(f"Width: {analysis.width}")
-    print(f"Summary: {analysis.summary()}\n")
-
-    # Visualize
-    print("=== Graph Structure ===")
-    visualization = gs.Inspector.visualize(graph)
-    print(visualization)
-
-    # Generate Mermaid diagram
-    print("=== Mermaid Diagram ===")
-    mermaid = gs.Inspector.to_mermaid(graph)
-    print(mermaid)
 
     # Execute
     print("=== Executing Graph ===")

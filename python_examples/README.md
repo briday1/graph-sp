@@ -1,240 +1,182 @@
-# graph-sp Python Bindings
+# pygraph-sp Python Package
 
-Python bindings for the graph-sp DAG execution engine.
+Python bindings for the graph-sp DAG execution engine with true parallel execution.
 
-For complete documentation and installation instructions, visit the [PyPI package page](https://pypi.org/project/graph-sp/) or the [main repository](https://github.com/briday1/graph-sp).
+For complete documentation, visit the [main repository](https://github.com/briday1/graph-sp).
 
 ## Installation
 
 ```bash
-pip install graph-sp
+pip install pygraph-sp
 ```
 
 ## Quick Start
 
 ```python
-import graph_sp
+import pygraphsp as gs
 
 # Create a graph
-graph = graph_sp.Graph()
+graph = gs.Graph()
 
-# Add nodes
+# Define functions
+def data_source(inputs):
+    return {"output": [1, 2, 3, 4, 5]}
+
+def multiply_by_2(inputs):
+    return {"output": [x * 2 for x in inputs["input"]]}
+
+# Add nodes with simplified API
 graph.add(
-    "source", "Data Source",
-    [],  # no inputs
-    [graph_sp.Port("output", "Numbers")],
-    lambda inputs: {"output": [1, 2, 3, 4, 5]}
+    data_source,
+    label="Data Source",
+    outputs=["output"]
 )
 
 graph.add(
-    "doubler", "Multiply by 2",
-    [graph_sp.Port("input", "Input")],
-    [graph_sp.Port("output", "Output")],
-    lambda inputs: {"output": [x * 2 for x in inputs["input"]]}
+    multiply_by_2,
+    label="Multiply by 2",
+    inputs=["input"],
+    outputs=["output"]
 )
 
-# Connect and execute
-graph.add_edge("source", "output", "doubler", "input")
-executor = graph_sp.Executor()
+# Auto-connect based on matching port names
+graph.auto_connect()
+
+# Execute
+executor = gs.Executor()
 result = executor.execute(graph)
 
-print(result.get_output("doubler", "output"))  # [2, 4, 6, 8, 10]
+print(result.get_output("multiply_by_2", "output"))  # [2, 4, 6, 8, 10]
 ```
 
 ## Examples
 
 This directory contains complete Python examples:
 
-- **simple_pipeline.py**: Basic 3-node pipeline with graph analysis and Mermaid diagrams
-- **complex_objects.py**: Demonstrates nested objects, JSON, and lists
-- **parallel_execution.py**: Shows parallel execution with 3 independent branches
-- **implicit_edges.py**: Demonstrates auto_connect() with parallel branches and multi-line labels
+- **simple_pipeline.py**: Basic 3-node pipeline with the new simplified API
+- **parallel_execution.py**: Fan-out/fan-in with 3 parallel branches (44% speedup)
+- **variants_demo.py**: Hyperparameter sweeps and parameter variations
+- **port_mapping_demo.py**: Advanced port mapping with broadcast/impl names
+- **complex_objects.py**: Nested objects, JSON, and lists
+- **branching_example.py**: Branch creation and management
 
 ### Running Examples
 
 ```bash
-# Simple pipeline
+cd python_examples
+
+# Simple pipeline with new API
 python simple_pipeline.py
 
-# Complex data structures
-python complex_objects.py
-
-# Parallel execution (shows 44% speedup)
+# Parallel execution (shows speedup)
 python parallel_execution.py
 
-# Implicit edge mapping
-python implicit_edges.py
+# Hyperparameter sweeps
+python variants_demo.py
 ```
 
 ## Features
 
 - ⚡ **True Parallel Execution**: Independent nodes run concurrently (44% faster)
-- 🔌 **Port-based Architecture**: Type-safe data flow between nodes
-- 🔗 **Implicit Edge Mapping**: Auto-connect nodes by matching port names
+- 🔌 **Simplified API**: `graph.add(function, label=, inputs=, outputs=)`
+- 🎯 **Auto-Connect**: Automatically connects nodes with matching port names
+- 🔄 **Variants & Sweeps**: Built-in hyperparameter sweep support
 - 📊 **Rich Data Types**: Primitives, lists, nested dicts, JSON, binary data
-- 🔍 **Graph Analysis**: Depth, width, sources, sinks, and optimization suggestions
-- 🎨 **Rich Mermaid Diagrams**: Color-coded nodes, parallel group detection, multi-line labels
 - ✅ **Cycle Detection**: Built-in DAG validation
 
 ## API Overview
 
-### Creating Graphs
+### Creating Graphs (New Simplified API)
 
 ```python
-import graph_sp
+import pygraphsp as gs
 
 # Create a new graph
-graph = graph_sp.Graph()
+graph = gs.Graph()
 
-# Add a node with a Python function
+# Define your function
+def my_processor(inputs):
+    # inputs is a dict with your port names as keys
+    value = inputs["input_data"]
+    return {"result": value * 2}
+
+# Add node with simplified API
 graph.add(
-    "node_id",           # Unique identifier
-    "Node Name",         # Display name
-    [                    # Input ports
-        graph_sp.Port("input1", "First Input"),
-        graph_sp.Port("input2", "Second Input")
-    ],
-    [                    # Output ports
-        graph_sp.Port("output", "Result")
-    ],
-    lambda inputs: {     # Node function
-        "output": inputs["input1"] + inputs["input2"]
-    }
+    my_processor,           # Your function
+    label="My Processor",   # Display name (optional)
+    inputs=["input_data"],  # List of input port names
+    outputs=["result"]      # List of output port names
 )
 
-# Connect nodes
-graph.add_edge("source_node", "output_port", "target_node", "input_port")
+# Auto-connect nodes with matching port names
+graph.auto_connect()
 
-# OR use implicit edge mapping (auto-connect by port names)
-edges_created = graph.auto_connect()  # No explicit add_edge() needed!
+# Or manually connect if needed
+# graph.add_edge("source_fn", "data", "my_processor", "input_data")
 
 # Validate graph (checks for cycles)
 graph.validate()
 ```
 
-### Implicit Edge Mapping (No add_edge() Needed!)
-
-```python
-# Build graphs by matching port names automatically
-graph = graph_sp.Graph()
-
-# Add nodes with matching port names
-graph.add("source", "Data Source", [],
-    [graph_sp.Port("data", "Data")], source_fn)
-
-graph.add("processor", "Processor",
-    [graph_sp.Port("data", "Input")],  # Matches "data" output!
-    [graph_sp.Port("result", "Result")], processor_fn)
-
-graph.add("sink", "Sink",
-    [graph_sp.Port("result", "Input")],  # Matches "result" output!
-    [], sink_fn)
-
-# Auto-connect based on port name matching
-edges_created = graph.auto_connect()
-print(f"✓ Created {edges_created} edges automatically!")
-
-# Generated Mermaid diagram shows all connections:
-# source -->|"data→data"| processor
-# processor -->|"result→result"| sink
-```
+**Note:** For advanced cases where parameter names differ from port names, see `port_mapping_demo.py` for explicit mapping examples.
 
 ### Executing Graphs
 
 ```python
 # Create executor
-executor = graph_sp.Executor()
+executor = gs.Executor()
 
 # Execute graph (automatically parallelizes independent nodes)
 result = executor.execute(graph)
 
 # Get outputs
-value = result.get_output("node_id", "port_name")
+output_value = result.get_output("my_processor", "result")
+print(f"Result: {output_value}")
+
+# Check success
+if result.is_success():
+    print("✓ Execution successful!")
 ```
 
 ### Graph Analysis
 
 ```python
-# Analyze structure
-analysis = graph.analyze()
+# Analyze graph structure
+analysis = gs.Inspector.analyze(graph)
 print(f"Nodes: {analysis.node_count}")
-print(f"Edges: {analysis.edge_count}")
 print(f"Depth: {analysis.depth}")
-print(f"Width: {analysis.width}")  # Parallelization potential
-print(f"Sources: {analysis.source_count}")
-print(f"Sinks: {analysis.sink_count}")
+print(f"Width: {analysis.width}")
 
-# Get text visualization
-structure = graph.visualize()
-print(structure)
-
-# Generate Mermaid diagram
-mermaid = graph.to_mermaid()
+# Generate visualization
+mermaid = gs.Inspector.to_mermaid(graph)
 print(mermaid)
 ```
 
-### Mermaid Visualization with Parallel Groups
-
-Multi-line labels and parallel execution groups are automatically detected:
+### Variants & Parameter Sweeps
 
 ```python
-# Example with parallel branches and multi-line labels
-graph = graph_sp.Graph()
+# Create parameter variations
+def learning_rate_gen(i):
+    rates = [0.001, 0.01, 0.1]
+    return gs.PortData(rates[i])
 
-graph.add_node("source", "Value Source", [],
-    [graph_sp.Port("value", "Value")], source_fn)
+variant_branches = graph.create_variants(
+    name_prefix="lr",
+    count=3,
+    param_name="learning_rate",
+    variant_function=learning_rate_gen,
+    parallel=True
+)
 
-# Multi-line labels using \n
-graph.add_node("branch_a", "Branch A\\n(×2)",
-    [graph_sp.Port("value", "Input")],
-    [graph_sp.Port("out_a", "Output")], branch_a_fn)
-
-graph.add_node("branch_b", "Branch B\\n(+50)",
-    [graph_sp.Port("value", "Input")],
-    [graph_sp.Port("out_b", "Output")], branch_b_fn)
-
-graph.add_node("merger", "Merger",
-    [graph_sp.Port("out_a", "A"), graph_sp.Port("out_b", "B")],
-    [], merger_fn)
-
-graph.auto_connect()
-mermaid = graph.to_mermaid()
+# Merge results from all variants
+graph.merge_branches(
+    node_id="best_model",
+    branches=variant_branches,
+    port="accuracy"
+)
 ```
 
-**Generated output:**
-
-```mermaid
-graph TD
-    source["Value Source"]
-    style source fill:#e1f5ff,stroke:#01579b,stroke-width:2px
-    branch_a["Branch A<br/>(×2)"]
-    style branch_a fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    branch_b["Branch B<br/>(+50)"]
-    style branch_b fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    merger["Merger"]
-    style merger fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-
-    %% Parallel Execution Groups Detected
-    %% Group 1: 2 nodes executing in parallel
-
-    subgraph parallel_group_1["⚡ Parallel Execution Group 1"]
-        direction LR
-        branch_b
-        branch_a
-    end
-    style parallel_group_1 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray: 5 5
-
-    source -->|"value→value"| branch_a
-    source -->|"value→value"| branch_b
-    branch_a -->|"out_a→out_a"| merger
-    branch_b -->|"out_b→out_b"| merger
-```
-
-Notice:
-- `\n` in node names becomes `<br/>` for proper line breaks
-- Parallel branches are grouped in a dashed green subgraph
-- Color-coded nodes: Blue (source), Orange (processing), Purple (sink)
-- All edges are properly connected (no disconnected nodes)
+See `variants_demo.py` for complete examples.
 
 ## Data Types
 
@@ -287,6 +229,9 @@ product = {
 The executor automatically identifies and parallelizes independent branches:
 
 ```python
+import pygraphsp as gs
+import time
+
 # Fan-out pattern: 3 branches run in parallel
 #
 #         source
@@ -299,31 +244,40 @@ The executor automatically identifies and parallelizes independent branches:
 # Parallel time: 500ms (max branch time)
 # Speedup: 44% faster!
 
-graph = graph_sp.Graph()
+graph = gs.Graph()
 
-graph.add_node("source", "Source", [], 
-               [graph_sp.Port("value", "Value")],
-               lambda _: {"value": 100})
+def source_fn(inputs):
+    return {"value": 100}
 
-# These 3 nodes will execute in parallel
-graph.add_node("slow", "Slow Branch",
-               [graph_sp.Port("input", "Input")],
-               [graph_sp.Port("output", "Output")],
-               lambda inputs: slow_operation(inputs["input"]))
+def slow_branch(inputs):
+    time.sleep(0.5)  # 500ms
+    return {"a": inputs["input"] * 2}
 
-graph.add_node("fast", "Fast Branch",
-               [graph_sp.Port("input", "Input")],
-               [graph_sp.Port("output", "Output")],
-               lambda inputs: fast_operation(inputs["input"]))
+def fast_branch(inputs):
+    time.sleep(0.1)  # 100ms
+    return {"b": inputs["input"] + 50}
 
-graph.add_node("medium", "Medium Branch",
-               [graph_sp.Port("input", "Input")],
-               [graph_sp.Port("output", "Output")],
-               lambda inputs: medium_operation(inputs["input"]))
+def medium_branch(inputs):
+    time.sleep(0.3)  # 300ms
+    return {"c": inputs["input"] // 2}
 
-# Connect all branches to source and merger
-for branch in ["slow", "fast", "medium"]:
-    graph.add_edge("source", "value", branch, "input")
+def merger(inputs):
+    return {"result": inputs["a"] + inputs["b"] + inputs["c"]}
+
+# Add nodes with simplified API
+graph.add(source_fn, label="Source", outputs=["value"])
+graph.add(slow_branch, label="Slow", inputs=["input"], outputs=["a"])
+graph.add(fast_branch, label="Fast", inputs=["input"], outputs=["b"])
+graph.add(medium_branch, label="Medium", inputs=["input"], outputs=["c"])
+graph.add(merger, label="Merger", inputs=["a", "b", "c"], outputs=["result"])
+
+# Auto-connect based on matching port names
+graph.auto_connect()
+
+# Execute - branches run in parallel!
+executor = gs.Executor()
+result = executor.execute(graph)
+print(result.get_output("merger", "result"))  # 300
 ```
 
 ## Building from Source
@@ -365,6 +319,6 @@ MIT License
 ## Links
 
 - **GitHub**: https://github.com/briday1/graph-sp
-- **PyPI**: https://pypi.org/project/graph-sp/
+- **PyPI**: https://pypi.org/project/pygraph-sp/
 - **Crates.io**: https://crates.io/crates/graph-sp
 - **Issues**: https://github.com/briday1/graph-sp/issues

@@ -11,7 +11,6 @@
 use graph_sp::core::{
     Edge, Graph, MergeConfig, Node, NodeConfig, Port, PortData, VariantConfig, VariantFunction,
 };
-use graph_sp::executor::Executor;
 use graph_sp::inspector::Inspector;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -261,7 +260,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Second level: 3 batch sizes in each LR
-    for (idx, lr_branch) in lr_branches.iter().enumerate() {
+    for (_idx, lr_branch) in lr_branches.iter().enumerate() {
         let branch = graph5.get_branch_mut(lr_branch)?;
 
         let batch_fn: VariantFunction = Arc::new(|i: usize| PortData::Int((i as i64 + 1) * 16));

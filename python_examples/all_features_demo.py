@@ -1,39 +1,36 @@
 """
-Comprehensive Example: Showing Both Implicit and Explicit Edge Mapping (Python)
+Comprehensive Example: graph-sp Python Features
 
-This example demonstrates ALL currently available features in Python:
-- Implicit edge mapping (if implemented in Python bindings)
-- Explicit edge mapping with add_edge()
+This example demonstrates all available features in Python:
+- Simplified add() API with implicit port mapping
+- Edge connections
 - Branching
-- Complete mermaid diagram output
-
-Note: Variants and merge features are available in Rust.
-Python bindings currently support basic operations and will be extended.
+- Graph analysis and Mermaid diagrams
 """
 
-import pygraph_sp as gs
+import pygraphsp as gs
 
 
 def main():
     print("╔══════════════════════════════════════════════════════════════════╗")
     print("║  Graph-SP: Complete Feature Demonstration (Python)              ║")
-    print("║  Edge Mapping + Branching + Mermaid Diagrams                    ║")
+    print("║  New Simplified API                                             ║")
     print("╚══════════════════════════════════════════════════════════════════╝\n")
 
     # ========================================================================
-    # PART 1: EXPLICIT EDGE MAPPING (Current Python API)
+    # PART 1: SIMPLE PIPELINE
     # ========================================================================
     print("═══════════════════════════════════════════════════════════════════")
-    print("PART 1: EXPLICIT EDGE MAPPING (add_edge required)")
+    print("PART 1: SIMPLE PIPELINE (New API)")
     print("═══════════════════════════════════════════════════════════════════\n")
 
-    print("In Python, you specify connections explicitly with add_edge()\n")
+    print("Using simplified add() with implicit port mapping\n")
 
-    graph1 = graph_sp.Graph()
+    graph1 = gs.Graph()
 
-    # Example 1: Simple pipeline with explicit edges
-    print("Example 1: Pipeline with explicit edge specification")
-    print("----------------------------------------------------")
+    # Example 1: Simple pipeline
+    print("Example 1: Pipeline with new API")
+    print("------------------------------------")
 
     def source_fn(inputs):
         return {"data": 42}
@@ -45,27 +42,22 @@ def main():
         return {}
 
     graph1.add(
-        "source",
-        "Data Source",
-        [],
-        [graph_sp.Port("data", "Output Data")],
-        source_fn
+        source_fn,
+        label="Data Source",
+        outputs=["data"]
     )
 
     graph1.add(
-        "processor",
-        "Data Processor",
-        [graph_sp.Port("data", "Input Data")],
-        [graph_sp.Port("result", "Processed")],
-        processor_fn
+        processor_fn,
+        label="Data Processor",
+        inputs=["data"],
+        outputs=["result"]
     )
 
     graph1.add(
-        "sink",
-        "Result Sink",
-        [graph_sp.Port("result", "Final")],
-        [],
-        sink_fn
+        sink_fn,
+        label="Result Sink",
+        inputs=["result"]
     )
 
     # Explicitly connect the nodes

@@ -32,7 +32,7 @@ pip install pygraph-sp
 Simple example:
 
 ```python
-import pygraph_sp as gs
+import pygraphsp as gs
 
 # Create a graph
 graph = gs.Graph()

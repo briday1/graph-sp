@@ -7,7 +7,7 @@ This example demonstrates the new features:
 - Future: Merging and variants (coming soon to Python API)
 """
 
-import pygraph_sp as gs
+import pygraphsp as gs
 
 
 def main():
@@ -16,7 +16,7 @@ def main():
     # Example 1: Simple Branching
     print("Example 1: Creating Branches")
     print("-----------------------------")
-    graph = graph_sp.Graph()
+    graph = gs.Graph()
 
     # Create two experimental branches
     graph.create_branch("experiment_a")
@@ -31,18 +31,16 @@ def main():
     # Example 2: Working with the main graph and branches
     print("Example 2: Main Graph vs Branches")
     print("----------------------------------")
-    graph2 = graph_sp.Graph()
+    graph2 = gs.Graph()
 
     # Add a node to the main graph
     def main_fn(inputs):
         return {"output": "main graph result"}
 
     graph2.add(
-        "main_node",
-        "Main Node",
-        [],
-        [graph_sp.Port("output", "Output")],
-        main_fn
+        main_fn,
+        label="Main Node",
+        outputs=["output"]
     )
 
     # Create branches

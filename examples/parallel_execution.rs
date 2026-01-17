@@ -2,7 +2,7 @@
 //!
 //! This example shows how independent branches of the DAG can execute in parallel
 
-use graph_sp::core::{Edge, Graph, Node, NodeConfig, Port, PortData};
+use graph_sp::core::{Graph, Node, NodeConfig, Port, PortData};
 use graph_sp::executor::Executor;
 use graph_sp::inspector::Inspector;
 use std::collections::HashMap;
@@ -13,18 +13,19 @@ use std::time::{Duration, Instant};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Graph-SP Example: Parallel Execution ===\n");
 
-    let mut graph = Graph::new();
+    // Use strict edge mapping to avoid implicit previous-node wiring
+    let mut graph = Graph::with_strict_edges();
 
     // Source node that outputs multiple values
     let source_config = NodeConfig::new(
         "source",
         "Data Source",
         vec![],
-        vec![Port::simple("value")],
+        vec![Port::simple("input")], // Output "input" to match branch inputs
         Arc::new(|_: &HashMap<String, PortData>| {
             println!("[source] Generating data...");
             let mut outputs = HashMap::new();
-            outputs.insert("value".to_string(), PortData::Int(100));
+            outputs.insert("input".to_string(), PortData::Int(100));
             Ok(outputs)
         }),
     );
@@ -34,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "branch_a",
         "Branch A (Slow)",
         vec![Port::simple("input")],
-        vec![Port::simple("output")],
+        vec![Port::simple("a")], // Output port "a" will connect to merger input "a"
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let start = Instant::now();
             println!("[branch_a] Starting slow operation...");
@@ -44,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let mut outputs = HashMap::new();
             if let Some(PortData::Int(val)) = inputs.get("input") {
-                outputs.insert("output".to_string(), PortData::Int(val * 2));
+                outputs.insert("a".to_string(), PortData::Int(val * 2));
             }
 
             println!("[branch_a] Completed in {:?}", start.elapsed());
@@ -57,7 +58,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "branch_b",
         "Branch B (Fast)",
         vec![Port::simple("input")],
-        vec![Port::simple("output")],
+        vec![Port::simple("b")], // Output port "b" will connect to merger input "b"
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let start = Instant::now();
             println!("[branch_b] Starting fast operation...");
@@ -67,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let mut outputs = HashMap::new();
             if let Some(PortData::Int(val)) = inputs.get("input") {
-                outputs.insert("output".to_string(), PortData::Int(val + 50));
+                outputs.insert("b".to_string(), PortData::Int(val + 50));
             }
 
             println!("[branch_b] Completed in {:?}", start.elapsed());
@@ -80,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "branch_c",
         "Branch C (Medium)",
         vec![Port::simple("input")],
-        vec![Port::simple("output")],
+        vec![Port::simple("c")], // Output port "c" will connect to merger input "c"
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let start = Instant::now();
             println!("[branch_c] Starting medium operation...");
@@ -90,7 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let mut outputs = HashMap::new();
             if let Some(PortData::Int(val)) = inputs.get("input") {
-                outputs.insert("output".to_string(), PortData::Int(val / 2));
+                outputs.insert("c".to_string(), PortData::Int(val / 2));
             }
 
             println!("[branch_c] Completed in {:?}", start.elapsed());
@@ -150,29 +151,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     graph.add(Node::new(branch_c)).unwrap();
     graph.add(Node::new(merge_config)).unwrap();
 
-    // Connect source to all branches (fan-out)
-    graph
-        .add_edge(Edge::new("source", "value", "branch_a", "input"))
-        .unwrap();
-    graph
-        .add_edge(Edge::new("source", "value", "branch_b", "input"))
-        .unwrap();
-    graph
-        .add_edge(Edge::new("source", "value", "branch_c", "input"))
-        .unwrap();
-
-    // Connect all branches to merger (fan-in)
-    graph
-        .add_edge(Edge::new("branch_a", "output", "merger", "a"))
-        .unwrap();
-    graph
-        .add_edge(Edge::new("branch_b", "output", "merger", "b"))
-        .unwrap();
-    graph
-        .add_edge(Edge::new("branch_c", "output", "merger", "c"))
-        .unwrap();
-
-    println!("✓ Graph built successfully!\n");
+    // Auto-connect everything! Port names match:
+    // source "input" -> branch_a/b/c "input"
+    // branch_a "a" -> merger "a"
+    // branch_b "b" -> merger "b"
+    // branch_c "c" -> merger "c"
+    let auto_edges = graph.auto_connect().unwrap();
+    println!("✓ Graph built! {} edges auto-connected\n", auto_edges);
 
     // Validate
     println!("Validating graph...");
