@@ -82,21 +82,21 @@ jobs:
         env:
           PYO3_USE_ABI3_FORWARD_COMPATIBILITY: 1
         run: |
-          docker run --rm -v $(pwd):/io -e PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 ghcr.io/pyo3/maturin build --release -o dist --find-interpreter
+          docker run --rm -v $(pwd):/io -e PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 ghcr.io/pyo3/maturin build --release -o dist --interpreter python3.12
       
       - name: Build wheels (Windows)
         if: runner.os == 'Windows'
         env:
           PYO3_USE_ABI3_FORWARD_COMPATIBILITY: 1
         run: |
-          maturin build --release -o dist --find-interpreter
+          maturin build --release -o dist --interpreter python
       
       - name: Build wheels (macOS)
         if: runner.os == 'macOS'
         env:
           PYO3_USE_ABI3_FORWARD_COMPATIBILITY: 1
         run: |
-          maturin build --release -o dist --find-interpreter
+          maturin build --release -o dist --interpreter python3.12
       
       - name: Upload wheels
         uses: actions/upload-artifact@v4
