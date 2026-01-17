@@ -194,4 +194,7 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
         run: |
           # Publish the crate; requires a crates.io token in secrets.CRATES_IO_TOKEN
-          cargo publish --manifest-path Cargo.toml
+          # WARNING: --allow-dirty will publish even if there are uncommitted changes
+          # This may result in a published crate that isn't reproducible from the
+          # repository state. Use only if you understand the risk.
+          cargo publish --manifest-path Cargo.toml --allow-dirty
