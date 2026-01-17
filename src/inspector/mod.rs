@@ -270,7 +270,11 @@ impl Inspector {
         // Group parallel branches using subgraphs for better visualization
         for (i, group) in parallel_groups.iter().enumerate() {
             output.push('\n');
-            output.push_str(&format!("    subgraph parallel_group_{}[\"⚡ Parallel Execution Group {}\"]\n", i + 1, i + 1));
+            output.push_str(&format!(
+                "    subgraph parallel_group_{}[\"⚡ Parallel Execution Group {}\"]\n",
+                i + 1,
+                i + 1
+            ));
             output.push_str("        direction LR\n");
             for node_id in &group.parallel_nodes {
                 let safe_id = node_id.replace(['-', ' '], "_");
@@ -298,7 +302,8 @@ impl Inspector {
                         let prefix = &branch_name[..underscore_pos];
                         // Check if the suffix is a number
                         if branch_name[underscore_pos + 1..].parse::<usize>().is_ok() {
-                            variant_groups.entry(prefix.to_string())
+                            variant_groups
+                                .entry(prefix.to_string())
                                 .or_default()
                                 .push(branch_name.clone());
                             continue;
@@ -306,7 +311,8 @@ impl Inspector {
                     }
                 }
                 // If not a numbered variant, add as single branch
-                variant_groups.entry(branch_name.clone())
+                variant_groups
+                    .entry(branch_name.clone())
                     .or_default()
                     .push(branch_name.clone());
             }
@@ -371,10 +377,8 @@ impl Inspector {
             // Check if this node fans out to multiple nodes
             if outgoing.len() > 1 {
                 // Get all target nodes
-                let target_nodes: Vec<String> = outgoing
-                    .iter()
-                    .map(|e| e.to_node.clone())
-                    .collect();
+                let target_nodes: Vec<String> =
+                    outgoing.iter().map(|e| e.to_node.clone()).collect();
 
                 // Check if these nodes converge to a common node (fan-in)
                 let mut common_targets: HashMap<String, usize> = HashMap::new();

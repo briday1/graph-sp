@@ -296,9 +296,9 @@ impl Graph {
             for out_port in &prev_node.config.output_ports {
                 for in_port in &new_node.config.input_ports {
                     // Connect if port names match or if they're the only ports
-                    let should_connect = out_port.id == in_port.id ||
-                        (prev_node.config.output_ports.len() == 1 &&
-                         new_node.config.input_ports.len() == 1);
+                    let should_connect = out_port.id == in_port.id
+                        || (prev_node.config.output_ports.len() == 1
+                            && new_node.config.input_ports.len() == 1);
 
                     if should_connect {
                         edges.push(Edge::new(
@@ -584,11 +584,7 @@ impl Graph {
     ///
     /// The merge node will collect outputs from the specified branches and combine them
     /// using the provided merge function (or collect into a list by default).
-    pub fn merge(
-        &mut self,
-        node_id: impl Into<NodeId>,
-        config: MergeConfig,
-    ) -> Result<()> {
+    pub fn merge(&mut self, node_id: impl Into<NodeId>, config: MergeConfig) -> Result<()> {
         // Validate that all branches exist
         for branch_name in &config.branches {
             if !self.has_branch(branch_name) {
