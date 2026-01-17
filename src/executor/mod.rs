@@ -191,8 +191,8 @@ mod tests {
         let config = NodeConfig::new(
             "double",
             "Double Node",
-            vec![Port::new("input", "Input")],
-            vec![Port::new("output", "Output")],
+            vec![Port::simple("input")],
+            vec![Port::simple("output")],
             Arc::new(|inputs: &HashMap<String, PortData>| {
                 let mut outputs = HashMap::new();
                 if let Some(PortData::Int(val)) = inputs.get("input") {
@@ -227,7 +227,7 @@ mod tests {
             "source",
             "Source Node",
             vec![],
-            vec![Port::new("output", "Output")],
+            vec![Port::simple("output")],
             Arc::new(|_: &HashMap<String, PortData>| {
                 let mut outputs = HashMap::new();
                 outputs.insert("output".to_string(), PortData::Int(10));
@@ -239,8 +239,8 @@ mod tests {
         let config2 = NodeConfig::new(
             "double",
             "Double Node",
-            vec![Port::new("input", "Input")],
-            vec![Port::new("output", "Output")],
+            vec![Port::simple("input")],
+            vec![Port::simple("output")],
             Arc::new(|inputs: &HashMap<String, PortData>| {
                 let mut outputs = HashMap::new();
                 if let Some(PortData::Int(val)) = inputs.get("input") {
@@ -254,8 +254,8 @@ mod tests {
         let config3 = NodeConfig::new(
             "add5",
             "Add 5 Node",
-            vec![Port::new("input", "Input")],
-            vec![Port::new("output", "Output")],
+            vec![Port::simple("input")],
+            vec![Port::simple("output")],
             Arc::new(|inputs: &HashMap<String, PortData>| {
                 let mut outputs = HashMap::new();
                 if let Some(PortData::Int(val)) = inputs.get("input") {

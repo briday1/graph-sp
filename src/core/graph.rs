@@ -91,17 +91,33 @@ impl Node {
     pub fn execute(&mut self) -> Result<()> {
         // Validate required inputs
         for port in &self.config.input_ports {
-            if port.required && !self.inputs.contains_key(&port.id) {
+            if port.required && !self.inputs.contains_key(&port.broadcast_name) {
                 return Err(GraphError::MissingInput {
                     node: self.config.id.clone(),
-                    port: port.id.clone(),
+                    port: port.broadcast_name.clone(),
                 });
             }
         }
 
-        // Execute the function
-        let outputs = (self.config.function)(&self.inputs)?;
-        self.outputs = outputs;
+        // Map inputs from broadcast_name to impl_name for the function
+        let mut impl_inputs = HashMap::new();
+        for port in &self.config.input_ports {
+            if let Some(data) = self.inputs.get(&port.broadcast_name) {
+                impl_inputs.insert(port.impl_name.clone(), data.clone());
+            }
+        }
+
+        // Execute the function with impl_name keys
+        let impl_outputs = (self.config.function)(&impl_inputs)?;
+
+        // Map outputs from impl_name back to broadcast_name
+        self.outputs.clear();
+        for port in &self.config.output_ports {
+            if let Some(data) = impl_outputs.get(&port.impl_name) {
+                self.outputs.insert(port.broadcast_name.clone(), data.clone());
+            }
+        }
+
         Ok(())
     }
 
@@ -296,16 +312,16 @@ impl Graph {
             for out_port in &prev_node.config.output_ports {
                 for in_port in &new_node.config.input_ports {
                     // Connect if port names match or if they're the only ports
-                    let should_connect = out_port.id == in_port.id
+                    let should_connect = out_port.broadcast_name == in_port.broadcast_name
                         || (prev_node.config.output_ports.len() == 1
                             && new_node.config.input_ports.len() == 1);
 
                     if should_connect {
                         edges.push(Edge::new(
                             &prev_node_id,
-                            &out_port.id,
+                            &out_port.broadcast_name,
                             new_node_id,
-                            &in_port.id,
+                            &in_port.broadcast_name,
                         ));
                         break; // Only connect first matching port
                     }
@@ -347,7 +363,7 @@ impl Graph {
             .config
             .output_ports
             .iter()
-            .any(|p| p.id == edge.from_port)
+            .any(|p| p.broadcast_name == edge.from_port)
         {
             return Err(GraphError::PortError(format!(
                 "Output port '{}' not found on node '{}'",
@@ -361,7 +377,7 @@ impl Graph {
             .config
             .input_ports
             .iter()
-            .any(|p| p.id == edge.to_port)
+            .any(|p| p.broadcast_name == edge.to_port)
         {
             return Err(GraphError::PortError(format!(
                 "Input port '{}' not found on node '{}'",
@@ -489,7 +505,7 @@ impl Graph {
                 .config
                 .output_ports
                 .iter()
-                .map(|p| p.id.clone())
+                .map(|p| p.broadcast_name.clone())
                 .collect();
 
             for to_node_id in &node_ids {
@@ -502,7 +518,7 @@ impl Graph {
                     .config
                     .input_ports
                     .iter()
-                    .map(|p| p.id.clone())
+                    .map(|p| p.broadcast_name.clone())
                     .collect();
 
                 // Find matching port names

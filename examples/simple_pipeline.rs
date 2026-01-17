@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "data_source",
         "Data Source",
         vec![],
-        vec![Port::new("numbers", "Numbers")],
+        vec![Port::simple("numbers")],
         Arc::new(|_inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             // Output a list of numbers
@@ -40,8 +40,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let multiplier_config = NodeConfig::new(
         "multiplier",
         "Multiplier (x2)",
-        vec![Port::new("input", "Input")],
-        vec![Port::new("output", "Output")],
+        vec![Port::simple("input")],
+        vec![Port::simple("output")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             if let Some(PortData::List(numbers)) = inputs.get("input") {
@@ -65,8 +65,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sum_config = NodeConfig::new(
         "sum_calculator",
         "Sum Calculator",
-        vec![Port::new("input", "Input")],
-        vec![Port::new("sum", "Sum"), Port::new("count", "Count")],
+        vec![Port::simple("input")],
+        vec![Port::simple("sum"), Port::simple("count")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             if let Some(PortData::List(numbers)) = inputs.get("input") {
@@ -92,8 +92,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let avg_config = NodeConfig::new(
         "avg_calculator",
         "Average Calculator",
-        vec![Port::new("sum", "Sum"), Port::new("count", "Count")],
-        vec![Port::new("average", "Average")],
+        vec![Port::simple("sum"), Port::simple("count")],
+        vec![Port::simple("average")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             if let (Some(PortData::Int(sum)), Some(PortData::Int(count))) =

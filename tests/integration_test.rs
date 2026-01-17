@@ -17,8 +17,8 @@ async fn test_full_pipeline() {
         "Data Source",
         vec![],
         vec![
-            Port::new("value1", "Value 1"),
-            Port::new("value2", "Value 2"),
+            Port::simple("value1"),
+            Port::simple("value2"),
         ],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
@@ -32,8 +32,8 @@ async fn test_full_pipeline() {
     let adder = NodeConfig::new(
         "adder",
         "Adder",
-        vec![Port::new("a", "A"), Port::new("b", "B")],
-        vec![Port::new("sum", "Sum")],
+        vec![Port::simple("a"), Port::simple("b")],
+        vec![Port::simple("sum")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             if let (Some(PortData::Int(a)), Some(PortData::Int(b))) =
@@ -49,8 +49,8 @@ async fn test_full_pipeline() {
     let multiplier = NodeConfig::new(
         "multiplier",
         "Multiplier",
-        vec![Port::new("input", "Input")],
-        vec![Port::new("output", "Output")],
+        vec![Port::simple("input")],
+        vec![Port::simple("output")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             if let Some(PortData::Int(val)) = inputs.get("input") {
@@ -123,10 +123,10 @@ async fn test_graph_with_optional_ports() {
         "optional_node",
         "Optional Node",
         vec![
-            Port::new("required", "Required Input"),
+            Port::simple("required"),
             Port::optional("optional", "Optional Input"),
         ],
-        vec![Port::new("output", "Output")],
+        vec![Port::simple("output")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             if let Some(PortData::Int(req)) = inputs.get("required") {
@@ -171,10 +171,10 @@ async fn test_complex_data_types() {
         "Data Processor",
         vec![],
         vec![
-            Port::new("string", "String"),
-            Port::new("float", "Float"),
-            Port::new("bool", "Bool"),
-            Port::new("list", "List"),
+            Port::simple("string"),
+            Port::simple("float"),
+            Port::simple("bool"),
+            Port::simple("list"),
         ],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
@@ -218,8 +218,8 @@ fn test_graph_validation_rejects_cycles() {
         let config = NodeConfig::new(
             id,
             id,
-            vec![Port::new("in", "Input")],
-            vec![Port::new("out", "Output")],
+            vec![Port::simple("in")],
+            vec![Port::simple("out")],
             Arc::new(|inputs: &HashMap<String, PortData>| Ok(inputs.clone())),
         );
         graph.add(Node::new(config)).unwrap();
@@ -240,8 +240,8 @@ fn test_inspector_visualization() {
     let config = NodeConfig::new(
         "test_node",
         "Test Node",
-        vec![Port::new("input", "Input Port")],
-        vec![Port::new("output", "Output Port")],
+        vec![Port::simple("input")],
+        vec![Port::simple("output")],
         Arc::new(|_inputs: &HashMap<String, PortData>| Ok(HashMap::new())),
     );
 
@@ -251,8 +251,8 @@ fn test_inspector_visualization() {
 
     assert!(visualization.contains("Test Node"));
     assert!(visualization.contains("test_node"));
-    assert!(visualization.contains("Input Port"));
-    assert!(visualization.contains("Output Port"));
+    assert!(visualization.contains("input"));
+    assert!(visualization.contains("output"));
 }
 
 #[tokio::test]
@@ -279,8 +279,8 @@ async fn test_branch_and_merge_workflow() {
         let processor = NodeConfig::new(
             format!("processor_{}", i),
             format!("Processor {}", i),
-            vec![Port::new("learning_rate", "Learning Rate")],
-            vec![Port::new("result", "Result")],
+            vec![Port::simple("learning_rate")],
+            vec![Port::simple("result")],
             Arc::new(|inputs: &HashMap<String, PortData>| {
                 let mut outputs = HashMap::new();
                 if let Some(PortData::Float(lr)) = inputs.get("learning_rate") {

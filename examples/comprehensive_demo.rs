@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "source",
         "Data Source",
         vec![],
-        vec![Port::new("data", "Output Data")],
+        vec![Port::simple("data")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             outputs.insert(
@@ -55,8 +55,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let processor = NodeConfig::new(
         "processor",
         "Data Processor",
-        vec![Port::new("input", "Input Data")],
-        vec![Port::new("output", "Processed Data")],
+        vec![Port::simple("input")],
+        vec![Port::simple("output")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             if let Some(PortData::List(items)) = inputs.get("input") {
@@ -79,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sink = NodeConfig::new(
         "sink",
         "Result Sink",
-        vec![Port::new("input", "Final Data")],
+        vec![Port::simple("input")],
         vec![],
         Arc::new(|_inputs: &HashMap<String, PortData>| Ok(HashMap::new())),
     );
@@ -114,7 +114,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "exp_a_src",
         "Experiment A Source",
         vec![],
-        vec![Port::new("value", "Value")],
+        vec![Port::simple("value")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             outputs.insert("value".to_string(), PortData::Int(100));
@@ -128,7 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "exp_b_src",
         "Experiment B Source",
         vec![],
-        vec![Port::new("value", "Value")],
+        vec![Port::simple("value")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             outputs.insert("value".to_string(), PortData::Int(200));
@@ -196,7 +196,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             format!("src_{}", i),
             format!("Model {} Source", i),
             vec![],
-            vec![Port::new("score", "Model Score")],
+            vec![Port::simple("score")],
             Arc::new(move |_: &HashMap<String, PortData>| {
                 let mut outputs = HashMap::new();
                 outputs.insert("score".to_string(), PortData::Int(score as i64));
@@ -306,8 +306,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let processor = NodeConfig::new(
             format!("processor_{}", i),
             format!("Processor {}", i),
-            vec![Port::new("parameter", "Parameter")],
-            vec![Port::new("result", "Result")],
+            vec![Port::simple("parameter")],
+            vec![Port::simple("result")],
             Arc::new(|inputs: &HashMap<String, PortData>| {
                 let mut outputs = HashMap::new();
                 if let Some(PortData::Int(param)) = inputs.get("parameter") {

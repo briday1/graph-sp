@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "source1",
         "Data Source",
         vec![],
-        vec![Port::new("data", "Output Data")],
+        vec![Port::simple("data")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             outputs.insert("data".to_string(), PortData::Int(42));
@@ -51,8 +51,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let processor1 = NodeConfig::new(
         "processor1",
         "Data Processor",
-        vec![Port::new("data", "Input Data")], // Matches "data" output
-        vec![Port::new("result", "Processed")],
+        vec![Port::simple("data")], // Matches "data" output
+        vec![Port::simple("result")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             if let Some(PortData::Int(val)) = inputs.get("data") {
@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sink1 = NodeConfig::new(
         "sink1",
         "Result Sink",
-        vec![Port::new("result", "Final")], // Matches "result" output
+        vec![Port::simple("result")], // Matches "result" output
         vec![],
         Arc::new(|_: &HashMap<String, PortData>| Ok(HashMap::new())),
     );
@@ -97,7 +97,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "src",
         "Source",
         vec![],
-        vec![Port::new("out", "Only Output")], // Only 1 output
+        vec![Port::simple("out")], // Only 1 output
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             outputs.insert("out".to_string(), PortData::Int(100));
@@ -108,8 +108,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let proc2 = NodeConfig::new(
         "proc",
         "Processor",
-        vec![Port::new("in", "Only Input")], // Only 1 input (different name!)
-        vec![Port::new("result", "Output")],
+        vec![Port::simple("in")], // Only 1 input (different name!)
+        vec![Port::simple("result")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             if let Some(PortData::Int(val)) = inputs.get("in") {
@@ -152,7 +152,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "source",
         "Data Source",
         vec![],
-        vec![Port::new("value", "Value")],
+        vec![Port::simple("value")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             outputs.insert("value".to_string(), PortData::Int(25));
@@ -163,8 +163,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let doubler = NodeConfig::new(
         "doubler",
         "Doubler",
-        vec![Port::new("input", "Input")],
-        vec![Port::new("output", "Output")],
+        vec![Port::simple("input")],
+        vec![Port::simple("output")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             if let Some(PortData::Int(val)) = inputs.get("input") {
@@ -177,7 +177,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sink3 = NodeConfig::new(
         "sink",
         "Sink",
-        vec![Port::new("final", "Final")],
+        vec![Port::simple("final")],
         vec![],
         Arc::new(|_: &HashMap<String, PortData>| Ok(HashMap::new())),
     );
@@ -251,7 +251,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             format!("src_{}", i),
             format!("Model {}", i),
             vec![],
-            vec![Port::new("accuracy", "Accuracy")],
+            vec![Port::simple("accuracy")],
             Arc::new(move |_: &HashMap<String, PortData>| {
                 let mut outputs = HashMap::new();
                 outputs.insert("accuracy".to_string(), PortData::Int(score as i64));
@@ -348,7 +348,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "n1",
         "Node 1",
         vec![],
-        vec![Port::new("out", "Out")],
+        vec![Port::simple("out")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             outputs.insert("out".to_string(), PortData::Int(1));
@@ -359,7 +359,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let n2 = NodeConfig::new(
         "n2",
         "Node 2",
-        vec![Port::new("out", "In")],
+        vec![Port::simple("out")],
         vec![],
         Arc::new(|_: &HashMap<String, PortData>| Ok(HashMap::new())),
     );
@@ -378,7 +378,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let n3 = NodeConfig::new(
         "n3",
         "Node 3",
-        vec![Port::new("x", "X")],
+        vec![Port::simple("x")],
         vec![],
         Arc::new(|_: &HashMap<String, PortData>| Ok(HashMap::new())),
     );

@@ -171,7 +171,7 @@ impl Inspector {
                 output.push_str("  Inputs:\n");
                 for port in &node.config.input_ports {
                     let required = if port.required { "*" } else { "" };
-                    output.push_str(&format!("    - {}{} ({})\n", port.name, required, port.id));
+                    output.push_str(&format!("    - {}{} ({})\n", port.display_name, required, port.broadcast_name));
                 }
             }
 
@@ -179,7 +179,7 @@ impl Inspector {
             if !node.config.output_ports.is_empty() {
                 output.push_str("  Outputs:\n");
                 for port in &node.config.output_ports {
-                    output.push_str(&format!("    - {} ({})\n", port.name, port.id));
+                    output.push_str(&format!("    - {} ({})\n", port.display_name, port.broadcast_name));
                 }
             }
 

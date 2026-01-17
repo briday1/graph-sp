@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "source",
         "Data Source",
         vec![],
-        vec![Port::new("data", "Data Output")],
+        vec![Port::simple("data")],
         Arc::new(|_: &HashMap<String, PortData>| {
             println!("[source] Generating data...");
             Ok(HashMap::from([(
@@ -44,8 +44,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let processor = NodeConfig::new(
         "processor",
         "Data Processor",
-        vec![Port::new("data", "Data Input")],
-        vec![Port::new("result", "Result Output")],
+        vec![Port::simple("data")],
+        vec![Port::simple("result")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             println!("[processor] Processing data...");
             if let Some(PortData::List(data)) = inputs.get("data") {
@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sink = NodeConfig::new(
         "sink",
         "Result Sink",
-        vec![Port::new("result", "Result Input")],
+        vec![Port::simple("result")],
         vec![],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             println!("[sink] Receiving result...");
@@ -130,7 +130,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "source",
         "Value Source",
         vec![],
-        vec![Port::new("value", "Value")],
+        vec![Port::simple("value")],
         Arc::new(|_: &HashMap<String, PortData>| {
             println!("[source] Generating value...");
             Ok(HashMap::from([("value".to_string(), PortData::Int(100))]))
@@ -141,8 +141,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let branch_a = NodeConfig::new(
         "branch_a",
         "Branch A\\n(×2)", // Multi-line label!
-        vec![Port::new("value", "Input")],
-        vec![Port::new("branch_a_out", "Output")],
+        vec![Port::simple("value")],
+        vec![Port::simple("branch_a_out")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             println!("[branch_a] Processing...");
             if let Some(PortData::Int(val)) = inputs.get("value") {
@@ -160,8 +160,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let branch_b = NodeConfig::new(
         "branch_b",
         "Branch B\\n(+50)", // Multi-line label!
-        vec![Port::new("value", "Input")],
-        vec![Port::new("branch_b_out", "Output")],
+        vec![Port::simple("value")],
+        vec![Port::simple("branch_b_out")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             println!("[branch_b] Processing...");
             if let Some(PortData::Int(val)) = inputs.get("value") {
@@ -180,10 +180,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "merger",
         "Result Merger",
         vec![
-            Port::new("branch_a_out", "Branch A"),
-            Port::new("branch_b_out", "Branch B"),
+            Port::simple("branch_a_out"),
+            Port::simple("branch_b_out"),
         ],
-        vec![Port::new("final", "Final Result")],
+        vec![Port::simple("final")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             println!("[merger] Merging...");
             let a = if let Some(PortData::Int(val)) = inputs.get("branch_a_out") {
@@ -204,7 +204,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let collector = NodeConfig::new(
         "collector",
         "Result Collector",
-        vec![Port::new("final", "Final")],
+        vec![Port::simple("final")],
         vec![],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             if let Some(PortData::Int(val)) = inputs.get("final") {

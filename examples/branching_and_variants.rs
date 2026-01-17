@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "source_a",
         "Source A",
         vec![],
-        vec![Port::new("value", "Value")],
+        vec![Port::simple("value")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             outputs.insert("value".to_string(), PortData::Int(10));
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "source_b",
         "Source B",
         vec![],
-        vec![Port::new("value", "Value")],
+        vec![Port::simple("value")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
             outputs.insert("value".to_string(), PortData::Int(20));
@@ -88,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             format!("source_{}", i),
             format!("Source {}", i),
             vec![],
-            vec![Port::new("result", "Result")],
+            vec![Port::simple("result")],
             Arc::new(move |_: &HashMap<String, PortData>| {
                 let mut outputs = HashMap::new();
                 outputs.insert("result".to_string(), PortData::Int(value as i64));
@@ -127,7 +127,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             format!("src_{}", i),
             format!("Source {}", i),
             vec![],
-            vec![Port::new("score", "Score")],
+            vec![Port::simple("score")],
             Arc::new(move |_: &HashMap<String, PortData>| {
                 let mut outputs = HashMap::new();
                 outputs.insert("score".to_string(), PortData::Int(value as i64));

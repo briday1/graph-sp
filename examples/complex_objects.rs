@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "user_creator",
         "User Creator",
         vec![],
-        vec![Port::new("user", "User Object")],
+        vec![Port::simple("user")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
 
@@ -66,8 +66,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user_processor = NodeConfig::new(
         "user_processor",
         "User Processor",
-        vec![Port::new("user", "User Object")],
-        vec![Port::new("summary", "Summary")],
+        vec![Port::simple("user")],
+        vec![Port::simple("summary")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
 
@@ -130,7 +130,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "json_producer",
         "JSON Producer",
         vec![],
-        vec![Port::new("data", "JSON Data")],
+        vec![Port::simple("data")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
 
@@ -158,8 +158,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let json_consumer = NodeConfig::new(
         "json_consumer",
         "JSON Consumer",
-        vec![Port::new("data", "JSON Data")],
-        vec![Port::new("description", "Description")],
+        vec![Port::simple("data")],
+        vec![Port::simple("description")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
 
@@ -203,7 +203,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "binary_producer",
         "Binary Producer",
         vec![],
-        vec![Port::new("binary", "Binary Data")],
+        vec![Port::simple("binary")],
         Arc::new(|_: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
 
@@ -218,8 +218,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let binary_analyzer = NodeConfig::new(
         "binary_analyzer",
         "Binary Analyzer",
-        vec![Port::new("binary", "Binary Data")],
-        vec![Port::new("info", "Info")],
+        vec![Port::simple("binary")],
+        vec![Port::simple("info")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let mut outputs = HashMap::new();
 

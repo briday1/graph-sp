@@ -52,10 +52,12 @@ impl fmt::Display for PortData {
 /// Port configuration for a node
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Port {
-    /// Unique identifier for the port
-    pub id: PortId,
-    /// Human-readable name
-    pub name: String,
+    /// Broadcast name (external name for connections between nodes)
+    pub broadcast_name: PortId,
+    /// Implementation name (internal name used within the node function)
+    pub impl_name: String,
+    /// Human-readable display name
+    pub display_name: String,
     /// Port description
     pub description: Option<String>,
     /// Whether this port is required
@@ -63,24 +65,37 @@ pub struct Port {
 }
 
 impl Port {
-    /// Create a new required port
-    pub fn new(id: impl Into<String>, name: impl Into<String>) -> Self {
+    /// Create a new required port with separate broadcast and implementation names
+    pub fn new(broadcast_name: impl Into<String>, impl_name: impl Into<String>) -> Self {
+        let broadcast = broadcast_name.into();
+        let impl_name = impl_name.into();
+        let display_name = broadcast.clone();
         Self {
-            id: id.into(),
-            name: name.into(),
+            broadcast_name: broadcast,
+            impl_name,
+            display_name,
             description: None,
             required: true,
         }
     }
 
+    /// Create a port where broadcast and implementation names are the same
+    pub fn simple(name: impl Into<String>) -> Self {
+        let name = name.into();
+        Self::new(name.clone(), name)
+    }
+
     /// Create a new optional port
-    pub fn optional(id: impl Into<String>, name: impl Into<String>) -> Self {
-        Self {
-            id: id.into(),
-            name: name.into(),
-            description: None,
-            required: false,
-        }
+    pub fn optional(broadcast_name: impl Into<String>, impl_name: impl Into<String>) -> Self {
+        let mut port = Self::new(broadcast_name, impl_name);
+        port.required = false;
+        port
+    }
+
+    /// Set the display name for this port
+    pub fn with_display_name(mut self, display_name: impl Into<String>) -> Self {
+        self.display_name = display_name.into();
+        self
     }
 
     /// Set the description for this port
@@ -152,9 +167,9 @@ mod tests {
 
     #[test]
     fn test_port_creation() {
-        let port = Port::new("input1", "Input 1");
-        assert_eq!(port.id, "input1");
-        assert_eq!(port.name, "Input 1");
+        let port = Port::new("input1", "input1");
+        assert_eq!(port.broadcast_name, "input1");
+        assert_eq!(port.display_name, "input1");
         assert!(port.required);
         assert!(port.description.is_none());
     }

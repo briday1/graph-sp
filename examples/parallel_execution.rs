@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "source",
         "Data Source",
         vec![],
-        vec![Port::new("value", "Value")],
+        vec![Port::simple("value")],
         Arc::new(|_: &HashMap<String, PortData>| {
             println!("[source] Generating data...");
             let mut outputs = HashMap::new();
@@ -33,8 +33,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let branch_a = NodeConfig::new(
         "branch_a",
         "Branch A (Slow)",
-        vec![Port::new("input", "Input")],
-        vec![Port::new("output", "Output")],
+        vec![Port::simple("input")],
+        vec![Port::simple("output")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let start = Instant::now();
             println!("[branch_a] Starting slow operation...");
@@ -56,8 +56,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let branch_b = NodeConfig::new(
         "branch_b",
         "Branch B (Fast)",
-        vec![Port::new("input", "Input")],
-        vec![Port::new("output", "Output")],
+        vec![Port::simple("input")],
+        vec![Port::simple("output")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let start = Instant::now();
             println!("[branch_b] Starting fast operation...");
@@ -79,8 +79,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let branch_c = NodeConfig::new(
         "branch_c",
         "Branch C (Medium)",
-        vec![Port::new("input", "Input")],
-        vec![Port::new("output", "Output")],
+        vec![Port::simple("input")],
+        vec![Port::simple("output")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let start = Instant::now();
             println!("[branch_c] Starting medium operation...");
@@ -103,11 +103,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "merger",
         "Result Merger",
         vec![
-            Port::new("a", "Branch A Result"),
-            Port::new("b", "Branch B Result"),
-            Port::new("c", "Branch C Result"),
+            Port::simple("a"),
+            Port::simple("b"),
+            Port::simple("c"),
         ],
-        vec![Port::new("result", "Final Result")],
+        vec![Port::simple("result")],
         Arc::new(|inputs: &HashMap<String, PortData>| {
             let start = Instant::now();
             println!("[merger] Merging results...");

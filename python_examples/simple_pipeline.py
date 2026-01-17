@@ -5,19 +5,18 @@ This example demonstrates basic usage of the graph-sp library from Python,
 showing how to create nodes, connect them, and execute the graph.
 
 To run this example:
-1. Build the Python bindings: cargo build --release --features python
-2. Copy the compiled library to your Python path
-3. Run: python simple_pipeline.py
+1. Install the package: pip install pygraph-sp
+2. Run: python simple_pipeline.py
 """
 
-import graph_sp
+import pygraph_sp as gs
 
 
 def main():
     print("=== graph-sp Python Example: Simple Pipeline ===\n")
     
     # Create a graph
-    graph = graph_sp.Graph()
+    graph = gs.Graph()
 
     # Define node functions
     def source_fn(inputs):
@@ -34,34 +33,32 @@ def main():
 
     print("Building graph...")
     
-    # Add nodes
+    # Add nodes using new simplified API
     graph.add(
-        "source",
-        "Source Node",
-        [],  # no input ports
-        [graph_sp.Port("output", "Output")],
-        source_fn
+        source_fn,
+        label="Source Node",
+        outputs=["output"]
     )
 
     graph.add(
-        "doubler",
-        "Doubler Node",
-        [graph_sp.Port("input", "Input")],
-        [graph_sp.Port("output", "Output")],
+        double_fn,
+        label="Doubler Node",
+        inputs=["input"],
+        outputs=["output"]
+    )
         double_fn
     )
     
     graph.add(
-        "adder",
-        "Add Five Node",
-        [graph_sp.Port("input", "Input")],
-        [graph_sp.Port("output", "Output")],
-        add_five_fn
+        add_five_fn,
+        label="Add Five Node",
+        inputs=["input"],
+        outputs=["output"]
     )
 
     # Connect nodes
-    graph.add_edge("source", "output", "doubler", "input")
-    graph.add_edge("doubler", "output", "adder", "input")
+    graph.add_edge("source_fn", "output", "double_fn", "input")
+    graph.add_edge("double_fn", "output", "add_five_fn", "input")
 
     print("✓ Graph built successfully!\n")
 
@@ -70,7 +67,7 @@ def main():
     print("✓ Graph is valid (no cycles detected)\n")
 
     # Analyze
-    analysis = graph.analyze()
+    analysis = gs.Inspector.analyze(graph)
     print(f"=== Graph Analysis ===")
     print(f"Node count: {analysis.node_count}")
     print(f"Edge count: {analysis.edge_count}")
@@ -80,26 +77,26 @@ def main():
 
     # Visualize
     print("=== Graph Structure ===")
-    visualization = graph.visualize()
+    visualization = gs.Inspector.visualize(graph)
     print(visualization)
 
     # Generate Mermaid diagram
     print("=== Mermaid Diagram ===")
-    mermaid = graph.to_mermaid()
+    mermaid = gs.Inspector.to_mermaid(graph)
     print(mermaid)
 
     # Execute
     print("=== Executing Graph ===")
-    executor = graph_sp.Executor()
+    executor = gs.Executor()
     result = executor.execute(graph)
     
     print("✓ Execution completed successfully!\n")
 
     # Get results
     print("=== Results ===")
-    source_output = result.get_output("source", "output")
-    doubler_output = result.get_output("doubler", "output")
-    adder_output = result.get_output("adder", "output")
+    source_output = result.get_output("source_fn", "output")
+    doubler_output = result.get_output("double_fn", "output")
+    adder_output = result.get_output("add_five_fn", "output")
     
     print(f"Source output: {source_output}")
     print(f"After doubling: {doubler_output}")
