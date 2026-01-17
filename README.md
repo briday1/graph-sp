@@ -26,40 +26,46 @@ A high-performance DAG (Directed Acyclic Graph) execution engine with true paral
 Install from PyPI:
 
 ```bash
-pip install graph-sp
+pip install pygraph-sp
 ```
 
 Simple example:
 
 ```python
-import graph_sp
+import pygraph_sp as gs
 
 # Create a graph
-graph = graph_sp.Graph()
+graph = gs.Graph()
 
-# Add nodes with Python functions
+# Add nodes with Python functions using the simplified API
+def data_source(inputs):
+    return {"output": [1, 2, 3, 4, 5]}
+
+def multiply_by_2(inputs):
+    return {"output": [x * 2 for x in inputs["input"]]}
+
+# Add nodes - function name becomes the node ID by default
 graph.add(
-    "source", "Data Source",
-    [],  # no inputs
-    [graph_sp.Port("output", "Numbers")],
-    lambda inputs: {"output": [1, 2, 3, 4, 5]}
+    data_source,
+    label="Data Source",
+    outputs=["output"]
 )
 
 graph.add(
-    "doubler", "Multiply by 2",
-    [graph_sp.Port("input", "Input")],
-    [graph_sp.Port("output", "Output")],
-    lambda inputs: {"output": [x * 2 for x in inputs["input"]]}
+    multiply_by_2,
+    label="Multiply by 2",
+    inputs=["input"],
+    outputs=["output"]
 )
 
-# Connect nodes
-graph.add_edge("source", "output", "doubler", "input")
+# Connect nodes using function names
+graph.add_edge("data_source", "output", "multiply_by_2", "input")
 
 # Execute with parallel processing
-executor = graph_sp.Executor()
+executor = gs.Executor()
 result = executor.execute(graph)
 
-print(result.get_output("doubler", "output"))  # [2, 4, 6, 8, 10]
+print(result.get_output("multiply_by_2", "output"))  # [2, 4, 6, 8, 10]
 ```
 
 ### Rust
@@ -87,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let source = NodeConfig::new(
         "source", "Data Source",
         vec![],
-        vec![Port::new("output", "Numbers")],
+        vec![Port::simple("output")],
         Arc::new(|_: &HashMap<String, PortData>| {
             Ok(HashMap::from([
                 ("output".to_string(), PortData::List(vec![
@@ -114,7 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 **From PyPI (recommended):**
 
 ```bash
-pip install graph-sp
+pip install pygraph-sp
 ```
 
 **From source:**
@@ -152,19 +158,41 @@ cargo build --release
 
 ### Ports
 
-Nodes communicate through typed ports:
+Nodes communicate through typed ports with separate broadcast and implementation names:
 
 ```python
-# Python
-input_port = graph_sp.Port("data", "Input Data")
-output_port = graph_sp.Port("result", "Processed Result")
+# Python - Simple ports (broadcast_name == impl_name)
+graph.add(
+    my_function,
+    inputs=["data", "config"],
+    outputs=["result"]
+)
+
+# Advanced: Separate broadcast and implementation names
+# Useful for connecting nodes with different parameter names
+graph.add(
+    process_data,
+    inputs=[("external_data", "internal_param")],  # (broadcast, impl)
+    outputs=[("result", "output_value")]
+)
+
+# Most explicit: Use Port objects
+input_port = gs.Port("broadcast_name", "impl_name", "Display Name")
+graph.add(my_function, inputs=[input_port], outputs=[...])
 ```
 
 ```rust
-// Rust
-let input_port = Port::new("data", "Input Data");
-let output_port = Port::new("result", "Processed Result");
+// Rust - Simple port (both names the same)
+let port = Port::simple("data");
+
+// Separate broadcast and implementation names
+let port = Port::new("external_data", "internal_param");
 ```
+
+**Port Name Types:**
+- **broadcast_name**: External name used for connecting nodes via edges
+- **impl_name**: Internal parameter name used in function signatures
+- **display_name**: Human-readable name for visualizations (defaults to broadcast_name)
 
 ### Data Types
 
@@ -234,32 +262,67 @@ print(graph.has_branch("experiment_a"))  # True
 
 **Variants** enable config sweeps and hyperparameter tuning:
 
+```python
+# Python - Create variants with different learning rates
+def learning_rate_gen(i):
+    rates = [0.001, 0.01, 0.1]
+    return gs.PortData(rates[i])
+
+branches = graph.create_variants(
+    name_prefix="lr",
+    count=3,
+    param_name="learning_rate",
+    variant_function=learning_rate_gen,
+    parallel=True  # Enable parallel execution
+)
+# Creates: lr_0 (0.001), lr_1 (0.01), lr_2 (0.1)
+```
+
 ```rust
+// Rust - Same functionality
 use graph_sp::core::{VariantConfig, VariantFunction};
 
-// Create variants with different learning rates
 let variant_fn: VariantFunction = Arc::new(|i: usize| {
     PortData::Float((i as f64 + 1.0) * 0.01)
 });
 
 let config = VariantConfig::new("lr", 3, "learning_rate", variant_fn);
 let branches = graph.create_variants(config)?;
-// Creates: lr_0 (0.01), lr_1 (0.02), lr_2 (0.03)
 ```
 
 **Merge** combines outputs from multiple branches:
 
+```python
+# Python - Merge outputs from variant branches
+graph.merge_branches(
+    node_id="select_best",
+    branches=variant_branches,
+    port="accuracy"  # Merges to "accuracies" (pluralized)
+)
+
+# Custom merge function (e.g., average)
+def compute_average(values):
+    return gs.PortData(sum(values) / len(values))
+
+graph.merge_branches(
+    node_id="summarize",
+    branches=variant_branches,
+    port="score",
+    merge_function=compute_average
+)
+```
+
 ```rust
+// Rust - Same functionality
 use graph_sp::core::MergeConfig;
 
-// Merge outputs from multiple branches
 let merge_config = MergeConfig::new(
     vec!["branch_a".to_string(), "branch_b".to_string()],
     "result".to_string()
 );
 graph.merge("merge_node", merge_config)?;
 
-// Or use custom merge function (e.g., max)
+// Custom merge function
 let max_fn = Arc::new(|inputs: Vec<&PortData>| -> Result<PortData> {
     let max = inputs.iter()
         .filter_map(|d| if let PortData::Int(v) = d { Some(*v) } else { None })
@@ -293,6 +356,8 @@ for lr_branch in &lr_branches {
 Located in `python_examples/`:
 
 - **simple_pipeline.py**: Basic 3-node pipeline with graph analysis
+- **port_mapping_demo.py**: Port name separation (broadcast vs implementation)
+- **variants_demo.py**: Hyperparameter sweeps, custom merge, nested variants
 - **complex_objects.py**: Demonstrates nested objects, JSON, and lists
 - **parallel_execution.py**: Shows 3-branch parallel execution with timing
 - **branching_example.py**: Demonstrates branch creation and management
@@ -302,6 +367,7 @@ Run an example:
 ```bash
 cd python_examples
 python simple_pipeline.py
+python variants_demo.py
 ```
 
 ### Rust Examples
