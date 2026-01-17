@@ -218,9 +218,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut variant_graph = Graph::new();
 
-    let lr_fn: VariantFunction = Arc::new(|i: usize| {
-        PortData::Float((i as f64 + 1.0) * 0.01)
-    });
+    let lr_fn: VariantFunction = Arc::new(|i: usize| PortData::Float((i as f64 + 1.0) * 0.01));
 
     let variant_config = VariantConfig::new("lr", 4, "learning_rate", lr_fn);
     let branches = variant_graph.create_variants(variant_config)?;
@@ -264,18 +262,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Merge with MAX function
-    let max_fn = Arc::new(|inputs: Vec<&PortData>| -> graph_sp::core::Result<PortData> {
-        let max_val = inputs.iter()
-            .filter_map(|d| if let PortData::Int(v) = d { Some(*v) } else { None })
-            .max()
-            .unwrap_or(0);
-        Ok(PortData::Int(max_val))
-    });
+    let max_fn = Arc::new(
+        |inputs: Vec<&PortData>| -> graph_sp::core::Result<PortData> {
+            let max_val = inputs
+                .iter()
+                .filter_map(|d| {
+                    if let PortData::Int(v) = d {
+                        Some(*v)
+                    } else {
+                        None
+                    }
+                })
+                .max()
+                .unwrap_or(0);
+            Ok(PortData::Int(max_val))
+        },
+    );
 
     let merge_cfg = MergeConfig::new(
         vec!["model_0".into(), "model_1".into(), "model_2".into()],
         "accuracy".into(),
-    ).with_merge_fn(max_fn);
+    )
+    .with_merge_fn(max_fn);
 
     merge_graph.merge("best_model", merge_cfg)?;
 
@@ -297,9 +305,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut grid_graph = Graph::new();
 
     // Level 1: Learning rates
-    let lr_fn2: VariantFunction = Arc::new(|i: usize| {
-        PortData::Float((i as f64 + 1.0) * 0.01)
-    });
+    let lr_fn2: VariantFunction = Arc::new(|i: usize| PortData::Float((i as f64 + 1.0) * 0.01));
     let lr_cfg = VariantConfig::new("lr", 2, "learning_rate", lr_fn2);
     let lr_branches = grid_graph.create_variants(lr_cfg)?;
 
@@ -308,9 +314,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Level 2: Batch sizes in each LR
     for lr_branch in &lr_branches {
         let branch = grid_graph.get_branch_mut(lr_branch)?;
-        let batch_fn: VariantFunction = Arc::new(|i: usize| {
-            PortData::Int((i as i64 + 1) * 32)
-        });
+        let batch_fn: VariantFunction = Arc::new(|i: usize| PortData::Int((i as i64 + 1) * 32));
         let batch_cfg = VariantConfig::new("batch", 3, "batch_size", batch_fn);
         let batch_branches = branch.create_variants(batch_cfg)?;
         println!("  └─ {}: {} batch size variants", lr_branch, batch_branches.len());

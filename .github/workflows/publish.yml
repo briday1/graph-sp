@@ -80,17 +80,17 @@ jobs:
       - name: Build wheels (Linux)
         if: runner.os == 'Linux'
         run: |
-          docker run --rm -v $(pwd):/io ghcr.io/pyo3/maturin build --release --features python -o dist --find-interpreter
+          docker run --rm -v $(pwd):/io ghcr.io/pyo3/maturin build --release -o dist --find-interpreter
       
       - name: Build wheels (Windows)
         if: runner.os == 'Windows'
         run: |
-          maturin build --release --features python -o dist --find-interpreter
+          maturin build --release -o dist --find-interpreter
       
       - name: Build wheels (macOS)
         if: runner.os == 'macOS'
         run: |
-          maturin build --release --features python -o dist --find-interpreter
+          maturin build --release -o dist --find-interpreter
       
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -122,7 +122,7 @@ jobs:
         run: pip install maturin
       
       - name: Build sdist
-        run: maturin sdist --features python -o dist
+        run: maturin sdist -o dist
       
       - name: Upload sdist
         uses: actions/upload-artifact@v4
