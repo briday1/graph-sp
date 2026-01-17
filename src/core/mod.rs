@@ -6,4 +6,6 @@ pub mod graph;
 
 pub use data::{GraphData, NodeId, Port, PortData, PortId};
 pub use error::{GraphError, Result};
-pub use graph::{Edge, Graph, Node, NodeConfig, MergeConfig, MergeFunction, VariantConfig, VariantFunction};
+pub use graph::{
+    Edge, Graph, MergeConfig, MergeFunction, Node, NodeConfig, VariantConfig, VariantFunction,
+};

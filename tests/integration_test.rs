@@ -258,26 +258,23 @@ fn test_inspector_visualization() {
 #[tokio::test]
 async fn test_branch_and_merge_workflow() {
     use graph_sp::core::{MergeConfig, VariantConfig, VariantFunction};
-    
+
     let mut graph = Graph::new();
 
     // Create variant branches for different learning rates
-    let variant_fn: VariantFunction = Arc::new(|i: usize| {
-        PortData::Float((i as f64 + 1.0) * 0.1)
-    });
-    
+    let variant_fn: VariantFunction = Arc::new(|i: usize| PortData::Float((i as f64 + 1.0) * 0.1));
+
     let variant_config = VariantConfig::new("lr", 3, "learning_rate", variant_fn);
     let branch_names = graph.create_variants(variant_config).unwrap();
-    
+
     assert_eq!(branch_names.len(), 3);
     assert!(graph.has_branch("lr_0"));
     assert!(graph.has_branch("lr_1"));
     assert!(graph.has_branch("lr_2"));
-    
+
     // Add processing nodes to each branch
     for (i, branch_name) in branch_names.iter().enumerate() {
         let branch = graph.get_branch_mut(branch_name).unwrap();
-        
         // Add a processing node that multiplies the learning rate by 10
         let processor = NodeConfig::new(
             format!("processor_{}", i),
@@ -292,9 +289,9 @@ async fn test_branch_and_merge_workflow() {
                 Ok(outputs)
             }),
         );
-        
+
         branch.add(Node::new(processor)).unwrap();
-        
+
         // Connect the source to the processor
         let source_id = format!("{}_source", branch_name);
         branch
@@ -306,11 +303,11 @@ async fn test_branch_and_merge_workflow() {
             ))
             .unwrap();
     }
-    
+
     // Create a merge node to collect results
     let merge_config = MergeConfig::new(branch_names.clone(), "result".to_string());
     graph.merge("merge_results", merge_config).unwrap();
-    
+
     // Verify the graph structure
     assert_eq!(graph.node_count(), 1); // Only the merge node in main graph
     assert_eq!(graph.branch_names().len(), 3);
@@ -319,30 +316,26 @@ async fn test_branch_and_merge_workflow() {
 #[test]
 fn test_nested_variants_cartesian_product() {
     use graph_sp::core::{VariantConfig, VariantFunction};
-    
+
     let mut graph = Graph::new();
-    
+
     // Create first set of variants (learning rates)
-    let lr_fn: VariantFunction = Arc::new(|i: usize| {
-        PortData::Float((i as f64 + 1.0) * 0.01)
-    });
+    let lr_fn: VariantFunction = Arc::new(|i: usize| PortData::Float((i as f64 + 1.0) * 0.01));
     let lr_config = VariantConfig::new("lr", 2, "learning_rate", lr_fn);
     let lr_branches = graph.create_variants(lr_config).unwrap();
     assert_eq!(lr_branches.len(), 2);
-    
+
     // For each learning rate variant, create batch size variants
     // This creates a cartesian product: 2 learning rates × 3 batch sizes = 6 combinations
     for lr_branch in &lr_branches {
         let branch = graph.get_branch_mut(lr_branch).unwrap();
-        
-        let batch_fn: VariantFunction = Arc::new(|i: usize| {
-            PortData::Int((i as i64 + 1) * 16)
-        });
+
+        let batch_fn: VariantFunction = Arc::new(|i: usize| PortData::Int((i as i64 + 1) * 16));
         let batch_config = VariantConfig::new("batch", 3, "batch_size", batch_fn);
         let batch_branches = branch.create_variants(batch_config).unwrap();
         assert_eq!(batch_branches.len(), 3);
     }
-    
+
     // Verify the nested structure
     assert_eq!(graph.branch_names().len(), 2);
     for lr_branch in &lr_branches {

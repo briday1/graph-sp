@@ -685,11 +685,11 @@ impl Graph {
                     Ok(outputs)
                 }),
             );
-            
+
             branch.add(Node::new(source_config))?;
             branch_names.push(branch_name);
         }
-        
+
         Ok(branch_names)
     }
 }
@@ -861,11 +861,11 @@ mod tests {
     #[test]
     fn test_create_branch() {
         let mut graph = Graph::new();
-        
+
         // Create a branch
         let branch = graph.create_branch("branch_a");
         assert!(branch.is_ok());
-        
+
         // Verify branch exists
         assert!(graph.has_branch("branch_a"));
         assert_eq!(graph.branch_names().len(), 1);
@@ -875,7 +875,7 @@ mod tests {
     #[test]
     fn test_duplicate_branch_name() {
         let mut graph = Graph::new();
-        
+
         graph.create_branch("branch_a").unwrap();
         let result = graph.create_branch("branch_a");
         assert!(result.is_err());
@@ -884,7 +884,7 @@ mod tests {
     #[test]
     fn test_branch_isolation() {
         let mut graph = Graph::new();
-        
+
         // Create two branches
         let branch_a = graph.create_branch("branch_a").unwrap();
         let config_a = NodeConfig::new(
@@ -895,7 +895,7 @@ mod tests {
             Arc::new(dummy_function),
         );
         branch_a.add(Node::new(config_a)).unwrap();
-        
+
         let branch_b = graph.create_branch("branch_b").unwrap();
         let config_b = NodeConfig::new(
             "node_b",
@@ -905,14 +905,22 @@ mod tests {
             Arc::new(dummy_function),
         );
         branch_b.add(Node::new(config_b)).unwrap();
-        
+
         // Verify each branch has only one node
         assert_eq!(graph.get_branch("branch_a").unwrap().node_count(), 1);
         assert_eq!(graph.get_branch("branch_b").unwrap().node_count(), 1);
-        
+
         // Verify branches don't share nodes
-        assert!(graph.get_branch("branch_a").unwrap().get_node("node_b").is_err());
-        assert!(graph.get_branch("branch_b").unwrap().get_node("node_a").is_err());
+        assert!(graph
+            .get_branch("branch_a")
+            .unwrap()
+            .get_node("node_b")
+            .is_err());
+        assert!(graph
+            .get_branch("branch_b")
+            .unwrap()
+            .get_node("node_a")
+            .is_err());
     }
 
     #[test]
@@ -924,21 +932,21 @@ mod tests {
     #[test]
     fn test_merge_basic() {
         let mut graph = Graph::new();
-        
+
         // Create two branches
         graph.create_branch("branch_a").unwrap();
         graph.create_branch("branch_b").unwrap();
-        
+
         // Create merge configuration
         let merge_config = MergeConfig::new(
             vec!["branch_a".to_string(), "branch_b".to_string()],
             "output".to_string(),
         );
-        
+
         // Create merge node
         let result = graph.merge("merge_node", merge_config);
         assert!(result.is_ok());
-        
+
         // Verify merge node was created
         assert_eq!(graph.node_count(), 1);
         assert!(graph.get_node("merge_node").is_ok());
@@ -947,14 +955,14 @@ mod tests {
     #[test]
     fn test_merge_with_nonexistent_branch() {
         let mut graph = Graph::new();
-        
+
         graph.create_branch("branch_a").unwrap();
-        
+
         let merge_config = MergeConfig::new(
             vec!["branch_a".to_string(), "nonexistent".to_string()],
             "output".to_string(),
         );
-        
+
         let result = graph.merge("merge_node", merge_config);
         assert!(result.is_err());
     }
@@ -962,10 +970,10 @@ mod tests {
     #[test]
     fn test_merge_with_custom_function() {
         let mut graph = Graph::new();
-        
+
         graph.create_branch("branch_a").unwrap();
         graph.create_branch("branch_b").unwrap();
-        
+
         // Custom merge function that finds max
         let max_merge = Arc::new(|inputs: Vec<&PortData>| -> Result<PortData> {
             let mut max_val = i64::MIN;
@@ -976,12 +984,13 @@ mod tests {
             }
             Ok(PortData::Int(max_val))
         });
-        
+
         let merge_config = MergeConfig::new(
             vec!["branch_a".to_string(), "branch_b".to_string()],
             "output".to_string(),
-        ).with_merge_fn(max_merge);
-        
+        )
+        .with_merge_fn(max_merge);
+
         let result = graph.merge("merge_node", merge_config);
         assert!(result.is_ok());
     }
@@ -989,20 +998,20 @@ mod tests {
     #[test]
     fn test_create_variants() {
         let mut graph = Graph::new();
-        
+
         // Create variants with integer values
         let variant_fn = Arc::new(|i: usize| PortData::Int(i as i64 * 10));
         let config = VariantConfig::new("test_variant", 3, "param", variant_fn);
-        
+
         let result = graph.create_variants(config);
         assert!(result.is_ok());
-        
+
         let branch_names = result.unwrap();
         assert_eq!(branch_names.len(), 3);
         assert_eq!(branch_names[0], "test_variant_0");
         assert_eq!(branch_names[1], "test_variant_1");
         assert_eq!(branch_names[2], "test_variant_2");
-        
+
         // Verify each branch was created with a source node
         for branch_name in &branch_names {
             assert!(graph.has_branch(branch_name));
@@ -1014,14 +1023,14 @@ mod tests {
     #[test]
     fn test_variants_with_parallelization_flag() {
         let mut graph = Graph::new();
-        
+
         let variant_fn = Arc::new(|i: usize| PortData::Float(i as f64 * 0.5));
-        let config = VariantConfig::new("param_sweep", 5, "learning_rate", variant_fn)
-            .with_parallel(false);
-        
+        let config =
+            VariantConfig::new("param_sweep", 5, "learning_rate", variant_fn).with_parallel(false);
+
         let result = graph.create_variants(config);
         assert!(result.is_ok());
-        
+
         let branch_names = result.unwrap();
         assert_eq!(branch_names.len(), 5);
     }
@@ -1029,12 +1038,13 @@ mod tests {
     #[test]
     fn test_duplicate_variant_branch() {
         let mut graph = Graph::new();
-        
+
         // Create initial variant
         let variant_fn = Arc::new(|i: usize| PortData::Int(i as i64));
         let config = VariantConfig::new("test", 2, "param", variant_fn.clone());
+
         graph.create_variants(config).unwrap();
-        
+
         // Try to create the same variants again
         let config2 = VariantConfig::new("test", 2, "param", variant_fn);
         let result = graph.create_variants(config2);
@@ -1057,7 +1067,7 @@ mod tests {
         let config2 = NodeConfig::new(
             "processor",
             "Processor",
-            vec![Port::new("output", "Input")],  // Port name matches prev output
+            vec![Port::new("output", "Input")], // Port name matches prev output
             vec![Port::new("result", "Result")],
             Arc::new(dummy_function),
         );
@@ -1065,7 +1075,7 @@ mod tests {
         let config3 = NodeConfig::new(
             "sink",
             "Sink",
-            vec![Port::new("result", "Input")],  // Port name matches prev output
+            vec![Port::new("result", "Input")], // Port name matches prev output
             vec![],
             Arc::new(dummy_function),
         );

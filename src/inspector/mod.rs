@@ -271,7 +271,7 @@ impl Inspector {
         for (i, group) in parallel_groups.iter().enumerate() {
             output.push('\n');
             output.push_str(&format!("    subgraph parallel_group_{}[\"⚡ Parallel Execution Group {}\"]\n", i + 1, i + 1));
-            output.push_str(&format!("        direction LR\n"));
+            output.push_str("        direction LR\n");
             for node_id in &group.parallel_nodes {
                 let safe_id = node_id.replace(['-', ' '], "_");
                 output.push_str(&format!("        {}\n", safe_id));
@@ -299,7 +299,7 @@ impl Inspector {
                         // Check if the suffix is a number
                         if branch_name[underscore_pos + 1..].parse::<usize>().is_ok() {
                             variant_groups.entry(prefix.to_string())
-                                .or_insert_with(Vec::new)
+                                .or_default()
                                 .push(branch_name.clone());
                             continue;
                         }
@@ -307,7 +307,7 @@ impl Inspector {
                 }
                 // If not a numbered variant, add as single branch
                 variant_groups.entry(branch_name.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(branch_name.clone());
             }
             
