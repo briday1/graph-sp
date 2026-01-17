@@ -211,6 +211,10 @@ impl Inspector {
         // Detect parallel execution patterns (fan-out/fan-in)
         let parallel_groups = Self::detect_parallel_groups(graph);
 
+        // Check for branches (variants)
+        let branch_names = graph.branch_names();
+        let has_branches = !branch_names.is_empty();
+
         // Add nodes with styling
         for node in graph.nodes() {
             let node_id = &node.config.id;
@@ -250,10 +254,9 @@ impl Inspector {
             }
         }
 
-        output.push('\n');
-
         // Add comments for parallel execution groups if detected
         if !parallel_groups.is_empty() {
+            output.push('\n');
             output.push_str("    %% Parallel Execution Groups Detected\n");
             for (i, group) in parallel_groups.iter().enumerate() {
                 output.push_str(&format!(
@@ -262,11 +265,11 @@ impl Inspector {
                     group.parallel_nodes.len()
                 ));
             }
-            output.push('\n');
         }
 
         // Group parallel branches using subgraphs for better visualization
         for (i, group) in parallel_groups.iter().enumerate() {
+            output.push('\n');
             output.push_str(&format!("    subgraph parallel_group_{}[\"⚡ Parallel Execution Group {}\"]\n", i + 1, i + 1));
             output.push_str(&format!("        direction LR\n"));
             for node_id in &group.parallel_nodes {
@@ -278,8 +281,67 @@ impl Inspector {
                 "    style parallel_group_{} fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray: 5 5\n",
                 i + 1
             ));
-            output.push('\n');
         }
+
+        // Add variant branches as special nodes
+        if has_branches {
+            output.push('\n');
+            output.push_str("    %% Variant Branches\n");
+            
+            // Group variants by prefix (detect variant sets)
+            let mut variant_groups: HashMap<String, Vec<String>> = HashMap::new();
+            for branch_name in &branch_names {
+                // Try to extract prefix (e.g., "lr_0" -> "lr")
+                if let Some(underscore_pos) = branch_name.rfind('_') {
+                    // Ensure there's at least one character after the underscore
+                    if underscore_pos + 1 < branch_name.len() {
+                        let prefix = &branch_name[..underscore_pos];
+                        // Check if the suffix is a number
+                        if branch_name[underscore_pos + 1..].parse::<usize>().is_ok() {
+                            variant_groups.entry(prefix.to_string())
+                                .or_insert_with(Vec::new)
+                                .push(branch_name.clone());
+                            continue;
+                        }
+                    }
+                }
+                // If not a numbered variant, add as single branch
+                variant_groups.entry(branch_name.clone())
+                    .or_insert_with(Vec::new)
+                    .push(branch_name.clone());
+            }
+            
+            // Render variant groups
+            for (prefix, branches) in &variant_groups {
+                let safe_prefix = prefix.replace(['-', ' '], "_");
+                if branches.len() > 1 {
+                    // Multiple variants - use hexagon shape
+                    output.push_str(&format!(
+                        "    {}{{{{\"{}\\n{} variants\"}}}}\n",
+                        safe_prefix,
+                        prefix.replace('_', " "),
+                        branches.len()
+                    ));
+                    output.push_str(&format!(
+                        "    style {} fill:#e8f5e9,stroke:#2e7d32,stroke-width:3px,stroke-dasharray: 5 5\n",
+                        safe_prefix
+                    ));
+                } else {
+                    // Single branch - use regular rectangle with different style
+                    output.push_str(&format!(
+                        "    {}[\"Branch: {}\"]\n",
+                        safe_prefix,
+                        prefix.replace('_', " ")
+                    ));
+                    output.push_str(&format!(
+                        "    style {} fill:#fff9c4,stroke:#f57f17,stroke-width:2px\n",
+                        safe_prefix
+                    ));
+                }
+            }
+        }
+
+        output.push('\n');
 
         // Add edges with labels
         for edge in graph.edges() {
@@ -473,9 +535,9 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(config1)).unwrap();
-        graph.add_node(Node::new(config2)).unwrap();
-        graph.add_node(Node::new(config3)).unwrap();
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
+        graph.add(Node::new(config3)).unwrap();
 
         graph
             .add_edge(Edge::new("source", "out", "middle", "in"))
@@ -508,8 +570,8 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(config1)).unwrap();
-        graph.add_node(Node::new(config2)).unwrap();
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
 
         let optimizations = Inspector::suggest_optimizations(&graph);
 
@@ -532,7 +594,7 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(config)).unwrap();
+        graph.add(Node::new(config)).unwrap();
 
         let mermaid = Inspector::to_mermaid(&graph).unwrap();
 
@@ -578,10 +640,10 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(source)).unwrap();
-        graph.add_node(Node::new(branch1)).unwrap();
-        graph.add_node(Node::new(branch2)).unwrap();
-        graph.add_node(Node::new(merger)).unwrap();
+        graph.add(Node::new(source)).unwrap();
+        graph.add(Node::new(branch1)).unwrap();
+        graph.add(Node::new(branch2)).unwrap();
+        graph.add(Node::new(merger)).unwrap();
 
         // Fan-out from source
         graph
@@ -638,9 +700,9 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(source)).unwrap();
-        graph.add_node(Node::new(processor)).unwrap();
-        graph.add_node(Node::new(sink)).unwrap();
+        graph.add(Node::new(source)).unwrap();
+        graph.add(Node::new(processor)).unwrap();
+        graph.add(Node::new(sink)).unwrap();
 
         graph
             .add_edge(Edge::new("source", "out", "processor", "in"))
@@ -677,8 +739,8 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(source)).unwrap();
-        graph.add_node(Node::new(sink)).unwrap();
+        graph.add(Node::new(source)).unwrap();
+        graph.add(Node::new(sink)).unwrap();
 
         graph
             .add_edge(Edge::new("source", "output_port", "sink", "input_port"))

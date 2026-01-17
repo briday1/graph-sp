@@ -146,6 +146,78 @@ impl Edge {
     }
 }
 
+/// Merge function type for combining outputs from multiple branches
+pub type MergeFunction =
+    Arc<dyn Fn(Vec<&PortData>) -> Result<PortData> + Send + Sync>;
+
+/// Configuration for merging branch outputs
+pub struct MergeConfig {
+    /// Branches to merge
+    pub branches: Vec<String>,
+    /// Output port name on each branch to merge
+    pub port: String,
+    /// Custom merge function (default: collect into list)
+    pub merge_fn: Option<MergeFunction>,
+}
+
+impl MergeConfig {
+    /// Create a new merge configuration
+    pub fn new(branches: Vec<String>, port: String) -> Self {
+        Self {
+            branches,
+            port,
+            merge_fn: None,
+        }
+    }
+
+    /// Set a custom merge function
+    pub fn with_merge_fn(mut self, merge_fn: MergeFunction) -> Self {
+        self.merge_fn = Some(merge_fn);
+        self
+    }
+}
+
+/// Variant function type for generating parameter variations
+pub type VariantFunction = Arc<dyn Fn(usize) -> PortData + Send + Sync>;
+
+/// Configuration for creating variants (config sweeps)
+pub struct VariantConfig {
+    /// Name prefix for variant branches
+    pub name_prefix: String,
+    /// Number of variants to create
+    pub count: usize,
+    /// Function to generate variant parameter values
+    pub variant_fn: VariantFunction,
+    /// Parameter name to vary
+    pub param_name: String,
+    /// Whether to enable parallel execution (default: true)
+    pub parallel: bool,
+}
+
+impl VariantConfig {
+    /// Create a new variant configuration
+    pub fn new(
+        name_prefix: impl Into<String>,
+        count: usize,
+        param_name: impl Into<String>,
+        variant_fn: VariantFunction,
+    ) -> Self {
+        Self {
+            name_prefix: name_prefix.into(),
+            count,
+            variant_fn,
+            param_name: param_name.into(),
+            parallel: true,
+        }
+    }
+
+    /// Set parallelization flag
+    pub fn with_parallel(mut self, parallel: bool) -> Self {
+        self.parallel = parallel;
+        self
+    }
+}
+
 /// The main graph structure representing a DAG
 #[derive(Clone)]
 pub struct Graph {
@@ -153,6 +225,12 @@ pub struct Graph {
     graph: DiGraph<Node, Edge>,
     /// Map from node ID to graph index
     node_indices: HashMap<NodeId, NodeIndex>,
+    /// Named branches (subgraphs)
+    branches: HashMap<String, Graph>,
+    /// Track node addition order for implicit mapping
+    node_order: Vec<NodeId>,
+    /// Whether to use strict edge mapping (explicit add_edge required)
+    strict_edge_mapping: bool,
 }
 
 impl Graph {
@@ -161,11 +239,32 @@ impl Graph {
         Self {
             graph: DiGraph::new(),
             node_indices: HashMap::new(),
+            branches: HashMap::new(),
+            node_order: Vec::new(),
+            strict_edge_mapping: false,
         }
     }
 
+    /// Create a new graph with strict edge mapping enabled
+    /// When enabled, edges must be explicitly added with add_edge()
+    /// When disabled (default), edges are automatically created based on node order
+    pub fn with_strict_edges() -> Self {
+        Self {
+            graph: DiGraph::new(),
+            node_indices: HashMap::new(),
+            branches: HashMap::new(),
+            node_order: Vec::new(),
+            strict_edge_mapping: true,
+        }
+    }
+
+    /// Set strict edge mapping mode
+    pub fn set_strict_edge_mapping(&mut self, strict: bool) {
+        self.strict_edge_mapping = strict;
+    }
+
     /// Add a node to the graph
-    pub fn add_node(&mut self, node: Node) -> Result<()> {
+    pub fn add(&mut self, node: Node) -> Result<()> {
         let node_id = node.config.id.clone();
 
         if self.node_indices.contains_key(&node_id) {
@@ -176,8 +275,60 @@ impl Graph {
         }
 
         let index = self.graph.add_node(node);
-        self.node_indices.insert(node_id, index);
+        self.node_indices.insert(node_id.clone(), index);
+        
+        // Implicit edge mapping: connect to previous node if not in strict mode
+        if !self.strict_edge_mapping && !self.node_order.is_empty() {
+            self.auto_connect_to_previous(&node_id)?;
+        }
+        
+        self.node_order.push(node_id);
         Ok(())
+    }
+
+    /// Automatically connect the new node to the previous node based on port names
+    fn auto_connect_to_previous(&mut self, new_node_id: &str) -> Result<()> {
+        let edges_to_add = if let Some(prev_node_id) = self.node_order.last().cloned() {
+            let prev_node = self.get_node(&prev_node_id)?;
+            let new_node = self.get_node(new_node_id)?;
+            
+            let mut edges = Vec::new();
+            // Match output ports from previous node to input ports of new node
+            for out_port in &prev_node.config.output_ports {
+                for in_port in &new_node.config.input_ports {
+                    // Connect if port names match or if they're the only ports
+                    let should_connect = out_port.id == in_port.id || 
+                        (prev_node.config.output_ports.len() == 1 && 
+                         new_node.config.input_ports.len() == 1);
+                    
+                    if should_connect {
+                        edges.push(Edge::new(
+                            &prev_node_id,
+                            &out_port.id,
+                            new_node_id,
+                            &in_port.id,
+                        ));
+                        break; // Only connect first matching port
+                    }
+                }
+            }
+            edges
+        } else {
+            Vec::new()
+        };
+        
+        // Add all collected edges
+        for edge in edges_to_add {
+            self.add_edge(edge)?;
+        }
+        
+        Ok(())
+    }
+
+    /// Alias for add() for backward compatibility
+    #[deprecated(since = "0.2.0", note = "Use `add` instead")]
+    pub fn add_node(&mut self, node: Node) -> Result<()> {
+        self.add(node)
     }
 
     /// Add an edge to the graph
@@ -392,6 +543,155 @@ impl Graph {
         self.auto_connect()?;
         Ok(self)
     }
+
+    /// Create a new branch (subgraph) with the given name
+    pub fn create_branch(&mut self, name: impl Into<String>) -> Result<&mut Graph> {
+        let name = name.into();
+        if self.branches.contains_key(&name) {
+            return Err(GraphError::InvalidGraph(format!(
+                "Branch '{}' already exists",
+                name
+            )));
+        }
+        self.branches.insert(name.clone(), Graph::new());
+        Ok(self.branches.get_mut(&name).unwrap())
+    }
+
+    /// Get a reference to a branch by name
+    pub fn get_branch(&self, name: &str) -> Result<&Graph> {
+        self.branches
+            .get(name)
+            .ok_or_else(|| GraphError::InvalidGraph(format!("Branch '{}' not found", name)))
+    }
+
+    /// Get a mutable reference to a branch by name
+    pub fn get_branch_mut(&mut self, name: &str) -> Result<&mut Graph> {
+        self.branches
+            .get_mut(name)
+            .ok_or_else(|| GraphError::InvalidGraph(format!("Branch '{}' not found", name)))
+    }
+
+    /// Get all branch names
+    pub fn branch_names(&self) -> Vec<String> {
+        self.branches.keys().cloned().collect()
+    }
+
+    /// Check if a branch exists
+    pub fn has_branch(&self, name: &str) -> bool {
+        self.branches.contains_key(name)
+    }
+
+    /// Create a merge node that combines outputs from multiple branches
+    /// 
+    /// The merge node will collect outputs from the specified branches and combine them
+    /// using the provided merge function (or collect into a list by default).
+    pub fn merge(
+        &mut self,
+        node_id: impl Into<NodeId>,
+        config: MergeConfig,
+    ) -> Result<()> {
+        // Validate that all branches exist
+        for branch_name in &config.branches {
+            if !self.has_branch(branch_name) {
+                return Err(GraphError::InvalidGraph(format!(
+                    "Branch '{}' not found for merge operation",
+                    branch_name
+                )));
+            }
+        }
+
+        let branch_names = config.branches.clone();
+        
+        // Create the merge function
+        let merge_fn = config.merge_fn.unwrap_or_else(|| {
+            // Default merge function: collect into a list
+            Arc::new(|inputs: Vec<&PortData>| -> Result<PortData> {
+                Ok(PortData::List(inputs.iter().map(|&d| d.clone()).collect()))
+            })
+        });
+
+        // Create input ports - one for each branch
+        let input_ports: Vec<Port> = branch_names
+            .iter()
+            .map(|name| Port::new(name.clone(), format!("Input from {}", name)))
+            .collect();
+
+        // Create a merge node
+        let node_config = NodeConfig::new(
+            node_id,
+            "Merge Node",
+            input_ports,
+            vec![Port::new("merged", "Merged Output")],
+            Arc::new(move |inputs: &HashMap<PortId, PortData>| {
+                // Collect inputs in branch order
+                let mut collected_inputs = Vec::new();
+                for branch_name in &branch_names {
+                    if let Some(data) = inputs.get(branch_name.as_str()) {
+                        collected_inputs.push(data);
+                    }
+                }
+                
+                // Apply merge function
+                let merged = merge_fn(collected_inputs)?;
+                
+                let mut outputs = HashMap::new();
+                outputs.insert("merged".to_string(), merged);
+                Ok(outputs)
+            }),
+        );
+
+        self.add(Node::new(node_config))
+    }
+
+    /// Create variant branches for config sweeps
+    /// 
+    /// This creates multiple isolated branches, each with a different parameter value.
+    /// Variants can be used for hyperparameter sweeps, A/B testing, or any scenario
+    /// where you want to run the same computation with different inputs.
+    /// 
+    /// Returns the names of the created variant branches.
+    pub fn create_variants(&mut self, config: VariantConfig) -> Result<Vec<String>> {
+        let mut branch_names = Vec::new();
+        
+        for i in 0..config.count {
+            let branch_name = format!("{}_{}", config.name_prefix, i);
+            
+            // Check if branch already exists
+            if self.has_branch(&branch_name) {
+                return Err(GraphError::InvalidGraph(format!(
+                    "Variant branch '{}' already exists",
+                    branch_name
+                )));
+            }
+            
+            // Create the branch
+            let branch = self.create_branch(&branch_name)?;
+            
+            // Add a source node to the branch with the variant parameter
+            let param_value = (config.variant_fn)(i);
+            let param_name = config.param_name.clone();
+            
+            let source_config = NodeConfig::new(
+                format!("{}_source", branch_name),
+                format!("Variant Source {}", i),
+                vec![],
+                vec![Port::new(&param_name, "Variant Parameter")],
+                // Note: param_name and param_value must be cloned into the closure
+                // because the closure is moved into an Arc and needs to own these values
+                // to ensure they remain valid for the lifetime of the node function
+                Arc::new(move |_: &HashMap<PortId, PortData>| {
+                    let mut outputs = HashMap::new();
+                    outputs.insert(param_name.clone(), param_value.clone());
+                    Ok(outputs)
+                }),
+            );
+            
+            branch.add(Node::new(source_config))?;
+            branch_names.push(branch_name);
+        }
+        
+        Ok(branch_names)
+    }
 }
 
 impl Default for Graph {
@@ -433,7 +733,7 @@ mod tests {
         );
 
         let node = Node::new(config);
-        assert!(graph.add_node(node).is_ok());
+        assert!(graph.add(node).is_ok());
         assert_eq!(graph.node_count(), 1);
     }
 
@@ -451,13 +751,13 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        assert!(graph.add_node(Node::new(config1)).is_ok());
-        assert!(graph.add_node(Node::new(config2)).is_err());
+        assert!(graph.add(Node::new(config1)).is_ok());
+        assert!(graph.add(Node::new(config2)).is_err());
     }
 
     #[test]
     fn test_add_edge() {
-        let mut graph = Graph::new();
+        let mut graph = Graph::with_strict_edges();
 
         let config1 = NodeConfig::new(
             "node1",
@@ -475,8 +775,8 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(config1)).unwrap();
-        graph.add_node(Node::new(config2)).unwrap();
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
 
         let edge = Edge::new("node1", "output", "node2", "input");
         assert!(graph.add_edge(edge).is_ok());
@@ -507,7 +807,7 @@ mod tests {
                 outputs,
                 Arc::new(dummy_function),
             );
-            graph.add_node(Node::new(config)).unwrap();
+            graph.add(Node::new(config)).unwrap();
         }
 
         graph
@@ -545,8 +845,8 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(config1)).unwrap();
-        graph.add_node(Node::new(config2)).unwrap();
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
 
         graph
             .add_edge(Edge::new("node1", "output", "node2", "input"))
@@ -559,8 +859,260 @@ mod tests {
     }
 
     #[test]
-    fn test_auto_connect() {
+    fn test_create_branch() {
         let mut graph = Graph::new();
+        
+        // Create a branch
+        let branch = graph.create_branch("branch_a");
+        assert!(branch.is_ok());
+        
+        // Verify branch exists
+        assert!(graph.has_branch("branch_a"));
+        assert_eq!(graph.branch_names().len(), 1);
+        assert_eq!(graph.branch_names()[0], "branch_a");
+    }
+
+    #[test]
+    fn test_duplicate_branch_name() {
+        let mut graph = Graph::new();
+        
+        graph.create_branch("branch_a").unwrap();
+        let result = graph.create_branch("branch_a");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_branch_isolation() {
+        let mut graph = Graph::new();
+        
+        // Create two branches
+        let branch_a = graph.create_branch("branch_a").unwrap();
+        let config_a = NodeConfig::new(
+            "node_a",
+            "Node A",
+            vec![],
+            vec![Port::new("output", "Output")],
+            Arc::new(dummy_function),
+        );
+        branch_a.add(Node::new(config_a)).unwrap();
+        
+        let branch_b = graph.create_branch("branch_b").unwrap();
+        let config_b = NodeConfig::new(
+            "node_b",
+            "Node B",
+            vec![],
+            vec![Port::new("output", "Output")],
+            Arc::new(dummy_function),
+        );
+        branch_b.add(Node::new(config_b)).unwrap();
+        
+        // Verify each branch has only one node
+        assert_eq!(graph.get_branch("branch_a").unwrap().node_count(), 1);
+        assert_eq!(graph.get_branch("branch_b").unwrap().node_count(), 1);
+        
+        // Verify branches don't share nodes
+        assert!(graph.get_branch("branch_a").unwrap().get_node("node_b").is_err());
+        assert!(graph.get_branch("branch_b").unwrap().get_node("node_a").is_err());
+    }
+
+    #[test]
+    fn test_get_nonexistent_branch() {
+        let graph = Graph::new();
+        assert!(graph.get_branch("nonexistent").is_err());
+    }
+
+    #[test]
+    fn test_merge_basic() {
+        let mut graph = Graph::new();
+        
+        // Create two branches
+        graph.create_branch("branch_a").unwrap();
+        graph.create_branch("branch_b").unwrap();
+        
+        // Create merge configuration
+        let merge_config = MergeConfig::new(
+            vec!["branch_a".to_string(), "branch_b".to_string()],
+            "output".to_string(),
+        );
+        
+        // Create merge node
+        let result = graph.merge("merge_node", merge_config);
+        assert!(result.is_ok());
+        
+        // Verify merge node was created
+        assert_eq!(graph.node_count(), 1);
+        assert!(graph.get_node("merge_node").is_ok());
+    }
+
+    #[test]
+    fn test_merge_with_nonexistent_branch() {
+        let mut graph = Graph::new();
+        
+        graph.create_branch("branch_a").unwrap();
+        
+        let merge_config = MergeConfig::new(
+            vec!["branch_a".to_string(), "nonexistent".to_string()],
+            "output".to_string(),
+        );
+        
+        let result = graph.merge("merge_node", merge_config);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_merge_with_custom_function() {
+        let mut graph = Graph::new();
+        
+        graph.create_branch("branch_a").unwrap();
+        graph.create_branch("branch_b").unwrap();
+        
+        // Custom merge function that finds max
+        let max_merge = Arc::new(|inputs: Vec<&PortData>| -> Result<PortData> {
+            let mut max_val = i64::MIN;
+            for data in inputs {
+                if let PortData::Int(val) = data {
+                    max_val = max_val.max(*val);
+                }
+            }
+            Ok(PortData::Int(max_val))
+        });
+        
+        let merge_config = MergeConfig::new(
+            vec!["branch_a".to_string(), "branch_b".to_string()],
+            "output".to_string(),
+        ).with_merge_fn(max_merge);
+        
+        let result = graph.merge("merge_node", merge_config);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_variants() {
+        let mut graph = Graph::new();
+        
+        // Create variants with integer values
+        let variant_fn = Arc::new(|i: usize| PortData::Int(i as i64 * 10));
+        let config = VariantConfig::new("test_variant", 3, "param", variant_fn);
+        
+        let result = graph.create_variants(config);
+        assert!(result.is_ok());
+        
+        let branch_names = result.unwrap();
+        assert_eq!(branch_names.len(), 3);
+        assert_eq!(branch_names[0], "test_variant_0");
+        assert_eq!(branch_names[1], "test_variant_1");
+        assert_eq!(branch_names[2], "test_variant_2");
+        
+        // Verify each branch was created with a source node
+        for branch_name in &branch_names {
+            assert!(graph.has_branch(branch_name));
+            let branch = graph.get_branch(branch_name).unwrap();
+            assert_eq!(branch.node_count(), 1);
+        }
+    }
+
+    #[test]
+    fn test_variants_with_parallelization_flag() {
+        let mut graph = Graph::new();
+        
+        let variant_fn = Arc::new(|i: usize| PortData::Float(i as f64 * 0.5));
+        let config = VariantConfig::new("param_sweep", 5, "learning_rate", variant_fn)
+            .with_parallel(false);
+        
+        let result = graph.create_variants(config);
+        assert!(result.is_ok());
+        
+        let branch_names = result.unwrap();
+        assert_eq!(branch_names.len(), 5);
+    }
+
+    #[test]
+    fn test_duplicate_variant_branch() {
+        let mut graph = Graph::new();
+        
+        // Create initial variant
+        let variant_fn = Arc::new(|i: usize| PortData::Int(i as i64));
+        let config = VariantConfig::new("test", 2, "param", variant_fn.clone());
+        graph.create_variants(config).unwrap();
+        
+        // Try to create the same variants again
+        let config2 = VariantConfig::new("test", 2, "param", variant_fn);
+        let result = graph.create_variants(config2);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_implicit_edge_mapping() {
+        // Default mode: implicit edge mapping
+        let mut graph = Graph::new();
+
+        let config1 = NodeConfig::new(
+            "source",
+            "Source",
+            vec![],
+            vec![Port::new("output", "Output")],
+            Arc::new(dummy_function),
+        );
+
+        let config2 = NodeConfig::new(
+            "processor",
+            "Processor",
+            vec![Port::new("output", "Input")],  // Port name matches prev output
+            vec![Port::new("result", "Result")],
+            Arc::new(dummy_function),
+        );
+
+        let config3 = NodeConfig::new(
+            "sink",
+            "Sink",
+            vec![Port::new("result", "Input")],  // Port name matches prev output
+            vec![],
+            Arc::new(dummy_function),
+        );
+
+        // Add nodes - edges should be created automatically
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
+        graph.add(Node::new(config3)).unwrap();
+
+        // Should have 2 edges (source->processor, processor->sink)
+        assert_eq!(graph.edge_count(), 2);
+        assert_eq!(graph.node_count(), 3);
+    }
+
+    #[test]
+    fn test_strict_edge_mapping() {
+        // Strict mode: explicit edges required
+        let mut graph = Graph::with_strict_edges();
+
+        let config1 = NodeConfig::new(
+            "source",
+            "Source",
+            vec![],
+            vec![Port::new("output", "Output")],
+            Arc::new(dummy_function),
+        );
+
+        let config2 = NodeConfig::new(
+            "sink",
+            "Sink",
+            vec![Port::new("output", "Input")],
+            vec![],
+            Arc::new(dummy_function),
+        );
+
+        // Add nodes - NO edges should be created automatically
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
+
+        // Should have 0 edges in strict mode
+        assert_eq!(graph.edge_count(), 0);
+        assert_eq!(graph.node_count(), 2);
+    }
+
+    #[test]
+    fn test_auto_connect() {
+        let mut graph = Graph::with_strict_edges();
 
         // Create nodes with matching port names
         let config1 = NodeConfig::new(
@@ -587,11 +1139,11 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(config1)).unwrap();
-        graph.add_node(Node::new(config2)).unwrap();
-        graph.add_node(Node::new(config3)).unwrap();
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
+        graph.add(Node::new(config3)).unwrap();
 
-        // Initially no edges
+        // Initially no edges in strict mode
         assert_eq!(graph.edge_count(), 0);
 
         // Auto-connect should create 2 edges
@@ -605,7 +1157,7 @@ mod tests {
 
     #[test]
     fn test_auto_connect_parallel_branches() {
-        let mut graph = Graph::new();
+        let mut graph = Graph::with_strict_edges();
 
         // Source with output "value"
         let source = NodeConfig::new(
@@ -642,10 +1194,10 @@ mod tests {
             Arc::new(dummy_function),
         );
 
-        graph.add_node(Node::new(source)).unwrap();
-        graph.add_node(Node::new(branch1)).unwrap();
-        graph.add_node(Node::new(branch2)).unwrap();
-        graph.add_node(Node::new(merger)).unwrap();
+        graph.add(Node::new(source)).unwrap();
+        graph.add(Node::new(branch1)).unwrap();
+        graph.add(Node::new(branch2)).unwrap();
+        graph.add(Node::new(merger)).unwrap();
 
         // Auto-connect should create 4 edges (fan-out + fan-in)
         let edges_created = graph.auto_connect().unwrap();

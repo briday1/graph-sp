@@ -205,7 +205,7 @@ mod tests {
         let mut node = Node::new(config);
         node.set_input("input", PortData::Int(21));
 
-        graph.add_node(node).unwrap();
+        graph.add(node).unwrap();
 
         let executor = Executor::new();
         let result = executor.execute(&mut graph).await.unwrap();
@@ -265,9 +265,9 @@ mod tests {
             }),
         );
 
-        graph.add_node(Node::new(config1)).unwrap();
-        graph.add_node(Node::new(config2)).unwrap();
-        graph.add_node(Node::new(config3)).unwrap();
+        graph.add(Node::new(config1)).unwrap();
+        graph.add(Node::new(config2)).unwrap();
+        graph.add(Node::new(config3)).unwrap();
 
         graph
             .add_edge(Edge::new("source", "output", "double", "input"))

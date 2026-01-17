@@ -108,8 +108,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     );
 
-    graph.add_node(Node::new(user_creator)).unwrap();
-    graph.add_node(Node::new(user_processor)).unwrap();
+    graph.add(Node::new(user_creator)).unwrap();
+    graph.add(Node::new(user_processor)).unwrap();
     graph
         .add_edge(Edge::new("user_creator", "user", "user_processor", "user"))
         .unwrap();
@@ -182,8 +182,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     );
 
-    graph2.add_node(Node::new(json_producer)).unwrap();
-    graph2.add_node(Node::new(json_consumer)).unwrap();
+    graph2.add(Node::new(json_producer)).unwrap();
+    graph2.add(Node::new(json_consumer)).unwrap();
     graph2
         .add_edge(Edge::new("json_producer", "data", "json_consumer", "data"))
         .unwrap();
@@ -237,8 +237,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     );
 
-    graph3.add_node(Node::new(binary_producer)).unwrap();
-    graph3.add_node(Node::new(binary_analyzer)).unwrap();
+    graph3.add(Node::new(binary_producer)).unwrap();
+    graph3.add(Node::new(binary_analyzer)).unwrap();
     graph3
         .add_edge(Edge::new(
             "binary_producer",

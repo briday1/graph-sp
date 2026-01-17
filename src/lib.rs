@@ -50,7 +50,7 @@
 //!     // Add node to graph
 //!     let mut node = Node::new(config);
 //!     node.set_input("input", PortData::Int(21));
-//!     graph.add_node(node)?;
+//!     graph.add(node)?;
 //!
 //!     // Execute the graph
 //!     let executor = Executor::new();

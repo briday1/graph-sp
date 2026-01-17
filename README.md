@@ -10,10 +10,11 @@ A high-performance DAG (Directed Acyclic Graph) execution engine with true paral
 
 - **⚡ True Parallel Execution**: Automatic parallelization of independent nodes (44% faster for fan-out patterns)
 - **🔌 Port-based Architecture**: Type-safe data flow between nodes via named ports
-- **🔗 Implicit Edge Mapping**: Auto-connect nodes by matching port names (no explicit `add_edge()` needed)
+- **🌿 Branching & Nested Graphs**: Create isolated subgraphs for experiments and variants
+- **🔀 Merge Operations**: Combine outputs from multiple branches with custom merge functions
+- **🔄 Variants & Config Sweeps**: Automated parameter variation with cartesian product support
 - **🐍 Python & Rust APIs**: Full feature parity across both languages
 - **🔍 Graph Inspection**: Analysis, visualization, and Mermaid diagram generation
-- **🎨 Rich Mermaid Diagrams**: Color-coded nodes, parallel group detection, multi-line labels
 - **✅ Cycle Detection**: Built-in DAG validation with detailed error reporting
 - **📊 Rich Data Types**: Primitives, collections, JSON, nested objects, and binary data
 - **🎯 Zero-Copy Optimization**: Efficient data sharing using Arc
@@ -37,14 +38,14 @@ import graph_sp
 graph = graph_sp.Graph()
 
 # Add nodes with Python functions
-graph.add_node(
+graph.add(
     "source", "Data Source",
     [],  # no inputs
     [graph_sp.Port("output", "Numbers")],
     lambda inputs: {"output": [1, 2, 3, 4, 5]}
 )
 
-graph.add_node(
+graph.add(
     "doubler", "Multiply by 2",
     [graph_sp.Port("input", "Input")],
     [graph_sp.Port("output", "Output")],
@@ -96,7 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     );
 
-    graph.add_node(Node::new(source))?;
+    graph.add(Node::new(source))?;
 
     // Execute
     let executor = Executor::new();
@@ -217,134 +218,73 @@ mermaid = graph.to_mermaid()
 print(mermaid)  # GitHub-compatible markdown
 ```
 
-### Implicit Edge Mapping
+### Branching & Variants (New in v0.2.0)
 
-Build graphs WITHOUT explicit `add_edge()` calls! Edges are automatically created by matching port names:
+**Branches** allow you to create isolated subgraphs:
 
-**Python:**
 ```python
-graph = graph_sp.Graph()
+# Create experimental branches
+graph.create_branch("experiment_a")
+graph.create_branch("experiment_b")
 
-# Add nodes with matching port names
-graph.add_node("source", "Data Source", [],
-    [graph_sp.Port("data", "Data")], source_fn)
-
-graph.add_node("processor", "Processor",
-    [graph_sp.Port("data", "Input")],  # Matches "data" output!
-    [graph_sp.Port("result", "Result")], processor_fn)
-
-graph.add_node("sink", "Sink",
-    [graph_sp.Port("result", "Input")],  # Matches "result" output!
-    [], sink_fn)
-
-# Auto-connect based on port name matching
-edges_created = graph.auto_connect()
-print(f"✓ Created {edges_created} edges automatically!")
+# Check branches
+print(graph.branch_names())  # ["experiment_a", "experiment_b"]
+print(graph.has_branch("experiment_a"))  # True
 ```
 
-**Rust:**
+**Variants** enable config sweeps and hyperparameter tuning:
+
 ```rust
-let mut graph = Graph::new();
+use graph_sp::core::{VariantConfig, VariantFunction};
 
-// Add nodes with matching port names
-graph.add_node(Node::new(NodeConfig::new(
-    "source", "Data Source",
-    vec![],
-    vec![Port::new("data", "Data")],
-    function
-)))?;
+// Create variants with different learning rates
+let variant_fn: VariantFunction = Arc::new(|i: usize| {
+    PortData::Float((i as f64 + 1.0) * 0.01)
+});
 
-graph.add_node(Node::new(NodeConfig::new(
-    "processor", "Processor",
-    vec![Port::new("data", "Input")],  // Matches "data" output!
-    vec![Port::new("result", "Result")],
-    function
-)))?;
-
-// Auto-connect based on port name matching
-let edges_created = graph.auto_connect()?;
-println!("✓ Created {} edges automatically!", edges_created);
+let config = VariantConfig::new("lr", 3, "learning_rate", variant_fn);
+let branches = graph.create_variants(config)?;
+// Creates: lr_0 (0.01), lr_1 (0.02), lr_2 (0.03)
 ```
 
-**Generated Mermaid Diagram:**
+**Merge** combines outputs from multiple branches:
 
-```mermaid
-graph TD
-    source["Data Source"]
-    style source fill:#e1f5ff,stroke:#01579b,stroke-width:2px
-    processor["Processor"]
-    style processor fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    sink["Sink"]
-    style sink fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+```rust
+use graph_sp::core::MergeConfig;
 
-    source -->|"data→data"| processor
-    processor -->|"result→result"| sink
+// Merge outputs from multiple branches
+let merge_config = MergeConfig::new(
+    vec!["branch_a".to_string(), "branch_b".to_string()],
+    "result".to_string()
+);
+graph.merge("merge_node", merge_config)?;
+
+// Or use custom merge function (e.g., max)
+let max_fn = Arc::new(|inputs: Vec<&PortData>| -> Result<PortData> {
+    let max = inputs.iter()
+        .filter_map(|d| if let PortData::Int(v) = d { Some(*v) } else { None })
+        .max()
+        .unwrap_or(0);
+    Ok(PortData::Int(max))
+});
+
+let config = MergeConfig::new(branches, "score".to_string())
+    .with_merge_fn(max_fn);
 ```
 
-### Mermaid Visualization Features
+**Nested Variants** create cartesian products:
 
-Generated diagrams include:
-- **Color-coded nodes**: Blue (source), Orange (processing), Purple (sink)
-- **Edge labels**: Show port-to-port connections
-- **Parallel group detection**: Fan-out/fan-in patterns automatically grouped
-- **Multi-line labels**: Use `\n` in node names for line breaks
+```rust
+// 2 learning rates × 3 batch sizes = 6 total configurations
+let lr_config = VariantConfig::new("lr", 2, "learning_rate", lr_fn);
+let lr_branches = graph.create_variants(lr_config)?;
 
-**Example with parallel branches:**
-
-```python
-# Source fans out to 2 branches, which merge
-graph.add_node("source", "Value Source", [],
-    [graph_sp.Port("value", "Value")], source_fn)
-
-graph.add_node("branch_a", "Branch A\\n(×2)",  # Multi-line label
-    [graph_sp.Port("value", "Input")],
-    [graph_sp.Port("out_a", "Output")], branch_a_fn)
-
-graph.add_node("branch_b", "Branch B\\n(+50)",  # Multi-line label
-    [graph_sp.Port("value", "Input")],
-    [graph_sp.Port("out_b", "Output")], branch_b_fn)
-
-graph.add_node("merger", "Merger",
-    [graph_sp.Port("out_a", "A"), graph_sp.Port("out_b", "B")],
-    [], merger_fn)
-
-graph.auto_connect()  # Creates 4 edges automatically
+for lr_branch in &lr_branches {
+    let branch = graph.get_branch_mut(lr_branch)?;
+    let batch_config = VariantConfig::new("batch", 3, "batch_size", batch_fn);
+    branch.create_variants(batch_config)?;
+}
 ```
-
-**Generated Mermaid Diagram:**
-
-```mermaid
-graph TD
-    source["Value Source"]
-    style source fill:#e1f5ff,stroke:#01579b,stroke-width:2px
-    branch_a["Branch A<br/>(×2)"]
-    style branch_a fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    branch_b["Branch B<br/>(+50)"]
-    style branch_b fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    merger["Merger"]
-    style merger fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-
-    %% Parallel Execution Groups Detected
-    %% Group 1: 2 nodes executing in parallel
-
-    subgraph parallel_group_1["⚡ Parallel Execution Group 1"]
-        direction LR
-        branch_b
-        branch_a
-    end
-    style parallel_group_1 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray: 5 5
-
-    source -->|"value→value"| branch_a
-    source -->|"value→value"| branch_b
-    branch_a -->|"out_a→out_a"| merger
-    branch_b -->|"out_b→out_b"| merger
-```
-
-Notice:
-- Multi-line labels render with `<br/>`
-- Parallel branches are grouped in a dashed green subgraph
-- Comments explain the parallel execution pattern
-- All edges properly connected (no disconnected nodes)
 
 ## Examples
 
@@ -355,14 +295,13 @@ Located in `python_examples/`:
 - **simple_pipeline.py**: Basic 3-node pipeline with graph analysis
 - **complex_objects.py**: Demonstrates nested objects, JSON, and lists
 - **parallel_execution.py**: Shows 3-branch parallel execution with timing
-- **implicit_edges.py**: Demonstrates auto_connect() with parallel branches and multi-line labels
+- **branching_example.py**: Demonstrates branch creation and management
 
 Run an example:
 
 ```bash
 cd python_examples
 python simple_pipeline.py
-python implicit_edges.py
 ```
 
 ### Rust Examples
@@ -372,14 +311,14 @@ Located in `examples/`:
 - **simple_pipeline.rs**: 4-node data processing pipeline
 - **complex_objects.rs**: All PortData types with nested structures
 - **parallel_execution.rs**: Fan-out/fan-in pattern with performance analysis
-- **implicit_edges.rs**: Demonstrates auto_connect() with parallel branches and multi-line labels
+- **branching_and_variants.rs**: Comprehensive demo of branches, merge, and variants
 
 Run an example:
 
 ```bash
 cargo run --example simple_pipeline
 cargo run --example parallel_execution
-cargo run --example implicit_edges
+cargo run --example branching_and_variants
 ```
 
 ## Performance
@@ -512,9 +451,7 @@ MIT License - see LICENSE file for details
 
 - [x] True parallel execution
 - [x] Python bindings with PyPI distribution
-- [x] Mermaid diagram generation with parallel group detection
-- [x] Implicit edge mapping (auto_connect)
-- [x] Multi-line labels in Mermaid diagrams
+- [x] Mermaid diagram generation
 - [x] Comprehensive examples
 - [ ] Distributed execution support
 - [ ] Graph serialization/deserialization

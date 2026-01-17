@@ -98,7 +98,7 @@ impl PyGraph {
         }
     }
 
-    fn add_node(
+    fn add(
         &mut self,
         id: String,
         name: String,
@@ -149,8 +149,20 @@ impl PyGraph {
         let node = Node::new(config);
 
         self.inner
-            .add_node(node)
+            .add(node)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    /// Alias for add() for backward compatibility
+    fn add_node(
+        &mut self,
+        id: String,
+        name: String,
+        input_ports: Vec<PyRef<PyPort>>,
+        output_ports: Vec<PyRef<PyPort>>,
+        function: PyObject,
+    ) -> PyResult<()> {
+        self.add(id, name, input_ports, output_ports, function)
     }
 
     fn add_edge(
@@ -199,6 +211,27 @@ impl PyGraph {
     fn analyze(&self) -> PyResult<PyGraphAnalysis> {
         let analysis = Inspector::analyze(&self.inner);
         Ok(PyGraphAnalysis { inner: analysis })
+    }
+
+    fn auto_connect(&mut self) -> PyResult<usize> {
+        self.inner
+            .auto_connect()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    fn create_branch(&mut self, name: String) -> PyResult<()> {
+        self.inner
+            .create_branch(name)
+            .map(|_| ())
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
+    }
+
+    fn has_branch(&self, name: String) -> bool {
+        self.inner.has_branch(&name)
+    }
+
+    fn branch_names(&self) -> Vec<String> {
+        self.inner.branch_names()
     }
 }
 
