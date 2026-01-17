@@ -10,8 +10,10 @@ A high-performance DAG (Directed Acyclic Graph) execution engine with true paral
 
 - **⚡ True Parallel Execution**: Automatic parallelization of independent nodes (44% faster for fan-out patterns)
 - **🔌 Port-based Architecture**: Type-safe data flow between nodes via named ports
+- **🔗 Implicit Edge Mapping**: Auto-connect nodes by matching port names (no explicit `add_edge()` needed)
 - **🐍 Python & Rust APIs**: Full feature parity across both languages
 - **🔍 Graph Inspection**: Analysis, visualization, and Mermaid diagram generation
+- **🎨 Rich Mermaid Diagrams**: Color-coded nodes, parallel group detection, multi-line labels
 - **✅ Cycle Detection**: Built-in DAG validation with detailed error reporting
 - **📊 Rich Data Types**: Primitives, collections, JSON, nested objects, and binary data
 - **🎯 Zero-Copy Optimization**: Efficient data sharing using Arc
@@ -215,6 +217,135 @@ mermaid = graph.to_mermaid()
 print(mermaid)  # GitHub-compatible markdown
 ```
 
+### Implicit Edge Mapping
+
+Build graphs WITHOUT explicit `add_edge()` calls! Edges are automatically created by matching port names:
+
+**Python:**
+```python
+graph = graph_sp.Graph()
+
+# Add nodes with matching port names
+graph.add_node("source", "Data Source", [],
+    [graph_sp.Port("data", "Data")], source_fn)
+
+graph.add_node("processor", "Processor",
+    [graph_sp.Port("data", "Input")],  # Matches "data" output!
+    [graph_sp.Port("result", "Result")], processor_fn)
+
+graph.add_node("sink", "Sink",
+    [graph_sp.Port("result", "Input")],  # Matches "result" output!
+    [], sink_fn)
+
+# Auto-connect based on port name matching
+edges_created = graph.auto_connect()
+print(f"✓ Created {edges_created} edges automatically!")
+```
+
+**Rust:**
+```rust
+let mut graph = Graph::new();
+
+// Add nodes with matching port names
+graph.add_node(Node::new(NodeConfig::new(
+    "source", "Data Source",
+    vec![],
+    vec![Port::new("data", "Data")],
+    function
+)))?;
+
+graph.add_node(Node::new(NodeConfig::new(
+    "processor", "Processor",
+    vec![Port::new("data", "Input")],  // Matches "data" output!
+    vec![Port::new("result", "Result")],
+    function
+)))?;
+
+// Auto-connect based on port name matching
+let edges_created = graph.auto_connect()?;
+println!("✓ Created {} edges automatically!", edges_created);
+```
+
+**Generated Mermaid Diagram:**
+
+```mermaid
+graph TD
+    source["Data Source"]
+    style source fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    processor["Processor"]
+    style processor fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    sink["Sink"]
+    style sink fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+
+    source -->|"data→data"| processor
+    processor -->|"result→result"| sink
+```
+
+### Mermaid Visualization Features
+
+Generated diagrams include:
+- **Color-coded nodes**: Blue (source), Orange (processing), Purple (sink)
+- **Edge labels**: Show port-to-port connections
+- **Parallel group detection**: Fan-out/fan-in patterns automatically grouped
+- **Multi-line labels**: Use `\n` in node names for line breaks
+
+**Example with parallel branches:**
+
+```python
+# Source fans out to 2 branches, which merge
+graph.add_node("source", "Value Source", [],
+    [graph_sp.Port("value", "Value")], source_fn)
+
+graph.add_node("branch_a", "Branch A\\n(×2)",  # Multi-line label
+    [graph_sp.Port("value", "Input")],
+    [graph_sp.Port("out_a", "Output")], branch_a_fn)
+
+graph.add_node("branch_b", "Branch B\\n(+50)",  # Multi-line label
+    [graph_sp.Port("value", "Input")],
+    [graph_sp.Port("out_b", "Output")], branch_b_fn)
+
+graph.add_node("merger", "Merger",
+    [graph_sp.Port("out_a", "A"), graph_sp.Port("out_b", "B")],
+    [], merger_fn)
+
+graph.auto_connect()  # Creates 4 edges automatically
+```
+
+**Generated Mermaid Diagram:**
+
+```mermaid
+graph TD
+    source["Value Source"]
+    style source fill:#e1f5ff,stroke:#01579b,stroke-width:2px
+    branch_a["Branch A<br/>(×2)"]
+    style branch_a fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    branch_b["Branch B<br/>(+50)"]
+    style branch_b fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    merger["Merger"]
+    style merger fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+
+    %% Parallel Execution Groups Detected
+    %% Group 1: 2 nodes executing in parallel
+
+    subgraph parallel_group_1["⚡ Parallel Execution Group 1"]
+        direction LR
+        branch_b
+        branch_a
+    end
+    style parallel_group_1 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray: 5 5
+
+    source -->|"value→value"| branch_a
+    source -->|"value→value"| branch_b
+    branch_a -->|"out_a→out_a"| merger
+    branch_b -->|"out_b→out_b"| merger
+```
+
+Notice:
+- Multi-line labels render with `<br/>`
+- Parallel branches are grouped in a dashed green subgraph
+- Comments explain the parallel execution pattern
+- All edges properly connected (no disconnected nodes)
+
 ## Examples
 
 ### Python Examples
@@ -224,12 +355,14 @@ Located in `python_examples/`:
 - **simple_pipeline.py**: Basic 3-node pipeline with graph analysis
 - **complex_objects.py**: Demonstrates nested objects, JSON, and lists
 - **parallel_execution.py**: Shows 3-branch parallel execution with timing
+- **implicit_edges.py**: Demonstrates auto_connect() with parallel branches and multi-line labels
 
 Run an example:
 
 ```bash
 cd python_examples
 python simple_pipeline.py
+python implicit_edges.py
 ```
 
 ### Rust Examples
@@ -239,12 +372,14 @@ Located in `examples/`:
 - **simple_pipeline.rs**: 4-node data processing pipeline
 - **complex_objects.rs**: All PortData types with nested structures
 - **parallel_execution.rs**: Fan-out/fan-in pattern with performance analysis
+- **implicit_edges.rs**: Demonstrates auto_connect() with parallel branches and multi-line labels
 
 Run an example:
 
 ```bash
 cargo run --example simple_pipeline
 cargo run --example parallel_execution
+cargo run --example implicit_edges
 ```
 
 ## Performance
@@ -377,7 +512,9 @@ MIT License - see LICENSE file for details
 
 - [x] True parallel execution
 - [x] Python bindings with PyPI distribution
-- [x] Mermaid diagram generation
+- [x] Mermaid diagram generation with parallel group detection
+- [x] Implicit edge mapping (auto_connect)
+- [x] Multi-line labels in Mermaid diagrams
 - [x] Comprehensive examples
 - [ ] Distributed execution support
 - [ ] Graph serialization/deserialization
