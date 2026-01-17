@@ -213,12 +213,6 @@ impl PyGraph {
         Ok(PyGraphAnalysis { inner: analysis })
     }
 
-    fn auto_connect(&mut self) -> PyResult<usize> {
-        self.inner
-            .auto_connect()
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))
-    }
-
     fn create_branch(&mut self, name: String) -> PyResult<()> {
         self.inner
             .create_branch(name)

@@ -88,7 +88,7 @@ def main():
     # Execute
     print("=== Executing Graph ===")
     executor = graph_sp.Executor()
-    result = executor.execute(graph)
+    executor.execute(graph)
     print("✓ Execution completed!\n")
     
     # Example 2: Parallel branches with implicit connections
@@ -183,7 +183,7 @@ def main():
     
     # Execute
     print("=== Executing Graph ===")
-    result2 = executor.execute(graph2)
+    executor.execute(graph2)
     print("✓ Execution completed!\n")
     
     print("=== Example Complete ===")

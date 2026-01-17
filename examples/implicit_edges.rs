@@ -84,9 +84,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     );
 
-    graph.add_node(Node::new(source))?;
-    graph.add_node(Node::new(processor))?;
-    graph.add_node(Node::new(sink))?;
+    graph.add(Node::new(source))?;
+    graph.add(Node::new(processor))?;
+    graph.add(Node::new(sink))?;
 
     // NO add_edge() calls! Auto-connect instead
     let edges_created = graph.auto_connect()?;
@@ -217,11 +217,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     );
 
-    graph2.add_node(Node::new(source2))?;
-    graph2.add_node(Node::new(branch_a))?;
-    graph2.add_node(Node::new(branch_b))?;
-    graph2.add_node(Node::new(merger))?;
-    graph2.add_node(Node::new(collector))?;
+    graph2.add(Node::new(source2))?;
+    graph2.add(Node::new(branch_a))?;
+    graph2.add(Node::new(branch_b))?;
+    graph2.add(Node::new(merger))?;
+    graph2.add(Node::new(collector))?;
 
     // Auto-connect based on port names
     let edges_created2 = graph2.auto_connect()?;
