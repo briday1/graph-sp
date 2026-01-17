@@ -98,16 +98,17 @@ impl PyGraph {
         }
     }
 
+    #[pyo3(signature = (id, name, inputs, outputs, function))]
     fn add(
         &mut self,
         id: String,
         name: String,
-        input_ports: Vec<PyRef<PyPort>>,
-        output_ports: Vec<PyRef<PyPort>>,
+        inputs: Vec<PyRef<PyPort>>,
+        outputs: Vec<PyRef<PyPort>>,
         function: PyObject,
     ) -> PyResult<()> {
-        let inputs: Vec<Port> = input_ports.iter().map(|p| p.inner.clone()).collect();
-        let outputs: Vec<Port> = output_ports.iter().map(|p| p.inner.clone()).collect();
+        let input_ports: Vec<Port> = inputs.iter().map(|p| p.inner.clone()).collect();
+        let output_ports: Vec<Port> = outputs.iter().map(|p| p.inner.clone()).collect();
 
         // Create a wrapper for the Python function
         let py_func = function.clone();
@@ -145,7 +146,7 @@ impl PyGraph {
             }
         );
 
-        let config = NodeConfig::new(id, name, inputs, outputs, node_func);
+        let config = NodeConfig::new(id, name, input_ports, output_ports, node_func);
         let node = Node::new(config);
 
         self.inner
@@ -154,15 +155,16 @@ impl PyGraph {
     }
 
     /// Alias for add() for backward compatibility
+    #[pyo3(signature = (id, name, inputs, outputs, function))]
     fn add_node(
         &mut self,
         id: String,
         name: String,
-        input_ports: Vec<PyRef<PyPort>>,
-        output_ports: Vec<PyRef<PyPort>>,
+        inputs: Vec<PyRef<PyPort>>,
+        outputs: Vec<PyRef<PyPort>>,
         function: PyObject,
     ) -> PyResult<()> {
-        self.add(id, name, input_ports, output_ports, function)
+        self.add(id, name, inputs, outputs, function)
     }
 
     fn add_edge(
