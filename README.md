@@ -13,6 +13,8 @@ graph-sp is a pure Rust grid/node graph executor and optimizer. The project focu
 
 ## Installation
 
+### Rust
+
 Add to your `Cargo.toml`:
 
 ```toml
@@ -20,9 +22,27 @@ Add to your `Cargo.toml`:
 graph-sp = "0.1.0"
 ```
 
+### Python
+
+The library can also be used from Python via PyO3 bindings:
+
+```bash
+pip install graph_sp
+```
+
+Or build from source:
+
+```bash
+pip install maturin
+maturin build --release --features python
+pip install target/wheels/graph_sp-*.whl
+```
+
 ## Quick Start
 
-### Basic Sequential Pipeline
+### Rust
+
+#### Basic Sequential Pipeline
 
 ```rust
 use graph_sp::Graph;
@@ -56,6 +76,46 @@ fn main() {
     
     println!("Result: {}", context.get("result").unwrap());
 }
+```
+
+### Python
+
+#### Basic Sequential Pipeline
+
+```python
+import graph_sp
+
+def data_source(inputs, variant_params):
+    return {"value": "42"}
+
+def multiply(inputs, variant_params):
+    val = int(inputs.get("x", "0"))
+    return {"doubled": str(val * 2)}
+
+# Create graph
+graph = graph_sp.PyGraph()
+
+# Add source node
+graph.add(
+    function=data_source,
+    label="DataSource",
+    inputs=None,
+    outputs=[("value", "data")]
+)
+
+# Add processing node
+graph.add(
+    function=multiply,
+    label="Multiply",
+    inputs=[("data", "x")],
+    outputs=[("doubled", "result")]
+)
+
+# Build and execute
+dag = graph.build()
+context = dag.execute()
+
+print(f"Result: {context['result']}")
 ```
 
 **Mermaid visualization output:**
@@ -158,6 +218,8 @@ graph TD
 
 ## API Overview
 
+### Rust API
+
 ### Graph Construction
 
 - `Graph::new()` - Create a new graph
@@ -176,7 +238,40 @@ graph TD
 - `dag.stats()` - Get DAG statistics (nodes, depth, parallelism, branches, variants)
 - `dag.to_mermaid()` - Generate Mermaid diagram representation
 
+### Python API
+
+The Python bindings provide a similar API with proper GIL handling:
+
+#### Graph Construction
+
+- `PyGraph()` - Create a new graph
+- `graph.add(function, label, inputs, outputs)` - Add a node
+  - `function`: Python callable with signature `fn(inputs: dict, variant_params: dict) -> dict`
+  - `label`: Optional node name (str)
+  - `inputs`: Optional list of `(broadcast_var, impl_var)` tuples or dict
+  - `outputs`: Optional list of `(impl_var, broadcast_var)` tuples or dict
+- `graph.branch(subgraph)` - Create a new parallel branch with a subgraph
+- `graph.build()` - Build the DAG and return a PyDag
+
+#### DAG Operations
+
+- `dag.execute()` - Execute the graph and return execution context (dict)
+- `dag.execute_parallel()` - Execute with parallel execution where possible (dict)
+- `dag.to_mermaid()` - Generate Mermaid diagram representation (str)
+
+#### GIL Handling
+
+The Python bindings are designed with proper GIL handling:
+
+- **GIL Release**: The Rust executor runs without holding the GIL, allowing true parallelism
+- **GIL Acquisition**: Python callables used as node functions acquire the GIL only during their execution
+- **Thread Safety**: The bindings use `pyo3::prepare_freethreaded_python()` (via auto-initialize) for multi-threaded safety
+
+This means that while Python functions execute sequentially (due to the GIL), the Rust graph traversal and coordination happens in parallel without GIL contention.
+
 ## Development
+
+### Rust Development
 
 Prerequisites:
 - Rust (stable toolchain) installed: https://www.rust-lang.org/tools/install
@@ -194,4 +289,34 @@ Run examples:
 cargo run --example comprehensive_demo
 cargo run --example parallel_execution_demo
 cargo run --example variant_demo_full
+```
+
+### Python Development
+
+Prerequisites:
+- Python 3.8+ installed
+- Rust toolchain installed
+
+Build Python bindings:
+
+```bash
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install maturin
+pip install maturin==1.2.0
+
+# Build and install in development mode
+maturin develop --release --features python
+
+# Run Python example
+python examples/python_demo.py
+```
+
+Build wheel for distribution:
+
+```bash
+maturin build --release --features python
+# Wheel will be in target/wheels/
 ```

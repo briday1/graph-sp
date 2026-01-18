@@ -55,7 +55,7 @@ fn demo_simple_output_access() {
     
     // Build and execute
     let dag = graph.build();
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     
     println!("📦 Execution Context (all variables):");
     for (key, value) in &context {
@@ -149,7 +149,7 @@ fn demo_branch_output_access() {
     
     // Execute
     let dag = graph.build();
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     
     println!("📦 All outputs from parallel branches:");
     
@@ -214,7 +214,7 @@ fn demo_variant_output_access() {
     
     // Execute
     let dag = graph.build();
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     
     println!("📦 Variant outputs:");
     println!("  Note: Variants with same output name overwrite each other");
@@ -271,7 +271,7 @@ fn demo_variant_output_access() {
     );
     
     let dag2 = graph2.build();
-    let context2 = dag2.execute();
+    let context2 = dag2.execute(false, None);
     
     println!("\n✅ Better approach - unique output names:");
     if let Some(result_2x) = context2.get("result_2x") {
@@ -313,7 +313,7 @@ fn demo_multiple_outputs() {
     
     // Execute
     let dag = graph.build();
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     
     println!("📊 Multiple outputs from single node:");
     
@@ -329,7 +329,7 @@ fn demo_multiple_outputs() {
     }
     
     println!("\n💡 Summary:");
-    println!("  ✓ dag.execute() returns HashMap<String, String>");
+    println!("  ✓ dag.execute(false, None) returns HashMap<String, String>");
     println!("  ✓ Keys are broadcast variable names (from output mappings)");
     println!("  ✓ Use context.get(\"variable_name\") to access specific outputs");
     println!("  ✓ All outputs accumulate in the context throughout execution");

@@ -112,7 +112,7 @@ fn demo_sequential_vs_parallel() {
     
     println!("\n📊 Sequential Execution (simulated):");
     let start = Instant::now();
-    let _ = dag.execute();
+    let _ = dag.execute(false, None);
     let sequential_time = start.elapsed();
     println!("  Total time: {}ms", sequential_time.as_millis());
     
@@ -211,7 +211,7 @@ fn demo_complex_dependencies() {
     
     println!("\n📊 Execution with timing:");
     let start = Instant::now();
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     let total_time = start.elapsed();
     
     println!("  Source1: data1 = {}", context.get("data1").unwrap());
@@ -290,7 +290,7 @@ fn demo_variant_parallelism() {
     
     println!("\n📊 Executing 5 variants (each takes 100ms):");
     let start = Instant::now();
-    let _ = dag.execute();
+    let _ = dag.execute(false, None);
     let total_time = start.elapsed();
     
     println!("\n  Total execution time: {}ms", total_time.as_millis());
@@ -396,7 +396,7 @@ fn demo_diamond_pattern() {
     
     println!("\n📊 Executing diamond pattern:");
     let start = Instant::now();
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     let total_time = start.elapsed();
     
     println!("\n  Result: {}", context.get("final").unwrap());

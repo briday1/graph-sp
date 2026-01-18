@@ -13,3 +13,11 @@ categories = ["data-structures", "algorithms"]
 readme = "README.md"
 
 [dependencies]
+pyo3 = { version = "=0.18.3", optional = true, features = ["extension-module", "auto-initialize"] }
+
+[features]
+python = ["pyo3"]
+
+[lib]
+name = "graph_sp"
+crate-type = ["cdylib", "rlib"]

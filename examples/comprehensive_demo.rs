@@ -74,7 +74,7 @@ fn demo_simple_pipeline() {
     
     let dag = graph.build();
     println!("\n📊 Execution:");
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     
     println!("  Input:  data = {}", context.get("data").unwrap());
     println!("  Step 1: result = {} (data * 2)", context.get("result").unwrap());
@@ -159,7 +159,7 @@ fn demo_branching() {
     
     let dag = graph.build();
     println!("\n📊 Execution:");
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     
     println!("  Source: data = {}", context.get("data").unwrap());
     println!("  Branch A (Stats): {}", context.get("stats_result").unwrap());
@@ -247,7 +247,7 @@ fn demo_merging() {
     
     let dag = graph.build();
     println!("\n📊 Execution:");
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     
     println!("  Source: data = {}", context.get("data").unwrap());
     println!("  Branch A: 50 + 10 = 60");
@@ -305,7 +305,7 @@ fn demo_variants() {
     
     let dag = graph.build();
     println!("\n📊 Execution:");
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     
     println!("  Source: data = {}", context.get("data").unwrap());
     println!("  Variants created for learning rates: [0.001, 0.01, 0.1, 1.0]");
@@ -419,7 +419,7 @@ fn demo_complex_graph() {
     
     let dag = graph.build();
     println!("\n📊 Execution:");
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     
     println!("  Step 1: Ingest      → data = {}", context.get("data").unwrap());
     println!("  Step 2: Preprocess  → clean_data = {}", context.get("clean_data").unwrap());
