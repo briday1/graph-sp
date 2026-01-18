@@ -6,6 +6,58 @@ use std::collections::{HashMap, HashSet, VecDeque};
 /// Execution context for storing variable values during graph execution
 pub type ExecutionContext = HashMap<String, String>;
 
+/// Execution result that tracks outputs per node and per branch
+#[derive(Debug, Clone)]
+pub struct ExecutionResult {
+    /// Global execution context (all variables accessible by broadcast name)
+    pub context: ExecutionContext,
+    /// Outputs per node (node_id -> HashMap of output variables)
+    pub node_outputs: HashMap<NodeId, HashMap<String, String>>,
+    /// Outputs per branch (branch_id -> HashMap of output variables)
+    pub branch_outputs: HashMap<usize, HashMap<String, String>>,
+}
+
+impl ExecutionResult {
+    /// Create a new empty execution result
+    pub fn new() -> Self {
+        Self {
+            context: HashMap::new(),
+            node_outputs: HashMap::new(),
+            branch_outputs: HashMap::new(),
+        }
+    }
+    
+    /// Get a value from the global context
+    pub fn get(&self, key: &str) -> Option<&String> {
+        self.context.get(key)
+    }
+    
+    /// Get all outputs from a specific node
+    pub fn get_node_outputs(&self, node_id: NodeId) -> Option<&HashMap<String, String>> {
+        self.node_outputs.get(&node_id)
+    }
+    
+    /// Get all outputs from a specific branch
+    pub fn get_branch_outputs(&self, branch_id: usize) -> Option<&HashMap<String, String>> {
+        self.branch_outputs.get(&branch_id)
+    }
+    
+    /// Get a specific variable from a node
+    pub fn get_from_node(&self, node_id: NodeId, key: &str) -> Option<&String> {
+        self.node_outputs.get(&node_id).and_then(|outputs| outputs.get(key))
+    }
+    
+    /// Get a specific variable from a branch
+    pub fn get_from_branch(&self, branch_id: usize, key: &str) -> Option<&String> {
+        self.branch_outputs.get(&branch_id).and_then(|outputs| outputs.get(key))
+    }
+    
+    /// Check if a variable exists in global context
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.context.contains_key(key)
+    }
+}
+
 /// Directed Acyclic Graph representing the optimized execution plan
 pub struct Dag {
     /// All nodes in the DAG
@@ -112,40 +164,81 @@ impl Dag {
         levels
     }
 
-    /// Execute the DAG
+    /// Execute the DAG (legacy method returning just context)
     ///
     /// Runs all nodes in topological order, accumulating outputs in the execution context.
     pub fn execute(&self) -> ExecutionContext {
-        let mut context = ExecutionContext::new();
+        self.execute_detailed().context
+    }
+    
+    /// Execute the DAG with detailed per-node and per-branch tracking
+    ///
+    /// Runs all nodes in topological order and tracks outputs per node and per branch.
+    pub fn execute_detailed(&self) -> ExecutionResult {
+        let mut result = ExecutionResult::new();
 
         for &node_id in &self.execution_order {
             if let Some(node) = self.nodes.iter().find(|n| n.id == node_id) {
-                let outputs = node.execute(&context);
-                context.extend(outputs);
+                let outputs = node.execute(&result.context);
+                
+                // Store outputs in global context
+                result.context.extend(outputs.clone());
+                
+                // Store outputs per node (using broadcast variable names from output_mapping)
+                let node_outputs: HashMap<String, String> = outputs.clone();
+                result.node_outputs.insert(node_id, node_outputs);
+                
+                // Store outputs per branch if this node belongs to a branch
+                if let Some(branch_id) = node.branch_id {
+                    result.branch_outputs
+                        .entry(branch_id)
+                        .or_insert_with(HashMap::new)
+                        .extend(outputs);
+                }
             }
         }
 
-        context
+        result
     }
 
-    /// Execute the DAG with parallel execution of independent nodes
+    /// Execute the DAG with parallel execution of independent nodes (legacy method)
     ///
     /// Nodes at the same execution level are run concurrently.
     pub fn execute_parallel(&self) -> ExecutionContext {
-        let mut context = ExecutionContext::new();
+        self.execute_parallel_detailed().context
+    }
+    
+    /// Execute the DAG with parallel execution and detailed tracking
+    ///
+    /// Nodes at the same execution level are run concurrently.
+    pub fn execute_parallel_detailed(&self) -> ExecutionResult {
+        let mut result = ExecutionResult::new();
 
         for level in &self.execution_levels {
             // For simplicity, execute nodes in level sequentially
             // A full implementation would use thread pools or async execution
             for &node_id in level {
                 if let Some(node) = self.nodes.iter().find(|n| n.id == node_id) {
-                    let outputs = node.execute(&context);
-                    context.extend(outputs);
+                    let outputs = node.execute(&result.context);
+                    
+                    // Store outputs in global context
+                    result.context.extend(outputs.clone());
+                    
+                    // Store outputs per node
+                    result.node_outputs.insert(node_id, outputs.clone());
+                    
+                    // Store outputs per branch if this node belongs to a branch
+                    if let Some(branch_id) = node.branch_id {
+                        result.branch_outputs
+                            .entry(branch_id)
+                            .or_insert_with(HashMap::new)
+                            .extend(outputs);
+                    }
                 }
             }
         }
 
-        context
+        result
     }
 
     /// Generate a Mermaid diagram for visualization with port mappings

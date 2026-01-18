@@ -42,5 +42,5 @@ mod dag;
 mod node;
 
 pub use builder::{Generator, Geomspace, Graph, IntoVariantValues, Linspace, Logspace};
-pub use dag::{Dag, ExecutionContext};
+pub use dag::{Dag, ExecutionContext, ExecutionResult};
 pub use node::{NodeFunction, NodeId};
