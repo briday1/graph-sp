@@ -1,6 +1,6 @@
 # graph-sp
 
-graph-sp is a pure Rust grid/node graph executor and optimizer. The project focuses on representing directed dataflow graphs, computing port mappings by graph inspection, and executing nodes efficiently in-process with parallel CPU execution. This repository currently contains a Rust-only implementation; previous plans for Python bindings have been removed.
+graph-sp is a pure Rust grid/node graph executor and optimizer. The project focuses on representing directed dataflow graphs, computing port mappings by graph inspection, and executing nodes efficiently in-process with parallel CPU execution.
 
 Core features:
 - Pure Rust library for graph modeling and execution
