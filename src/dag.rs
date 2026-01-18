@@ -148,9 +148,10 @@ impl Dag {
         context
     }
 
-    /// Generate a Mermaid diagram for visualization
+    /// Generate a Mermaid diagram for visualization with port mappings
     ///
     /// Returns a string containing a Mermaid flowchart representing the DAG.
+    /// Edge labels show port mappings (broadcast_var → impl_var).
     pub fn to_mermaid(&self) -> String {
         let mut mermaid = String::from("graph TD\n");
 
@@ -160,13 +161,37 @@ impl Dag {
             mermaid.push_str(&format!("    {}[\"{}\"]\n", node.id, node_label));
         }
 
-        // Add edges
+        // Add edges with port mapping labels
         let mut edges_added: HashSet<(NodeId, NodeId)> = HashSet::new();
         for node in &self.nodes {
             for &dep_id in &node.dependencies {
                 let edge = (dep_id, node.id);
                 if !edges_added.contains(&edge) {
-                    mermaid.push_str(&format!("    {} --> {}\n", dep_id, node.id));
+                    // Find the dependency node to get its output mappings
+                    let dep_node = self.nodes.iter().find(|n| n.id == dep_id);
+                    
+                    // Build port mapping label
+                    let mut port_labels = Vec::new();
+                    
+                    // Show input mappings for the current node that come from this dependency
+                    for (broadcast_var, impl_var) in &node.input_mapping {
+                        // Check if this broadcast var comes from the dependency
+                        if let Some(dep) = dep_node {
+                            // Check if dependency produces this broadcast var
+                            if dep.output_mapping.values().any(|v| v == broadcast_var) {
+                                port_labels.push(format!("{} → {}", broadcast_var, impl_var));
+                            }
+                        }
+                    }
+                    
+                    // Format edge with port labels
+                    if port_labels.is_empty() {
+                        mermaid.push_str(&format!("    {} --> {}\n", dep_id, node.id));
+                    } else {
+                        let label = port_labels.join("<br/>");
+                        mermaid.push_str(&format!("    {} -->|{}| {}\n", dep_id, label, node.id));
+                    }
+                    
                     edges_added.insert(edge);
                 }
             }
