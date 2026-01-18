@@ -4,13 +4,13 @@ use graph_sp::Graph;
 use std::collections::HashMap;
 
 // Define function handles as regular functions
-fn data_source(_inputs: &HashMap<String, String>) -> HashMap<String, String> {
+fn data_source(_inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
     let mut outputs = HashMap::new();
     outputs.insert("data".to_string(), "hello world".to_string());
     outputs
 }
 
-fn uppercase(inputs: &HashMap<String, String>) -> HashMap<String, String> {
+fn uppercase(inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
     let mut outputs = HashMap::new();
     if let Some(data) = inputs.get("data") {
         outputs.insert("result".to_string(), data.to_uppercase());
@@ -18,7 +18,7 @@ fn uppercase(inputs: &HashMap<String, String>) -> HashMap<String, String> {
     outputs
 }
 
-fn add_exclamation(inputs: &HashMap<String, String>) -> HashMap<String, String> {
+fn add_exclamation(inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
     let mut outputs = HashMap::new();
     if let Some(result) = inputs.get("result") {
         outputs.insert("final".to_string(), format!("{}!", result));
@@ -26,7 +26,7 @@ fn add_exclamation(inputs: &HashMap<String, String>) -> HashMap<String, String> 
     outputs
 }
 
-fn multiply_by_2(inputs: &HashMap<String, String>) -> HashMap<String, String> {
+fn multiply_by_2(inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
     let mut outputs = HashMap::new();
     if let Some(val) = inputs.get("value") {
         if let Ok(num) = val.parse::<i32>() {
@@ -36,7 +36,7 @@ fn multiply_by_2(inputs: &HashMap<String, String>) -> HashMap<String, String> {
     outputs
 }
 
-fn multiply_by_3(inputs: &HashMap<String, String>) -> HashMap<String, String> {
+fn multiply_by_3(inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
     let mut outputs = HashMap::new();
     if let Some(val) = inputs.get("value") {
         if let Ok(num) = val.parse::<i32>() {
@@ -46,7 +46,7 @@ fn multiply_by_3(inputs: &HashMap<String, String>) -> HashMap<String, String> {
     outputs
 }
 
-fn combine_results(inputs: &HashMap<String, String>) -> HashMap<String, String> {
+fn combine_results(inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
     let mut outputs = HashMap::new();
     let a = inputs.get("result_a").and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
     let b = inputs.get("result_b").and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
@@ -80,7 +80,7 @@ fn main() {
 
         // Source with inline closure (when simple)
         graph.add(
-            |_| {
+            |_, _| {
                 let mut outputs = HashMap::new();
                 outputs.insert("value".to_string(), "10".to_string());
                 outputs
@@ -116,7 +116,7 @@ fn main() {
 
         // Simple inline closure for trivial sources
         graph.add(
-            |_| {
+            |_, _| {
                 let mut out = HashMap::new();
                 out.insert("x".to_string(), "100".to_string());
                 out

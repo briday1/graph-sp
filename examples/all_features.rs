@@ -13,7 +13,7 @@ fn main() {
 
         // Node 1: Data source (no inputs, produces "data")
         graph.add(
-            |_inputs| {
+            |_inputs, _variant_params| {
                 let mut outputs = HashMap::new();
                 outputs.insert("data".to_string(), "hello".to_string());
                 outputs
@@ -26,7 +26,7 @@ fn main() {
         // Node 2: Processor (consumes "data", produces "result")
         // Implicitly connected to Node 1
         graph.add(
-            |inputs| {
+            |inputs, _variant_params| {
                 let mut outputs = HashMap::new();
                 if let Some(data) = inputs.get("data") {
                     outputs.insert("result".to_string(), data.to_uppercase());
@@ -41,7 +41,7 @@ fn main() {
         // Node 3: Final processor (consumes "result", produces "final")
         // Implicitly connected to Node 2
         graph.add(
-            |inputs| {
+            |inputs, _variant_params| {
                 let mut outputs = HashMap::new();
                 if let Some(result) = inputs.get("result") {
                     outputs.insert("final".to_string(), format!("{}!", result));
@@ -68,7 +68,7 @@ fn main() {
 
         // Main path: source node
         graph.add(
-            |_| {
+            |_, _| {
                 let mut outputs = HashMap::new();
                 outputs.insert("value".to_string(), "10".to_string());
                 outputs
@@ -81,7 +81,7 @@ fn main() {
         // Branch A: multiply by 2
         let mut branch_a = Graph::new();
         branch_a.add(
-            |inputs| {
+            |inputs, _variant_params| {
                 let mut outputs = HashMap::new();
                 if let Some(val) = inputs.get("value") {
                     if let Ok(num) = val.parse::<i32>() {
@@ -98,7 +98,7 @@ fn main() {
         // Branch B: multiply by 3
         let mut branch_b = Graph::new();
         branch_b.add(
-            |inputs| {
+            |inputs, _variant_params| {
                 let mut outputs = HashMap::new();
                 if let Some(val) = inputs.get("value") {
                     if let Ok(num) = val.parse::<i32>() {
@@ -119,7 +119,7 @@ fn main() {
 
         // Add a node that combines results from both branches
         graph.add(
-            |inputs| {
+            |inputs, _variant_params| {
                 let mut outputs = HashMap::new();
                 let a = inputs.get("result_a").and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
                 let b = inputs.get("result_b").and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
@@ -148,7 +148,7 @@ fn main() {
 
         // Source node
         graph.add(
-            |_| {
+            |_, _| {
                 let mut outputs = HashMap::new();
                 outputs.insert("base_value".to_string(), "100".to_string());
                 outputs
@@ -160,7 +160,7 @@ fn main() {
 
         // Processor node that will be replicated with variants
         graph.add(
-            |inputs| {
+            |inputs, _variant_params| {
                 let mut outputs = HashMap::new();
                 if let Some(val) = inputs.get("base_value") {
                     if let Ok(num) = val.parse::<i32>() {
@@ -192,7 +192,7 @@ fn main() {
         let mut graph = Graph::new();
 
         graph.add(
-            |_| {
+            |_, _| {
                 let mut outputs = HashMap::new();
                 outputs.insert("data".to_string(), "1000".to_string());
                 outputs
@@ -203,7 +203,7 @@ fn main() {
         );
 
         graph.add(
-            |inputs| {
+            |inputs, _variant_params| {
                 let mut outputs = HashMap::new();
                 if let Some(data) = inputs.get("data") {
                     outputs.insert("result".to_string(), format!("Processed: {}", data));
@@ -232,7 +232,7 @@ fn main() {
         let mut graph = Graph::new();
 
         graph.add(
-            |_| {
+            |_, _| {
                 let mut outputs = HashMap::new();
                 outputs.insert("input".to_string(), "test".to_string());
                 outputs
@@ -243,7 +243,7 @@ fn main() {
         );
 
         graph.add(
-            |inputs| {
+            |inputs, _variant_params| {
                 let mut outputs = HashMap::new();
                 if let Some(input) = inputs.get("input") {
                     outputs.insert("output".to_string(), format!("Output: {}", input));
@@ -274,7 +274,7 @@ fn main() {
         let mut graph = Graph::new();
 
         graph.add(
-            |_| {
+            |_, _| {
                 let mut outputs = HashMap::new();
                 outputs.insert("data".to_string(), "start".to_string());
                 outputs
@@ -285,7 +285,7 @@ fn main() {
         );
 
         graph.add(
-            |inputs| {
+            |inputs, _variant_params| {
                 let mut outputs = HashMap::new();
                 if let Some(data) = inputs.get("data") {
                     outputs.insert("step1".to_string(), format!("{}-step1", data));
@@ -298,7 +298,7 @@ fn main() {
         );
 
         graph.add(
-            |inputs| {
+            |inputs, _variant_params| {
                 let mut outputs = HashMap::new();
                 if let Some(data) = inputs.get("step1") {
                     outputs.insert("final".to_string(), format!("{}-done", data));

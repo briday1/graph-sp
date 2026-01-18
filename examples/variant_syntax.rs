@@ -3,7 +3,7 @@
 use graph_sp::{Generator, Geomspace, Graph, Linspace, Logspace};
 use std::collections::HashMap;
 
-fn process_data(inputs: &HashMap<String, String>) -> HashMap<String, String> {
+fn process_data(inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
     let mut outputs = HashMap::new();
     if let Some(data) = inputs.get("input") {
         outputs.insert("output".to_string(), format!("Processed: {}", data));
@@ -20,7 +20,7 @@ fn main() {
         let mut graph = Graph::new();
 
         graph.add(
-            |_| {
+            |_, _| {
                 let mut out = HashMap::new();
                 out.insert("input".to_string(), "data".to_string());
                 out
@@ -48,7 +48,7 @@ fn main() {
         let mut graph = Graph::new();
 
         graph.add(
-            |_| {
+            |_, _| {
                 let mut out = HashMap::new();
                 out.insert("x".to_string(), "start".to_string());
                 out
@@ -76,7 +76,7 @@ fn main() {
         let mut graph = Graph::new();
 
         graph.add(
-            |_| {
+            |_, _| {
                 let mut out = HashMap::new();
                 out.insert("data".to_string(), "input".to_string());
                 out
@@ -104,7 +104,7 @@ fn main() {
         let mut graph = Graph::new();
 
         graph.add(
-            |_| {
+            |_, _| {
                 let mut out = HashMap::new();
                 out.insert("input".to_string(), "data".to_string());
                 out
@@ -132,7 +132,7 @@ fn main() {
         let mut graph = Graph::new();
 
         graph.add(
-            |_| {
+            |_, _| {
                 let mut out = HashMap::new();
                 out.insert("value".to_string(), "test".to_string());
                 out
@@ -160,7 +160,7 @@ fn main() {
         let mut graph = Graph::new();
 
         graph.add(
-            |_| {
+            |_, _| {
                 let mut out = HashMap::new();
                 out.insert("x".to_string(), "data".to_string());
                 out
@@ -190,7 +190,7 @@ fn main() {
         let mut graph = Graph::new();
 
         graph.add(
-            |_| {
+            |_, _| {
                 let mut out = HashMap::new();
                 out.insert("n".to_string(), "5".to_string());
                 out

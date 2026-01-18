@@ -201,6 +201,12 @@ impl Graph {
     /// - The first node added has no dependencies
     /// - Subsequent nodes automatically depend on the previous node
     /// - This creates a natural sequential flow unless `.branch()` is used
+    ///
+    /// # Function Signature
+    ///
+    /// Functions receive two parameters:
+    /// - `inputs: &HashMap<String, String>` - Regular broadcast variables
+    /// - `variant_params: &HashMap<String, String>` - Variant parameter values (e.g., {"learning_rate": "0.01"})
     pub fn add<F>(
         &mut self,
         function_handle: F,
@@ -209,7 +215,7 @@ impl Graph {
         output_vars: Option<Vec<&str>>,
     ) -> &mut Self
     where
-        F: Fn(&std::collections::HashMap<String, String>) -> std::collections::HashMap<String, String>
+        F: Fn(&std::collections::HashMap<String, String>, &std::collections::HashMap<String, String>) -> std::collections::HashMap<String, String>
             + Send
             + Sync
             + 'static,
@@ -337,18 +343,19 @@ impl Graph {
     }
 
     /// Internal method to apply variants given a list of values
-    fn apply_variants(&mut self, _param_name: &str, values: Vec<String>) -> &mut Self {
+    fn apply_variants(&mut self, param_name: &str, values: Vec<String>) -> &mut Self {
         // Store the current graph state as a template
         let template_nodes = self.nodes.clone();
         let template_last_id = self.last_node_id;
 
         // For each variant, create a copy of the downstream graph
-        for (idx, _value) in values.iter().enumerate() {
+        for (idx, value) in values.iter().enumerate() {
             if idx == 0 {
                 // First variant reuses the current graph
-                // Mark nodes as part of variant 0
+                // Mark nodes as part of variant 0 and set variant params
                 for node in &mut self.nodes {
                     node.variant_index = Some(0);
+                    node.variant_params.insert(param_name.to_string(), value.clone());
                 }
             } else {
                 // Subsequent variants need new copies
@@ -361,6 +368,8 @@ impl Graph {
                     node.id = variant_builder.next_id;
                     variant_builder.next_id += 1;
                     node.variant_index = Some(idx);
+                    // Set the variant parameter value for this variant
+                    node.variant_params.insert(param_name.to_string(), value.clone());
                     
                     variant_builder.nodes.push(node);
                 }
