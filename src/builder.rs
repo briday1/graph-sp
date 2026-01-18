@@ -303,6 +303,110 @@ impl Graph {
         self
     }
 
+    /// Create configuration sweep variants using a factory function (sigexec-style)
+    ///
+    /// Takes a factory function and an array of parameter values. The factory is called
+    /// with each parameter value to create a node function for that variant.
+    ///
+    /// # Arguments
+    ///
+    /// * `factory` - Function that takes a parameter value and returns a node function
+    /// * `param_values` - Array of parameter values to sweep over
+    /// * `label` - Optional label for visualization
+    /// * `broadcast_vars` - Optional list of broadcast variables from graph context
+    /// * `output_vars` - Optional list of output variables this node produces
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> {
+    ///     move |inputs, _variant_params| {
+    ///         let mut outputs = HashMap::new();
+    ///         if let Some(val) = inputs.get("data").and_then(|s| s.parse::<f64>().ok()) {
+    ///             outputs.insert("result".to_string(), (val * factor).to_string());
+    ///         }
+    ///         outputs
+    ///     }
+    /// }
+    ///
+    /// graph.variant_factory(make_scaler, vec![2.0, 3.0, 5.0], Some("Scale"), Some(vec!["data"]), Some(vec!["result"]));
+    /// ```
+    ///
+    /// # Behavior
+    ///
+    /// - Creates one node per parameter value
+    /// - Each node is created by calling factory(param_value)
+    /// - Nodes still receive both regular inputs and variant_params
+    /// - All variants branch from the same point and can execute in parallel
+    pub fn variant_factory<F, P, NF>(
+        &mut self,
+        factory: F,
+        param_values: Vec<P>,
+        label: Option<&str>,
+        broadcast_vars: Option<Vec<&str>>,
+        output_vars: Option<Vec<&str>>,
+    ) -> &mut Self
+    where
+        F: Fn(P) -> NF,
+        P: ToString + Clone,
+        NF: Fn(&std::collections::HashMap<String, String>, &std::collections::HashMap<String, String>) -> std::collections::HashMap<String, String>
+            + Send
+            + Sync
+            + 'static,
+    {
+        // Remember the branch point before adding variants
+        let branch_point = self.last_node_id;
+        
+        // Create a variant node for each parameter value
+        for (idx, param_value) in param_values.iter().enumerate() {
+            // Create the node function using the factory
+            let node_fn = factory(param_value.clone());
+            
+            let id = self.next_id;
+            self.next_id += 1;
+
+            let broadcast_vars_vec = broadcast_vars
+                .as_ref()
+                .unwrap_or(&vec![])
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
+
+            let output_vars_vec = output_vars
+                .as_ref()
+                .unwrap_or(&vec![])
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
+
+            let mut node = Node::new(
+                id,
+                Arc::new(node_fn),
+                label.map(|s| format!("{} (v{})", s, idx)),
+                broadcast_vars_vec,
+                output_vars_vec,
+            );
+
+            // Set variant index and param value
+            node.variant_index = Some(idx);
+            node.variant_params.insert("param_value".to_string(), param_value.to_string());
+
+            // Connect to branch point (all variants branch from same node)
+            if let Some(bp_id) = branch_point {
+                node.dependencies.push(bp_id);
+                node.is_branch = true;
+            }
+
+            self.nodes.push(node);
+        }
+
+        // Don't update last_node_id - variants don't create sequential flow
+        // Set last_branch_point for potential merge
+        self.last_branch_point = branch_point;
+
+        self
+    }
+
     /// Create configuration sweep variants
     ///
     /// This method creates multiple copies of the remainder of the graph structure,
