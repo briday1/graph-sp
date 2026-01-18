@@ -1,6 +1,6 @@
 # graph-sp
 
-graph-sp is a Rust-based dataflow/graph optimizer engine (MVP) designed to inspect graphs, compute port mappings, and execute nodes in parallel. It's intended to be extendable to cross-process dispatch and GPU backends in the future.
+graph-sp is a Rust-based dataflow/graph optimizer engine (MVP) designed to inspect graphs, compute port mappings, and execute nodes in parallel. It's intended to be extensible to cross-process dispatch and GPU backends in the future.
 
 Core features in this repository (MVP):
 - Directed dataflow graph with typed ports and explicit connections
