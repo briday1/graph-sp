@@ -169,8 +169,10 @@ pub struct Graph {
     last_node_id: Option<NodeId>,
     /// Track the last branch point for sequential .branch() calls
     last_branch_point: Option<NodeId>,
-    /// Subgraph builders for branches
-    branches: Vec<Graph>,
+    /// Subgraph builders for branches with their IDs
+    branches: Vec<(usize, Graph)>,
+    /// Next branch ID counter
+    next_branch_id: usize,
     /// Track nodes that should be merged together
     merge_targets: Vec<NodeId>,
 }
@@ -184,8 +186,16 @@ impl Graph {
             last_node_id: None,
             last_branch_point: None,
             branches: Vec::new(),
+            next_branch_id: 1,
             merge_targets: Vec::new(),
         }
+    }
+
+    /// Get a unique branch ID for tracking branches
+    fn get_branch_id(&mut self) -> usize {
+        let id = self.next_branch_id;
+        self.next_branch_id += 1;
+        id
     }
 
     /// Add a node to the graph with implicit connections
@@ -194,8 +204,8 @@ impl Graph {
     ///
     /// * `function_handle` - The function to execute for this node
     /// * `label` - Optional label for visualization
-    /// * `broadcast_vars` - Optional list of broadcast variables from graph context
-    /// * `output_vars` - Optional list of output variables this node produces
+    /// * `inputs` - Optional list of (broadcast_var, impl_var) tuples for inputs
+    /// * `outputs` - Optional list of (impl_var, broadcast_var) tuples for outputs
     ///
     /// # Implicit Connection Behavior
     ///
@@ -206,14 +216,29 @@ impl Graph {
     /// # Function Signature
     ///
     /// Functions receive two parameters:
-    /// - `inputs: &HashMap<String, String>` - Regular broadcast variables
-    /// - `variant_params: &HashMap<String, String>` - Variant parameter values (e.g., {"learning_rate": "0.01"})
+    /// - `inputs: &HashMap<String, String>` - Mapped input variables (impl_var names)
+    /// - `variant_params: &HashMap<String, String>` - Variant parameter values
+    ///
+    /// Functions return outputs using impl_var names, which get mapped to broadcast_var names.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Function sees "input_data", context has "data"
+    /// // Function returns "output_value", gets stored as "result" in context
+    /// graph.add(
+    ///     process_fn,
+    ///     Some("Process"),
+    ///     Some(vec![("data", "input_data")]),     // (broadcast, impl)
+    ///     Some(vec![("output_value", "result")])  // (impl, broadcast)
+    /// );
+    /// ```
     pub fn add<F>(
         &mut self,
         function_handle: F,
         label: Option<&str>,
-        broadcast_vars: Option<Vec<&str>>,
-        output_vars: Option<Vec<&str>>,
+        inputs: Option<Vec<(&str, &str)>>,
+        outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
         F: Fn(&std::collections::HashMap<String, String>, &std::collections::HashMap<String, String>) -> std::collections::HashMap<String, String>
@@ -224,24 +249,26 @@ impl Graph {
         let id = self.next_id;
         self.next_id += 1;
 
-        let broadcast_vars = broadcast_vars
+        // Build input_mapping: broadcast_var -> impl_var
+        let input_mapping: HashMap<String, String> = inputs
             .unwrap_or_default()
             .iter()
-            .map(|s| s.to_string())
+            .map(|(broadcast, impl_var)| (broadcast.to_string(), impl_var.to_string()))
             .collect();
 
-        let output_vars = output_vars
+        // Build output_mapping: impl_var -> broadcast_var
+        let output_mapping: HashMap<String, String> = outputs
             .unwrap_or_default()
             .iter()
-            .map(|s| s.to_string())
+            .map(|(impl_var, broadcast)| (impl_var.to_string(), broadcast.to_string()))
             .collect();
 
         let mut node = Node::new(
             id,
             Arc::new(function_handle),
             label.map(|s| s.to_string()),
-            broadcast_vars,
-            output_vars,
+            input_mapping,
+            output_mapping,
         );
 
         // Implicit connection: connect to the last added node or merge targets
@@ -273,7 +300,14 @@ impl Graph {
     /// # Arguments
     ///
     /// * `subgraph` - A configured Graph representing the branch
-    pub fn branch(&mut self, mut subgraph: Graph) -> &mut Self {
+    ///
+    /// # Returns
+    ///
+    /// Returns the branch ID for use in merge operations
+    pub fn branch(&mut self, mut subgraph: Graph) -> usize {
+        // Assign a branch ID to this subgraph
+        let branch_id = self.get_branch_id();
+        
         // Determine the branch point
         let branch_point = if let Some(bp) = self.last_branch_point {
             // Sequential .branch() calls - use the same branch point
@@ -285,8 +319,8 @@ impl Graph {
                 last_id
             } else {
                 // No previous node, subgraph starts independently
-                self.branches.push(subgraph);
-                return self;
+                self.branches.push((branch_id, subgraph));
+                return branch_id;
             }
         };
 
@@ -296,12 +330,18 @@ impl Graph {
                 first_node.dependencies.push(branch_point);
             }
             first_node.is_branch = true;
+            first_node.branch_id = Some(branch_id);
+        }
+        
+        // Mark all nodes in this branch with the branch ID
+        for node in &mut subgraph.nodes {
+            node.branch_id = Some(branch_id);
         }
 
-        // Merge subgraph nodes into main graph
-        self.branches.push(subgraph);
+        // Store subgraph with its branch ID
+        self.branches.push((branch_id, subgraph));
 
-        self
+        branch_id
     }
 
     /// Create configuration sweep variants using a factory function (sigexec-style)
@@ -314,8 +354,8 @@ impl Graph {
     /// * `factory` - Function that takes a parameter value and returns a node function
     /// * `param_values` - Array of parameter values to sweep over
     /// * `label` - Optional label for visualization (default: None)
-    /// * `inputs` - Optional list of broadcast variables from graph context (default: None)
-    /// * `outputs` - Optional list of output variables this node produces (default: None)
+    /// * `inputs` - Optional list of (broadcast_var, impl_var) tuples for inputs
+    /// * `outputs` - Optional list of (impl_var, broadcast_var) tuples for outputs
     ///
     /// # Example
     ///
@@ -323,14 +363,20 @@ impl Graph {
     /// fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> {
     ///     move |inputs, _variant_params| {
     ///         let mut outputs = HashMap::new();
-    ///         if let Some(val) = inputs.get("data").and_then(|s| s.parse::<f64>().ok()) {
-    ///             outputs.insert("result".to_string(), (val * factor).to_string());
+    ///         if let Some(val) = inputs.get("x").and_then(|s| s.parse::<f64>().ok()) {
+    ///             outputs.insert("scaled_x".to_string(), (val * factor).to_string());
     ///         }
     ///         outputs
     ///     }
     /// }
     ///
-    /// graph.variant(make_scaler, vec![2.0, 3.0, 5.0], Some("Scale"), Some(vec!["data"]), Some(vec!["result"]));
+    /// graph.variant(
+    ///     make_scaler,
+    ///     vec![2.0, 3.0, 5.0],
+    ///     Some("Scale"),
+    ///     Some(vec![("data", "x")]),          // (broadcast, impl)
+    ///     Some(vec![("scaled_x", "result")])  // (impl, broadcast)
+    /// );
     /// ```
     ///
     /// # Behavior
@@ -344,8 +390,8 @@ impl Graph {
         factory: F,
         param_values: Vec<P>,
         label: Option<&str>,
-        inputs: Option<Vec<&str>>,
-        outputs: Option<Vec<&str>>,
+        inputs: Option<Vec<(&str, &str)>>,
+        outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
         F: Fn(P) -> NF,
@@ -366,26 +412,28 @@ impl Graph {
             let id = self.next_id;
             self.next_id += 1;
 
-            let broadcast_vars_vec = inputs
+            // Build input_mapping: broadcast_var -> impl_var
+            let input_mapping: HashMap<String, String> = inputs
                 .as_ref()
                 .unwrap_or(&vec![])
                 .iter()
-                .map(|s| s.to_string())
+                .map(|(broadcast, impl_var)| (broadcast.to_string(), impl_var.to_string()))
                 .collect();
 
-            let output_vars_vec = outputs
+            // Build output_mapping: impl_var -> broadcast_var
+            let output_mapping: HashMap<String, String> = outputs
                 .as_ref()
                 .unwrap_or(&vec![])
                 .iter()
-                .map(|s| s.to_string())
+                .map(|(impl_var, broadcast)| (impl_var.to_string(), broadcast.to_string()))
                 .collect();
 
             let mut node = Node::new(
                 id,
                 Arc::new(node_fn),
                 label.map(|s| format!("{} (v{})", s, idx)),
-                broadcast_vars_vec,
-                output_vars_vec,
+                input_mapping,
+                output_mapping,
             );
 
             // Set variant index and param value
@@ -417,37 +465,41 @@ impl Graph {
     ///
     /// * `merge_fn` - Function that combines outputs from all branches
     /// * `label` - Optional label for visualization
-    /// * `inputs` - List of input variables from branches to merge
-    /// * `outputs` - Optional list of output variables this merge node produces
+    /// * `inputs` - List of (branch_id, broadcast_var, impl_var) tuples specifying which branch outputs to merge
+    /// * `outputs` - Optional list of (impl_var, broadcast_var) tuples for outputs
     ///
     /// # Example
     ///
     /// ```ignore
-    /// graph.add(source_fn, Some("Source"), None, Some(vec!["data"]));
+    /// graph.add(source_fn, Some("Source"), None, Some(vec![("src_out", "data")]));
     /// 
     /// let mut branch_a = Graph::new();
-    /// branch_a.add(process_a, Some("Process A"), Some(vec!["data"]), Some(vec!["result_a"]));
+    /// branch_a.add(process_a, Some("Process A"), Some(vec![("data", "input")]), Some(vec![("output", "result")]));
     /// 
     /// let mut branch_b = Graph::new();
-    /// branch_b.add(process_b, Some("Process B"), Some(vec!["data"]), Some(vec!["result_b"]));
+    /// branch_b.add(process_b, Some("Process B"), Some(vec![("data", "input")]), Some(vec![("output", "result")]));
     /// 
-    /// graph.branch(branch_a);
-    /// graph.branch(branch_b);
+    /// let branch_a_id = graph.branch(branch_a);
+    /// let branch_b_id = graph.branch(branch_b);
     /// 
     /// // Merge function combines results from both branches
+    /// // Branches can use same output name "result", merge maps them distinctly
     /// graph.merge(
     ///     combine_fn,
     ///     Some("Combine"),
-    ///     vec!["result_a", "result_b"],
-    ///     Some(vec!["final"])
+    ///     vec![
+    ///         (branch_a_id, "result", "a_result"),    // (branch, broadcast, impl)
+    ///         (branch_b_id, "result", "b_result")
+    ///     ],
+    ///     Some(vec![("combined", "final")])            // (impl, broadcast)
     /// );
     /// ```
     pub fn merge<F>(
         &mut self,
         merge_fn: F,
         label: Option<&str>,
-        inputs: Vec<&str>,
-        outputs: Option<Vec<&str>>,
+        inputs: Vec<(usize, &str, &str)>,
+        outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
         F: Fn(&std::collections::HashMap<String, String>, &std::collections::HashMap<String, String>) -> std::collections::HashMap<String, String>
@@ -459,7 +511,7 @@ impl Graph {
         let branches = std::mem::take(&mut self.branches);
         let mut branch_terminals = Vec::new();
         
-        for branch in branches {
+        for (_branch_id, branch) in branches {
             if let Some(last_id) = branch.last_node_id {
                 branch_terminals.push(last_id);
             }
@@ -470,23 +522,30 @@ impl Graph {
         let id = self.next_id;
         self.next_id += 1;
 
-        let broadcast_vars = inputs
+        // Build input_mapping with branch-specific resolution
+        // For merge, we need special handling: (branch_id, broadcast_var) -> impl_var
+        // This will be handled in execution by looking at branch_id field of dependency nodes
+        let input_mapping: HashMap<String, String> = inputs
             .iter()
-            .map(|s| s.to_string())
+            .map(|(branch_id, broadcast_var, impl_var)| {
+                // Store as "branch_id:broadcast_var" -> impl_var for unique identification
+                (format!("{}:{}", branch_id, broadcast_var), impl_var.to_string())
+            })
             .collect();
 
-        let output_vars = outputs
+        // Build output_mapping: impl_var -> broadcast_var
+        let output_mapping: HashMap<String, String> = outputs
             .unwrap_or_default()
             .iter()
-            .map(|s| s.to_string())
+            .map(|(impl_var, broadcast)| (impl_var.to_string(), broadcast.to_string()))
             .collect();
 
         let mut node = Node::new(
             id,
             Arc::new(merge_fn),
             label.map(|s| s.to_string()),
-            broadcast_vars,
-            output_vars,
+            input_mapping,
+            output_mapping,
         );
 
         // Connect to all branch terminals
@@ -511,7 +570,7 @@ impl Graph {
     pub fn build(mut self) -> Dag {
         // Merge all branch subgraphs into main node list
         let branches = std::mem::take(&mut self.branches);
-        for branch in branches {
+        for (_branch_id, branch) in branches {
             self.merge_branch(branch);
         }
 
@@ -554,7 +613,7 @@ impl Graph {
         }
 
         // Recursively merge nested branches
-        for nested_branch in branch.branches {
+        for (_branch_id, nested_branch) in branch.branches {
             self.merge_branch(nested_branch);
         }
     }

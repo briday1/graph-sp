@@ -19,10 +19,12 @@ pub struct Node {
     pub label: Option<String>,
     /// Function to execute
     pub function: NodeFunction,
-    /// Broadcast variable names this node consumes from the graph
-    pub broadcast_vars: Vec<String>,
-    /// Output variable names this node produces
-    pub output_vars: Vec<String>,
+    /// Input mapping: broadcast_var -> impl_var (what the function sees)
+    pub input_mapping: HashMap<String, String>,
+    /// Output mapping: impl_var -> broadcast_var (where function output goes in context)
+    pub output_mapping: HashMap<String, String>,
+    /// Branch ID for branch-specific variable resolution (None for main graph nodes)
+    pub branch_id: Option<usize>,
     /// Nodes that this node depends on (connected from)
     pub dependencies: Vec<NodeId>,
     /// Whether this node is part of a branch
@@ -39,15 +41,16 @@ impl Node {
         id: NodeId,
         function: NodeFunction,
         label: Option<String>,
-        broadcast_vars: Vec<String>,
-        output_vars: Vec<String>,
+        input_mapping: HashMap<String, String>,
+        output_mapping: HashMap<String, String>,
     ) -> Self {
         Self {
             id,
             label,
             function,
-            broadcast_vars,
-            output_vars,
+            input_mapping,
+            output_mapping,
+            branch_id: None,
             dependencies: Vec::new(),
             is_branch: false,
             variant_index: None,
@@ -57,15 +60,29 @@ impl Node {
 
     /// Execute this node with the given context
     pub fn execute(&self, context: &HashMap<String, String>) -> HashMap<String, String> {
-        // Filter context to only include broadcast vars this node needs
+        // Map broadcast context vars to impl vars using input_mapping
+        // input_mapping: broadcast_var -> impl_var
         let inputs: HashMap<String, String> = self
-            .broadcast_vars
+            .input_mapping
             .iter()
-            .filter_map(|var| context.get(var).map(|val| (var.clone(), val.clone())))
+            .filter_map(|(broadcast_var, impl_var)| {
+                context.get(broadcast_var).map(|val| (impl_var.clone(), val.clone()))
+            })
             .collect();
 
         // Execute function with both inputs and variant parameters
-        (self.function)(&inputs, &self.variant_params)
+        let func_outputs = (self.function)(&inputs, &self.variant_params);
+        
+        // Map function outputs to broadcast vars using output_mapping
+        // output_mapping: impl_var -> broadcast_var
+        let mut context_outputs = HashMap::new();
+        for (impl_var, broadcast_var) in &self.output_mapping {
+            if let Some(value) = func_outputs.get(impl_var) {
+                context_outputs.insert(broadcast_var.clone(), value.clone());
+            }
+        }
+        
+        context_outputs
     }
 
     /// Get display name for this node
