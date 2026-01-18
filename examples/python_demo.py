@@ -20,7 +20,7 @@ def data_source(inputs, variant_params):
     Returns:
         Dictionary with output variables
     """
-    print("🔹 Data source executing...")
+    print("Data source executing...")
     return {"output": "100"}
 
 def processor(inputs, variant_params):
@@ -34,7 +34,7 @@ def processor(inputs, variant_params):
     Returns:
         Dictionary with 'result' key containing processed value
     """
-    print(f"🔹 Processor executing with inputs: {inputs}")
+    print(f"Processor executing with inputs: {inputs}")
     input_val = inputs.get("input", "0")
     result = str(int(input_val) * 2)
     return {"result": result}
@@ -50,7 +50,7 @@ def formatter(inputs, variant_params):
     Returns:
         Dictionary with 'formatted' key
     """
-    print(f"🔹 Formatter executing with inputs: {inputs}")
+    print(f"Formatter executing with inputs: {inputs}")
     value = inputs.get("value", "0")
     return {"formatted": f"Result: {value}"}
 
@@ -60,12 +60,12 @@ def main():
     print("=" * 70)
     
     # Create a new graph
-    print("\n📊 Creating graph...")
+    print("\nCreating graph...")
     graph = graph_sp.PyGraph()
     
     # Add source node
     # outputs: (impl_var, broadcast_var) - function returns "output", stored as "data"
-    print("➕ Adding source node...")
+    print("Adding source node...")
     graph.add(
         function=data_source,
         label="Source",
@@ -76,7 +76,7 @@ def main():
     # Add processor node
     # inputs: (broadcast_var, impl_var) - "data" from context becomes "input" in function
     # outputs: (impl_var, broadcast_var) - "result" from function becomes "final" in context
-    print("➕ Adding processor node...")
+    print("Adding processor node...")
     graph.add(
         function=processor,
         label="Processor",
@@ -85,7 +85,7 @@ def main():
     )
     
     # Add formatter node
-    print("➕ Adding formatter node...")
+    print("Adding formatter node...")
     graph.add(
         function=formatter,
         label="Formatter",
@@ -94,29 +94,29 @@ def main():
     )
     
     # Build the DAG
-    print("\n🔧 Building DAG...")
+    print("\nBuilding DAG...")
     dag = graph.build()
     
     # Execute the DAG
-    print("\n▶️  Executing DAG sequentially...")
+    print("\nExecuting DAG sequentially...")
     result = dag.execute()
     
-    print("\n✅ Execution complete!")
-    print(f"📤 Final context: {result}")
-    print(f"📍 Display value: {result.get('display')}")
+    print("\nExecution complete!")
+    print(f"Final context: {result}")
+    print(f"Display value: {result.get('display')}")
     
     # Test parallel execution
-    print("\n▶️  Executing DAG with parallel execution...")
+    print("\nExecuting DAG with parallel execution...")
     result2 = dag.execute_parallel()
-    print(f"📤 Parallel result: {result2}")
+    print(f"Parallel result: {result2}")
     
     # Generate Mermaid diagram
-    print("\n📈 Generating Mermaid diagram...")
+    print("\nGenerating Mermaid diagram...")
     mermaid = dag.to_mermaid()
     print("\n" + mermaid)
     
     print("\n" + "=" * 70)
-    print("✨ Example completed successfully!")
+    print("Example completed successfully!")
     print("=" * 70)
 
 if __name__ == "__main__":

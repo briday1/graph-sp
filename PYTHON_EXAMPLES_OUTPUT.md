@@ -18,12 +18,12 @@ Python Comprehensive Demo - graph-sp
 Demo 1: Basic Sequential Pipeline
 ──────────────────────────────────────────────────────────────────────
 
-📊 Executing sequential pipeline...
-✅ Execution completed in 0.02ms
-📤 Final result: 210
+Executing sequential pipeline...
+Execution completed in 0.02ms
+Final result: 210
    Expected: 210 (100 * 2 + 10)
 
-📈 Mermaid Diagram:
+Mermaid Diagram:
 graph TD
     0["Source"]
     1["Double"]
@@ -36,16 +36,16 @@ graph TD
 Demo 2: Parallel Branching (Fan-Out)
 ──────────────────────────────────────────────────────────────────────
 
-📊 Executing parallel branches...
+Executing parallel branches...
    Each branch simulates 100ms of work
 
-✅ Execution completed in 300.34ms
-📤 Branch A result (50*2): 100
-📤 Branch B result (50*3): 150
-📤 Branch C result (50+100): 150
-⚠️  Sequential execution detected (took 300.34ms)
+Execution completed in 300.34ms
+Branch A result (50*2): 100
+Branch B result (50*3): 150
+Branch C result (50+100): 150
+Sequential execution detected (took 300.34ms)
 
-📈 Mermaid Diagram:
+Mermaid Diagram:
 graph TD
     0["Source"]
     1["BranchA[*2]"]
@@ -63,14 +63,14 @@ graph TD
 Demo 3: Statistics and Verification
 ──────────────────────────────────────────────────────────────────────
 
-📊 Executing sequential pipeline...
-✅ Execution completed in 0.01ms
-📤 Path 1 (1000/2): 500
-📤 Path 2 (500*3): 1500
+Executing sequential pipeline...
+Execution completed in 0.01ms
+Path 1 (1000/2): 500
+Path 2 (500*3): 1500
    Expected path2: 1500
-✅ Verification PASSED: Results match expected values
+Verification PASSED: Results match expected values
 
-📈 Mermaid Diagram:
+Mermaid Diagram:
 graph TD
     0["Source"]
     1["Compute1[/2]"]
@@ -95,9 +95,9 @@ $ python examples/python_parallel_demo.py
 
 ### Demo 1: Sequential vs Parallel Execution
 ```
-📊 Creating graph with 3 parallel branches (100ms each)...
+Creating graph with 3 parallel branches (100ms each)...
 
-📈 Mermaid Diagram:
+Mermaid Diagram:
 graph TD
     0["Source"]
     1["WorkerA[100ms]"]
@@ -110,21 +110,21 @@ graph TD
     style 2 fill:#e1f5ff
     style 3 fill:#e1f5ff
 
-▶️  Executing with execute_parallel()...
+Executing with execute_parallel()...
 
-⏱️  Runtime Statistics:
+Runtime Statistics:
    Total execution time: 300.37ms
    Expected (if parallel): ~100ms
    Expected (if sequential): ~300ms
-   ⚠️  SEQUENTIAL execution (current Rust implementation)
-   ℹ️  Note: Rust DAG currently executes nodes sequentially
+   SEQUENTIAL execution (current Rust implementation)
+   Note: Rust DAG currently executes nodes sequentially
 
-📋 Execution Log:
+Execution Log:
    WorkerA         took 100.09ms
    WorkerB         took 100.10ms
    WorkerC         took 100.10ms
 
-📤 Results:
+Results:
    result_a: A_done
    result_b: B_done
    result_c: C_done
@@ -132,9 +132,9 @@ graph TD
 
 ### Demo 3: Deep Sequential Pipeline
 ```
-📊 Creating 4-step pipeline: init -> *2 -> +10 -> *3 -> -5
+Creating 4-step pipeline: init -> *2 -> +10 -> *3 -> -5
 
-📈 Mermaid Diagram:
+Mermaid Diagram:
 graph TD
     0["Init"]
     1["Step1[*2]"]
@@ -146,16 +146,16 @@ graph TD
     2 -->|v → x| 3
     3 -->|v → x| 4
 
-▶️  Executing pipeline...
+Executing pipeline...
 
-⏱️  Runtime: 0.02ms
-📤 Trace:
+Runtime: 0.02ms
+Trace:
    10 (init) -> *2 = 20
    20 -> +10 = 30
    30 -> *3 = 90
    90 -> -5 = 85
    Final result: 85
-✅ Pipeline verification PASSED
+Pipeline verification PASSED
 ```
 
 ## Mermaid Visualization Examples
@@ -208,10 +208,10 @@ The demos demonstrate:
 | Metric | Value | Notes |
 |--------|-------|-------|
 | **Computation overhead** | < 0.1ms | Minimal Python → Rust overhead |
-| **GIL handling** | ✅ Working | GIL released during Rust execution |
-| **Result accuracy** | ✅ 100% | All verification tests pass |
-| **Mermaid output** | ✅ Identical | Same diagrams as Rust |
-| **Execution timing** | ✅ Tracked | Millisecond precision |
+| **GIL handling** | Working | GIL released during Rust execution |
+| **Result accuracy** | 100% | All verification tests pass |
+| **Mermaid output** | Identical | Same diagrams as Rust |
+| **Execution timing** | Tracked | Millisecond precision |
 
 ## Running the Demos
 
@@ -235,8 +235,8 @@ cargo run --example parallel_execution_demo
 ## Verification
 
 All demos include:
-- ✅ Expected vs actual result comparison
-- ✅ Runtime timing statistics
-- ✅ Mermaid diagram generation
-- ✅ Proper error handling
-- ✅ GIL behavior documentation
+- Expected vs actual result comparison
+- Runtime timing statistics
+- Mermaid diagram generation
+- Proper error handling
+- GIL behavior documentation

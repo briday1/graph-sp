@@ -65,7 +65,7 @@ def worker_c(inputs, variant_params):
     return {"result": "C_done"}
 
 # Create parallel graph
-print("\n📊 Creating graph with 3 parallel branches (100ms each)...")
+print("\nCreating graph with 3 parallel branches (100ms each)...")
 graph = graph_sp.PyGraph()
 graph.add(source_node, "Source", None, [("data", "data")])
 
@@ -84,39 +84,39 @@ graph.branch(branch_c)
 
 dag = graph.build()
 
-print("\n📈 Mermaid Diagram:")
+print("\nMermaid Diagram:")
 mermaid = dag.to_mermaid()
 print(mermaid)
 
 # Execute with timing
-print("\n▶️  Executing with execute_parallel()...")
+print("\nExecuting with execute_parallel()...")
 execution_log.clear()
 overall_start = time.time()
 result = dag.execute_parallel()
 overall_end = time.time()
 overall_time = overall_end - overall_start
 
-print(f"\n⏱️  Runtime Statistics:")
+print(f"\nRuntime Statistics:")
 print(f"   Total execution time: {overall_time*1000:.2f}ms")
 print(f"   Expected (if parallel): ~100ms")
 print(f"   Expected (if sequential): ~300ms")
 
 # Analyze parallelization
 if overall_time < 0.25:
-    print(f"   ✅ PARALLEL execution detected!")
+    print(f"   PARALLEL execution detected!")
     speedup = 0.3 / overall_time
-    print(f"   📈 Speedup: ~{speedup:.1f}x")
+    print(f"   Speedup: ~{speedup:.1f}x")
 else:
-    print(f"   ⚠️  SEQUENTIAL execution (current Rust implementation)")
-    print(f"   ℹ️  Note: Rust DAG currently executes nodes sequentially")
+    print(f"   SEQUENTIAL execution (current Rust implementation)")
+    print(f"   Note: Rust DAG currently executes nodes sequentially")
 
 # Show execution log
 if execution_log:
-    print(f"\n📋 Execution Log:")
+    print(f"\nExecution Log:")
     for entry in execution_log:
         print(f"   {entry['node']:15s} took {entry['duration']*1000:.2f}ms")
 
-print(f"\n📤 Results:")
+print(f"\nResults:")
 print(f"   result_a: {result.get('result_a')}")
 print(f"   result_b: {result.get('result_b')}")
 print(f"   result_c: {result.get('result_c')}")
@@ -149,7 +149,7 @@ def diamond_merge(inputs, variant_params):
     return {"final": str(left + right)}
 
 # Create diamond graph
-print("\n📊 Creating diamond pattern graph...")
+print("\nCreating diamond pattern graph...")
 graph2 = graph_sp.PyGraph()
 graph2.add(diamond_source, "Source", None, [("value", "data")])
 
@@ -168,25 +168,25 @@ graph2.add(diamond_merge, "Merge",
 
 dag2 = graph2.build()
 
-print("\n📈 Mermaid Diagram:")
+print("\nMermaid Diagram:")
 print(dag2.to_mermaid())
 
-print("\n▶️  Executing diamond pattern...")
+print("\nExecuting diamond pattern...")
 start = time.time()
 result2 = dag2.execute_parallel()
 elapsed = time.time() - start
 
-print(f"\n⏱️  Runtime: {elapsed*1000:.2f}ms")
-print(f"📤 Left path (100*2): {result2.get('left_result')}")
-print(f"📤 Right path (100+50): {result2.get('right_result')}")
-print(f"📤 Merged (200+150): {result2.get('final')}")
+print(f"\nRuntime: {elapsed*1000:.2f}ms")
+print(f"Left path (100*2): {result2.get('left_result')}")
+print(f"Right path (100+50): {result2.get('right_result')}")
+print(f"Merged (200+150): {result2.get('final')}")
 
 expected = 350
 actual = int(result2.get('final', '0'))
 if actual == expected:
-    print(f"✅ Result verification PASSED")
+    print(f"Result verification PASSED")
 else:
-    print(f"❌ Result verification FAILED: expected {expected}, got {actual}")
+    print(f"Result verification FAILED: expected {expected}, got {actual}")
 
 # Demo 3: Deep Pipeline
 print("\n" + "─" * 70)
@@ -209,7 +209,7 @@ def step4(inputs, variant_params):
     val = int(inputs.get("x", "1"))
     return {"out": str(val - 5)}
 
-print("\n📊 Creating 4-step pipeline: init -> *2 -> +10 -> *3 -> -5")
+print("\nCreating 4-step pipeline: init -> *2 -> +10 -> *3 -> -5")
 graph3 = graph_sp.PyGraph()
 graph3.add(lambda i, v: {"value": "10"}, "Init", None, [("value", "v")])
 graph3.add(step1, "Step1[*2]", [("v", "x")], [("out", "v")])
@@ -219,18 +219,18 @@ graph3.add(step4, "Step4[-5]", [("v", "x")], [("out", "final")])
 
 dag3 = graph3.build()
 
-print("\n📈 Mermaid Diagram:")
+print("\nMermaid Diagram:")
 print(dag3.to_mermaid())
 
-print("\n▶️  Executing pipeline...")
+print("\nExecuting pipeline...")
 start = time.time()
 result3 = dag3.execute()
 elapsed = time.time() - start
 
-print(f"\n⏱️  Runtime: {elapsed*1000:.2f}ms")
+print(f"\nRuntime: {elapsed*1000:.2f}ms")
 
 # Trace values: 10 -> 20 -> 30 -> 90 -> 85
-print(f"📤 Trace:")
+print(f"Trace:")
 print(f"   10 (init) -> *2 = 20")
 print(f"   20 -> +10 = 30")
 print(f"   30 -> *3 = 90")
@@ -240,9 +240,9 @@ print(f"   Final result: {result3.get('final')}")
 expected = 85
 actual = int(result3.get('final', '0'))
 if actual == expected:
-    print(f"✅ Pipeline verification PASSED")
+    print(f"Pipeline verification PASSED")
 else:
-    print(f"❌ Pipeline verification FAILED: expected {expected}, got {actual}")
+    print(f"Pipeline verification FAILED: expected {expected}, got {actual}")
 
 print("\n" + "=" * 70)
 print("Python Parallel Demo Complete!")

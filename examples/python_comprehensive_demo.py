@@ -45,16 +45,16 @@ graph.add(add_ten, "AddTen", [("doubled_data", "input")], [("result", "final")])
 
 dag = graph.build()
 
-print("\n📊 Executing sequential pipeline...")
+print("\nExecuting sequential pipeline...")
 start_time = time.time()
 result = dag.execute()
 elapsed = time.time() - start_time
 
-print(f"✅ Execution completed in {elapsed*1000:.2f}ms")
-print(f"📤 Final result: {result.get('final')}")
+print(f"Execution completed in {elapsed*1000:.2f}ms")
+print(f"Final result: {result.get('final')}")
 print(f"   Expected: 210 (100 * 2 + 10)")
 
-print("\n📈 Mermaid Diagram:")
+print("\nMermaid Diagram:")
 print(dag.to_mermaid())
 
 # Demo 2: Parallel Branching
@@ -103,24 +103,24 @@ graph2.branch(branch_graph_c)
 
 dag2 = graph2.build()
 
-print("\n📊 Executing parallel branches...")
+print("\nExecuting parallel branches...")
 print("   Each branch simulates 100ms of work")
 
 start_time = time.time()
 result2 = dag2.execute_parallel()
 elapsed = time.time() - start_time
 
-print(f"\n✅ Execution completed in {elapsed*1000:.2f}ms")
-print(f"📤 Branch A result (50*2): {result2.get('result_a')}")
-print(f"📤 Branch B result (50*3): {result2.get('result_b')}")
-print(f"📤 Branch C result (50+100): {result2.get('result_c')}")
+print(f"\nExecution completed in {elapsed*1000:.2f}ms")
+print(f"Branch A result (50*2): {result2.get('result_a')}")
+print(f"Branch B result (50*3): {result2.get('result_b')}")
+print(f"Branch C result (50+100): {result2.get('result_c')}")
 
 if elapsed < 0.25:
-    print(f"⚡ Appears parallel! (< 250ms with 3x 100ms branches)")
+    print(f"Appears parallel! (< 250ms with 3x 100ms branches)")
 else:
-    print(f"⚠️  Sequential execution detected (took {elapsed*1000:.2f}ms)")
+    print(f"Sequential execution detected (took {elapsed*1000:.2f}ms)")
 
-print("\n📈 Mermaid Diagram:")
+print("\nMermaid Diagram:")
 print(dag2.to_mermaid())
 
 # Demo 3: Complex Pipeline with Statistics
@@ -148,25 +148,25 @@ graph3.add(compute_2, "Compute2[*3]", [("path1", "x")], [("out", "path2")])
 
 dag3 = graph3.build()
 
-print("\n📊 Executing sequential pipeline...")
+print("\nExecuting sequential pipeline...")
 start_time = time.time()
 result3 = dag3.execute()
 elapsed = time.time() - start_time
 
-print(f"✅ Execution completed in {elapsed*1000:.2f}ms")
-print(f"📤 Path 1 (1000/2): {result3.get('path1')}")
-print(f"📤 Path 2 (500*3): {result3.get('path2')}")
+print(f"Execution completed in {elapsed*1000:.2f}ms")
+print(f"Path 1 (1000/2): {result3.get('path1')}")
+print(f"Path 2 (500*3): {result3.get('path2')}")
 print(f"   Expected path2: 1500")
 
 # Verify correctness
 expected = 1500
 actual = int(result3.get('path2', '0'))
 if actual == expected:
-    print("✅ Verification PASSED: Results match expected values")
+    print("Verification PASSED: Results match expected values")
 else:
-    print(f"❌ Verification FAILED: Expected {expected}, got {actual}")
+    print(f"Verification FAILED: Expected {expected}, got {actual}")
 
-print("\n📈 Mermaid Diagram:")
+print("\nMermaid Diagram:")
 print(dag3.to_mermaid())
 
 print("\n" + "=" * 70)

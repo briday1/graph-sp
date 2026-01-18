@@ -153,18 +153,18 @@ graph TD
 The Python examples include detailed runtime statistics:
 
 ```
-⏱️  Runtime Statistics:
+   Runtime Statistics:
    Total execution time: 300.34ms
    Expected (if parallel): ~100ms
    Expected (if sequential): ~300ms
-   ⚠️  SEQUENTIAL execution (current Rust implementation)
+      SEQUENTIAL execution (current Rust implementation)
 
-📋 Execution Log:
+   Execution Log:
    WorkerA         took 100.09ms
    WorkerB         took 100.10ms
    WorkerC         took 100.10ms
 
-✅ Result verification PASSED
+Result verification PASSED
 ```
 
 ## Key Observations
@@ -192,7 +192,7 @@ cargo run --example parallel_execution_demo
 ```
 
 All demos show:
-- ✅ Correct computation results
-- ✅ Proper graph structure in Mermaid
-- ✅ Execution timing statistics
-- ✅ Result verification
+- Correct computation results
+- Proper graph structure in Mermaid
+- Execution timing statistics
+- Result verification
