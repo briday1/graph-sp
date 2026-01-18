@@ -168,64 +168,38 @@ impl Dag {
     /// Execute the DAG (legacy method returning just context)
     ///
     /// Runs all nodes in topological order, accumulating outputs in the execution context.
-    pub fn execute(&self) -> ExecutionContext {
-        self.execute_detailed().context
+    /// 
+    /// # Arguments
+    /// * `parallel` - If true, execute nodes at the same level concurrently
+    /// * `max_threads` - Optional maximum number of threads to use per level (None = unlimited)
+    pub fn execute(&self, parallel: bool, max_threads: Option<usize>) -> ExecutionContext {
+        self.execute_detailed(parallel, max_threads).context
     }
     
     /// Execute the DAG with detailed per-node and per-branch tracking
     ///
     /// Runs all nodes in topological order and tracks outputs per node and per branch.
-    pub fn execute_detailed(&self) -> ExecutionResult {
+    /// 
+    /// # Arguments
+    /// * `parallel` - If true, execute nodes at the same level concurrently
+    /// * `max_threads` - Optional maximum number of threads to use per level (None = unlimited)
+    pub fn execute_detailed(&self, parallel: bool, max_threads: Option<usize>) -> ExecutionResult {
         let mut result = ExecutionResult::new();
 
-        for &node_id in &self.execution_order {
-            if let Some(node) = self.nodes.iter().find(|n| n.id == node_id) {
-                let outputs = node.execute(&result.context);
-                
-                // Store outputs in global context
-                result.context.extend(outputs.clone());
-                
-                // Store outputs per node (using broadcast variable names from output_mapping)
-                let node_outputs: HashMap<String, String> = outputs.clone();
-                result.node_outputs.insert(node_id, node_outputs);
-                
-                // Store outputs per branch if this node belongs to a branch
-                if let Some(branch_id) = node.branch_id {
-                    result.branch_outputs
-                        .entry(branch_id)
-                        .or_insert_with(HashMap::new)
-                        .extend(outputs);
-                }
-            }
-        }
-
-        result
-    }
-
-    /// Execute the DAG with parallel execution of independent nodes (legacy method)
-    ///
-    /// Nodes at the same execution level are run concurrently.
-    pub fn execute_parallel(&self) -> ExecutionContext {
-        self.execute_parallel_detailed().context
-    }
-    
-    /// Execute the DAG with parallel execution and detailed tracking
-    ///
-    /// Nodes at the same execution level are run concurrently using threads.
-    pub fn execute_parallel_detailed(&self) -> ExecutionResult {
-        let mut result = ExecutionResult::new();
-
-        for level in &self.execution_levels {
-            // Execute nodes at the same level in parallel
-            if level.len() == 1 {
-                // Single node - no need for threading overhead
-                let node_id = level[0];
+        if !parallel {
+            // Sequential execution
+            for &node_id in &self.execution_order {
                 if let Some(node) = self.nodes.iter().find(|n| n.id == node_id) {
                     let outputs = node.execute(&result.context);
                     
+                    // Store outputs in global context
                     result.context.extend(outputs.clone());
-                    result.node_outputs.insert(node_id, outputs.clone());
                     
+                    // Store outputs per node (using broadcast variable names from output_mapping)
+                    let node_outputs: HashMap<String, String> = outputs.clone();
+                    result.node_outputs.insert(node_id, node_outputs);
+                    
+                    // Store outputs per branch if this node belongs to a branch
                     if let Some(branch_id) = node.branch_id {
                         result.branch_outputs
                             .entry(branch_id)
@@ -233,40 +207,72 @@ impl Dag {
                             .extend(outputs);
                     }
                 }
-            } else {
-                // Multiple nodes - execute in parallel using scoped threads
-                let context = Arc::new(result.context.clone());
-                let nodes_to_execute: Vec<_> = level.iter()
-                    .filter_map(|&node_id| {
-                        self.nodes.iter().find(|n| n.id == node_id)
-                    })
-                    .collect();
-                
-                let outputs = Arc::new(Mutex::new(Vec::new()));
-                
-                std::thread::scope(|s| {
-                    for node in nodes_to_execute {
-                        let context = Arc::clone(&context);
-                        let outputs = Arc::clone(&outputs);
+            }
+        } else {
+            // Parallel execution
+            for level in &self.execution_levels {
+                // Execute nodes at the same level in parallel
+                if level.len() == 1 {
+                    // Single node - no need for threading overhead
+                    let node_id = level[0];
+                    if let Some(node) = self.nodes.iter().find(|n| n.id == node_id) {
+                        let outputs = node.execute(&result.context);
                         
-                        s.spawn(move || {
-                            let node_outputs = node.execute(&context);
-                            outputs.lock().unwrap().push((node.id, node.branch_id, node_outputs));
+                        result.context.extend(outputs.clone());
+                        result.node_outputs.insert(node_id, outputs.clone());
+                        
+                        if let Some(branch_id) = node.branch_id {
+                            result.branch_outputs
+                                .entry(branch_id)
+                                .or_insert_with(HashMap::new)
+                                .extend(outputs);
+                        }
+                    }
+                } else {
+                    // Multiple nodes - execute in parallel using scoped threads
+                    let context = Arc::new(result.context.clone());
+                    let nodes_to_execute: Vec<_> = level.iter()
+                        .filter_map(|&node_id| {
+                            self.nodes.iter().find(|n| n.id == node_id)
+                        })
+                        .collect();
+                    
+                    // Limit threads if max_threads is specified
+                    let chunk_size = if let Some(max) = max_threads {
+                        max.max(1) // At least 1 thread
+                    } else {
+                        nodes_to_execute.len() // Unlimited - one thread per node
+                    };
+                    
+                    let outputs = Arc::new(Mutex::new(Vec::new()));
+                    
+                    // Process nodes in chunks to respect max_threads limit
+                    for chunk in nodes_to_execute.chunks(chunk_size) {
+                        std::thread::scope(|s| {
+                            for node in chunk {
+                                let context = Arc::clone(&context);
+                                let outputs = Arc::clone(&outputs);
+                                
+                                s.spawn(move || {
+                                    let node_outputs = node.execute(&context);
+                                    outputs.lock().unwrap().push((node.id, node.branch_id, node_outputs));
+                                });
+                            }
                         });
                     }
-                });
-                
-                // Collect outputs from all parallel executions
-                let collected_outputs = outputs.lock().unwrap();
-                for (node_id, branch_id, node_outputs) in collected_outputs.iter() {
-                    result.context.extend(node_outputs.clone());
-                    result.node_outputs.insert(*node_id, node_outputs.clone());
                     
-                    if let Some(bid) = branch_id {
-                        result.branch_outputs
-                            .entry(*bid)
-                            .or_insert_with(HashMap::new)
-                            .extend(node_outputs.clone());
+                    // Collect outputs from all parallel executions
+                    let collected_outputs = outputs.lock().unwrap();
+                    for (node_id, branch_id, node_outputs) in collected_outputs.iter() {
+                        result.context.extend(node_outputs.clone());
+                        result.node_outputs.insert(*node_id, node_outputs.clone());
+                        
+                        if let Some(bid) = branch_id {
+                            result.branch_outputs
+                                .entry(*bid)
+                                .or_insert_with(HashMap::new)
+                                .extend(node_outputs.clone());
+                        }
                     }
                 }
             }

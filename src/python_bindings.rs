@@ -141,29 +141,18 @@ struct PyDag {
 
 #[pymethods]
 impl PyDag {
-    /// Execute the DAG sequentially
+    /// Execute the DAG
+    ///
+    /// Args:
+    ///     parallel (bool): If True, execute nodes at the same level concurrently. Default: False
+    ///     max_threads (Optional[int]): Maximum number of threads to use per level. None = unlimited. Default: None
     ///
     /// Returns:
     ///     Dictionary containing the execution context
-    fn execute(&self, py: Python) -> PyResult<PyObject> {
+    #[pyo3(signature = (parallel=false, max_threads=None))]
+    fn execute(&self, py: Python, parallel: bool, max_threads: Option<usize>) -> PyResult<PyObject> {
         // Release GIL during Rust execution
-        let context = py.allow_threads(|| self.dag.execute());
-        
-        // Convert HashMap to Python dict
-        let py_dict = PyDict::new(py);
-        for (key, value) in context.iter() {
-            py_dict.set_item(key, value)?;
-        }
-        Ok(py_dict.to_object(py))
-    }
-
-    /// Execute the DAG with parallel execution where possible
-    ///
-    /// Returns:
-    ///     Dictionary containing the execution context
-    fn execute_parallel(&self, py: Python) -> PyResult<PyObject> {
-        // Release GIL during Rust execution
-        let context = py.allow_threads(|| self.dag.execute_parallel());
+        let context = py.allow_threads(|| self.dag.execute(parallel, max_threads));
         
         // Convert HashMap to Python dict
         let py_dict = PyDict::new(py);

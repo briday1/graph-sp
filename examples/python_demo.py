@@ -99,7 +99,7 @@ def main():
     
     # Execute the DAG
     print("\nExecuting DAG sequentially...")
-    result = dag.execute()
+    result = dag.execute(parallel=False)
     
     print("\nExecution complete!")
     print(f"Final context: {result}")
@@ -107,8 +107,13 @@ def main():
     
     # Test parallel execution
     print("\nExecuting DAG with parallel execution...")
-    result2 = dag.execute_parallel()
+    result2 = dag.execute(parallel=True)
     print(f"Parallel result: {result2}")
+    
+    # Test with max_threads limit
+    print("\nExecuting DAG with parallel execution (max 2 threads)...")
+    result3 = dag.execute(parallel=True, max_threads=2)
+    print(f"Parallel result with thread limit: {result3}")
     
     # Generate Mermaid diagram
     print("\nGenerating Mermaid diagram...")

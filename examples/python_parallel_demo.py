@@ -92,7 +92,7 @@ print(mermaid)
 print("\nExecuting with execute_parallel()...")
 execution_log.clear()
 overall_start = time.time()
-result = dag.execute_parallel()
+result = dag.execute(parallel=True)
 overall_end = time.time()
 overall_time = overall_end - overall_start
 
@@ -173,7 +173,7 @@ print(dag2.to_mermaid())
 
 print("\nExecuting diamond pattern...")
 start = time.time()
-result2 = dag2.execute_parallel()
+result2 = dag2.execute(parallel=True)
 elapsed = time.time() - start
 
 print(f"\nRuntime: {elapsed*1000:.2f}ms")

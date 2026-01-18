@@ -47,7 +47,7 @@ dag = graph.build()
 
 print("\nExecuting sequential pipeline...")
 start_time = time.time()
-result = dag.execute()
+result = dag.execute(parallel=False)
 elapsed = time.time() - start_time
 
 print(f"Execution completed in {elapsed*1000:.2f}ms")
@@ -107,7 +107,7 @@ print("\nExecuting parallel branches...")
 print("   Each branch simulates 100ms of work")
 
 start_time = time.time()
-result2 = dag2.execute_parallel()
+result2 = dag2.execute(parallel=True)
 elapsed = time.time() - start_time
 
 print(f"\nExecution completed in {elapsed*1000:.2f}ms")
@@ -150,7 +150,7 @@ dag3 = graph3.build()
 
 print("\nExecuting sequential pipeline...")
 start_time = time.time()
-result3 = dag3.execute()
+result3 = dag3.execute(parallel=False)
 elapsed = time.time() - start_time
 
 print(f"Execution completed in {elapsed*1000:.2f}ms")
