@@ -312,9 +312,9 @@ impl Graph {
     ///
     /// * `factory` - Function that takes a parameter value and returns a node function
     /// * `param_values` - Array of parameter values to sweep over
-    /// * `label` - Optional label for visualization
-    /// * `broadcast_vars` - Optional list of broadcast variables from graph context
-    /// * `output_vars` - Optional list of output variables this node produces
+    /// * `label` - Optional label for visualization (default: None)
+    /// * `inputs` - Optional list of broadcast variables from graph context (default: None)
+    /// * `outputs` - Optional list of output variables this node produces (default: None)
     ///
     /// # Example
     ///
@@ -329,7 +329,7 @@ impl Graph {
     ///     }
     /// }
     ///
-    /// graph.variant_factory(make_scaler, vec![2.0, 3.0, 5.0], Some("Scale"), Some(vec!["data"]), Some(vec!["result"]));
+    /// graph.variant(make_scaler, vec![2.0, 3.0, 5.0], Some("Scale"), Some(vec!["data"]), Some(vec!["result"]));
     /// ```
     ///
     /// # Behavior
@@ -338,13 +338,13 @@ impl Graph {
     /// - Each node is created by calling factory(param_value)
     /// - Nodes still receive both regular inputs and variant_params
     /// - All variants branch from the same point and can execute in parallel
-    pub fn variant_factory<F, P, NF>(
+    pub fn variant<F, P, NF>(
         &mut self,
         factory: F,
         param_values: Vec<P>,
         label: Option<&str>,
-        broadcast_vars: Option<Vec<&str>>,
-        output_vars: Option<Vec<&str>>,
+        inputs: Option<Vec<&str>>,
+        outputs: Option<Vec<&str>>,
     ) -> &mut Self
     where
         F: Fn(P) -> NF,
@@ -365,14 +365,14 @@ impl Graph {
             let id = self.next_id;
             self.next_id += 1;
 
-            let broadcast_vars_vec = broadcast_vars
+            let broadcast_vars_vec = inputs
                 .as_ref()
                 .unwrap_or(&vec![])
                 .iter()
                 .map(|s| s.to_string())
                 .collect();
 
-            let output_vars_vec = output_vars
+            let output_vars_vec = outputs
                 .as_ref()
                 .unwrap_or(&vec![])
                 .iter()
@@ -403,90 +403,6 @@ impl Graph {
         // Don't update last_node_id - variants don't create sequential flow
         // Set last_branch_point for potential merge
         self.last_branch_point = branch_point;
-
-        self
-    }
-
-    /// Create configuration sweep variants
-    ///
-    /// This method creates multiple copies of the remainder of the graph structure,
-    /// each with different configuration values. It's generic and accepts multiple input types:
-    ///
-    /// # Accepting a List of Values
-    ///
-    /// ```ignore
-    /// graph.variant("learning_rate", vec!["0.001", "0.01", "0.1"]);
-    /// ```
-    ///
-    /// # Accepting a Generator Function
-    ///
-    /// ```ignore
-    /// graph.variant("learning_rate", |i, count| {
-    ///     format!("{}", 0.001 * 10_f64.powi(i as i32))
-    /// }, 5);
-    /// ```
-    ///
-    /// # Using Built-in Helpers
-    ///
-    /// ```ignore
-    /// use graph_sp::Linspace;
-    /// graph.variant("learning_rate", Linspace::new(0.001, 0.1, 10));
-    /// ```
-    ///
-    /// # Behavior
-    ///
-    /// - Copies all downstream nodes for each variant
-    /// - Each variant gets a unique configuration value
-    /// - Variants can execute in parallel
-    pub fn variant<V>(&mut self, param_name: &str, values: V) -> &mut Self
-    where
-        V: IntoVariantValues,
-    {
-        let variant_values = values.into_variant_values();
-        self.apply_variants(param_name, variant_values)
-    }
-
-    /// Internal method to apply variants given a list of values
-    fn apply_variants(&mut self, param_name: &str, values: Vec<String>) -> &mut Self {
-        // Store the current graph state as a template
-        let template_nodes = self.nodes.clone();
-        let template_last_id = self.last_node_id;
-
-        // For each variant, create a copy of the downstream graph
-        for (idx, value) in values.iter().enumerate() {
-            if idx == 0 {
-                // First variant reuses the current graph
-                // Mark nodes as part of variant 0 and set variant params
-                for node in &mut self.nodes {
-                    node.variant_index = Some(0);
-                    node.variant_params.insert(param_name.to_string(), value.clone());
-                }
-            } else {
-                // Subsequent variants need new copies
-                let mut variant_builder = Graph::new();
-                variant_builder.next_id = self.next_id;
-
-                // Clone template nodes
-                for template_node in &template_nodes {
-                    let mut node = template_node.clone();
-                    node.id = variant_builder.next_id;
-                    variant_builder.next_id += 1;
-                    node.variant_index = Some(idx);
-                    // Set the variant parameter value for this variant
-                    node.variant_params.insert(param_name.to_string(), value.clone());
-                    
-                    variant_builder.nodes.push(node);
-                }
-
-                variant_builder.last_node_id = template_last_id
-                    .map(|_| variant_builder.nodes.last().map(|n| n.id))
-                    .flatten();
-
-                let next_id = variant_builder.next_id;
-                self.branches.push(variant_builder);
-                self.next_id = next_id;
-            }
-        }
 
         self
     }

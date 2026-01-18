@@ -37,7 +37,7 @@ fn main() {
         }
 
         // Create variants: one node per factor
-        graph.variant_factory(
+        graph.variant(
             make_multiplier,
             vec![2.0, 3.0, 5.0],
             Some("Multiply"),
@@ -47,7 +47,7 @@ fn main() {
 
         println!("Syntax:");
         println!("  fn make_multiplier(factor) -> impl Fn(...) {{ ... }}");
-        println!("  graph.variant_factory(make_multiplier, vec![2.0, 3.0, 5.0], ...)");
+        println!("  graph.variant(make_multiplier, vec![2.0, 3.0, 5.0], Some(\"Multiply\"), Some(vec![\"x\"]), Some(vec![\"y\"]));");
         println!();
         println!("Result: 3 nodes created (one for each factor: 2.0, 3.0, 5.0)");
         println!("  Input: x = 10");
@@ -72,7 +72,7 @@ fn main() {
         );
 
         // Inline factory - no separate function definition needed
-        graph.variant_factory(
+        graph.variant(
             |scale: f64| {
                 move |inputs: &HashMap<String, String>, _| {
                     let mut outputs = HashMap::new();
@@ -89,10 +89,12 @@ fn main() {
         );
 
         println!("Syntax (inline):");
-        println!("  graph.variant_factory(");
+        println!("  graph.variant(");
         println!("      |scale| move |inputs, _| {{ ... }},  // Factory inline");
         println!("      vec![0.5, 1.0, 2.0],                 // Parameters");
-        println!("      ...                                  // Node config");
+        println!("      Some(\"Scale\"),                       // Label");
+        println!("      Some(vec![\"data\"]),                  // inputs");
+        println!("      Some(vec![\"result\"])                 // outputs");
         println!("  )");
         println!();
         println!("Result: 3 scaling variants (0.5x, 1x, 2x)");
@@ -126,7 +128,7 @@ fn main() {
             Some(vec!["value"]),
         );
 
-        graph.variant_factory(
+        graph.variant(
             make_adder,
             vec![10, 20, 30],
             Some("Add"),
@@ -136,7 +138,7 @@ fn main() {
 
         println!("Syntax (named factory):");
         println!("  fn make_adder(amount: i32) -> impl Fn(...) {{ ... }}");
-        println!("  graph.variant_factory(make_adder, vec![10, 20, 30], ...)");
+        println!("  graph.variant(make_adder, vec![10, 20, 30], Some(\"Add\"), Some(vec![\"value\"]), Some(vec![\"sum\"]))");
         println!();
         println!("Result: 3 variants adding 10, 20, 30 respectively");
         println!();
