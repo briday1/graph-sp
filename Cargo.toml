@@ -1,35 +1,15 @@
 [package]
 name = "graph-sp"
-version = "2026.1.1"
-authors = ["briday1 <your-email@example.com>"]
+version = "0.1.0"
 edition = "2021"
-description = "High-performance DAG execution engine with Python bindings"
+authors = ["briday1 <your-email@example.com>"]
+description = "A pure Rust graph executor supporting implicit node connections, branching, and config sweeps"
 license = "MIT"
 repository = "https://github.com/briday1/graph-sp"
 homepage = "https://github.com/briday1/graph-sp"
-
-[lib]
-name = "graph_sp"
-crate-type = ["cdylib", "rlib"]
+documentation = "https://docs.rs/graph-sp"
+keywords = ["graph", "dag", "execution", "pipeline", "workflow"]
+categories = ["data-structures", "algorithms"]
+readme = "README.md"
 
 [dependencies]
-tokio = { version = "1.35", features = ["full"] }
-futures = "0.3"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-thiserror = "1.0"
-pyo3 = { version = "0.20", features = ["extension-module"], optional = true }
-petgraph = "0.6"
-dashmap = "5.5"
-num_cpus = "1.16"
-uuid = { version = "1.10", features = ["v4"] }
-
-[target.'cfg(not(target_env = "msvc"))'.dependencies]
-tikv-jemallocator = { version = "0.5", optional = true }
-
-[dev-dependencies]
-tokio-test = "0.4"
-
-[features]
-default = []
-python = ["pyo3"]

@@ -1,78 +1,46 @@
-//! # graph-sp: A Comprehensive Rust-based DAG Execution Engine
+//! # graph-sp
 //!
-//! graph-sp is a high-performance, parallel DAG (Directed Acyclic Graph) execution engine
-//! with Python bindings. It provides true parallelization, flawless graph inspection,
-//! and port routing optimization.
+//! A pure Rust graph executor supporting implicit node connections, branching, and config sweeps.
 //!
 //! ## Features
 //!
-//! - **Port-based Architecture**: Nodes communicate through strongly-typed ports
-//! - **Parallel Execution**: Automatic parallelization of independent nodes using tokio
-//! - **Graph Inspection**: Comprehensive analysis and visualization tools
-//! - **Cycle Detection**: Built-in DAG validation
-//! - **Python Bindings**: Easy-to-use Python API via PyO3
-//!
-//! ## Core Components
-//!
-//! - `core`: Fundamental data structures (Graph, Node, Port, PortData)
-//! - `executor`: Parallel execution engine
-//! - `inspector`: Graph analysis and optimization tools
-//! - `python`: Python bindings (optional, enabled with "python" feature)
+//! - **Implicit Node Connections**: Nodes are automatically connected based on execution order
+//! - **Branching**: Create parallel execution paths with `.branch()`
+//! - **Config Sweeps**: Use `.variant()` to create configuration variations
+//! - **DAG Optimization**: Automatic inspection and optimization of execution paths
+//! - **Mermaid Visualization**: Generate diagrams with `to_mermaid()`
 //!
 //! ## Example
 //!
 //! ```rust
-//! use graph_sp::core::{Graph, Node, NodeConfig, Port, PortData};
-//! use graph_sp::executor::Executor;
+//! use graph_sp::Graph;
 //! use std::collections::HashMap;
-//! use std::sync::Arc;
 //!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create a graph
-//!     let mut graph = Graph::new();
-//!
-//!     // Define a simple node that doubles its input
-//!     let config = NodeConfig::new(
-//!         "doubler",
-//!         "Doubler Node",
-//!         vec![Port::new("input", "Input Value")],
-//!         vec![Port::new("output", "Output Value")],
-//!         Arc::new(|inputs: &HashMap<String, PortData>| {
-//!             let mut outputs = HashMap::new();
-//!             if let Some(PortData::Int(val)) = inputs.get("input") {
-//!                 outputs.insert("output".to_string(), PortData::Int(val * 2));
-//!             }
-//!             Ok(outputs)
-//!         }),
-//!     );
-//!
-//!     // Add node to graph
-//!     let mut node = Node::new(config);
-//!     node.set_input("input", PortData::Int(21));
-//!     graph.add(node)?;
-//!
-//!     // Execute the graph
-//!     let executor = Executor::new();
-//!     let result = executor.execute(&mut graph).await?;
-//!
-//!     // Get the result
-//!     if let Some(PortData::Int(val)) = result.get_output("doubler", "output") {
-//!         println!("Result: {}", val); // Output: 42
-//!     }
-//!
-//!     Ok(())
+//! fn data_source(_: &HashMap<String, String>) -> HashMap<String, String> {
+//!     let mut result = HashMap::new();
+//!     result.insert("output".to_string(), "Hello, World!".to_string());
+//!     result
 //! }
+//!
+//! fn processor(inputs: &HashMap<String, String>) -> HashMap<String, String> {
+//!     let mut result = HashMap::new();
+//!     if let Some(data) = inputs.get("input") {
+//!         result.insert("output".to_string(), data.to_uppercase());
+//!     }
+//!     result
+//! }
+//!
+//! let mut graph = Graph::new();
+//! graph.add(data_source, Some("Source"), None, Some(vec!["output"]));
+//! graph.add(processor, Some("Processor"), Some(vec!["input"]), Some(vec!["output"]));
+//!
+//! let dag = graph.build();
 //! ```
 
-pub mod core;
-pub mod executor;
-pub mod inspector;
+mod builder;
+mod dag;
+mod node;
 
-#[cfg(feature = "python")]
-pub mod python;
-
-// Re-export commonly used types
-pub use core::{Edge, Graph, GraphData, GraphError, Node, NodeConfig, Port, PortData, Result};
-pub use executor::{ExecutionResult, Executor};
-pub use inspector::{GraphAnalysis, Inspector, Optimization, OptimizationType};
+pub use builder::{Generator, Geomspace, Graph, IntoVariantValues, Linspace, Logspace};
+pub use dag::{Dag, ExecutionContext, ExecutionResult};
+pub use node::{NodeFunction, NodeId};
