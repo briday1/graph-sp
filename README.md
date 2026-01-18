@@ -320,3 +320,63 @@ Build wheel for distribution:
 maturin build --release --features python
 # Wheel will be in target/wheels/
 ```
+
+## Publishing
+
+This repository is configured with GitHub Actions workflows to automatically publish to [crates.io](https://crates.io) and [PyPI](https://pypi.org) when a release tag is pushed.
+
+### Required Repository Secrets
+
+To enable automatic publishing, the repository owner must configure the following secrets in GitHub Settings → Secrets and variables → Actions:
+
+- **`CRATES_IO_TOKEN`**: Your crates.io API token (obtain from https://crates.io/me)
+- **`PYPI_API_TOKEN`**: Your PyPI API token (obtain from https://pypi.org/manage/account/token/)
+
+### Publishing Process
+
+The publish workflow (`.github/workflows/publish.yml`) will automatically run when:
+
+1. A tag matching `v*` is pushed (e.g., `v0.1.0`, `v1.0.0`)
+2. The workflow is manually triggered via workflow_dispatch
+
+**Creating a release:**
+
+```bash
+# Ensure version numbers in Cargo.toml and pyproject.toml are correct
+git tag -a v0.1.0 -m "Release v0.1.0"
+git push origin v0.1.0
+```
+
+The workflow will:
+
+1. **Build Python wheels** for Python 3.8-3.11 on Linux, macOS, and Windows
+2. **Upload wheel artifacts** to the GitHub Actions run (always, even without secrets)
+3. **Publish to PyPI** (only if `PYPI_API_TOKEN` is set) - prebuilt wheels mean end users do not need Rust
+4. **Publish to crates.io** (only if `CRATES_IO_TOKEN` is set)
+
+**Important notes:**
+
+- Installing from PyPI with `pip install graph_sp` will **not require Rust** on the target machine because prebuilt platform-specific wheels are published
+- Both crates.io and PyPI will reject duplicate version numbers - update versions before tagging
+- The workflow will continue even if tokens are not set, allowing you to download artifacts for manual publishing
+- For local testing, you can build wheels with `maturin build --release --features python`
+
+### Manual Publishing
+
+If you prefer to publish manually or need to publish from a local machine:
+
+**To crates.io:**
+
+```bash
+cargo publish --token YOUR_CRATES_IO_TOKEN
+```
+
+**To PyPI:**
+
+```bash
+# Install maturin
+pip install maturin==1.2.0
+
+# Build and publish wheels
+maturin publish --username __token__ --password YOUR_PYPI_API_TOKEN --features python
+```

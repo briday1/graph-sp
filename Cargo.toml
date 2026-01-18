@@ -13,7 +13,7 @@ categories = ["data-structures", "algorithms"]
 readme = "README.md"
 
 [dependencies]
-pyo3 = { version = "=0.18.3", optional = true, features = ["extension-module", "auto-initialize"] }
+pyo3 = { version = "=0.18.3", optional = true, default-features = false, features = ["extension-module", "auto-initialize", "macros"] }
 
 [features]
 python = ["pyo3"]
