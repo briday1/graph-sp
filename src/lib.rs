@@ -47,6 +47,3 @@ mod python_bindings;
 pub use builder::{Generator, Geomspace, Graph, IntoVariantValues, Linspace, Logspace};
 pub use dag::{Dag, ExecutionContext, ExecutionResult};
 pub use node::{NodeFunction, NodeId};
-
-#[cfg(feature = "python")]
-pub use python_bindings::*;

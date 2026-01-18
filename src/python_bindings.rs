@@ -225,7 +225,10 @@ fn create_python_node_function(
             let py_inputs = PyDict::new(py);
             for (key, value) in inputs.iter() {
                 if let Err(e) = py_inputs.set_item(key, value) {
-                    eprintln!("Failed to set input item: {}", e);
+                    // Log to Python's stderr for better integration
+                    let _ = py.import("sys")
+                        .and_then(|sys| sys.getattr("stderr"))
+                        .and_then(|stderr| stderr.call_method1("write", (format!("Error setting input '{}': {}\n", key, e),)));
                     return HashMap::new();
                 }
             }
@@ -234,7 +237,9 @@ fn create_python_node_function(
             let py_variant_params = PyDict::new(py);
             for (key, value) in variant_params.iter() {
                 if let Err(e) = py_variant_params.set_item(key, value) {
-                    eprintln!("Failed to set variant param: {}", e);
+                    let _ = py.import("sys")
+                        .and_then(|sys| sys.getattr("stderr"))
+                        .and_then(|stderr| stderr.call_method1("write", (format!("Error setting variant param '{}': {}\n", key, e),)));
                     return HashMap::new();
                 }
             }
@@ -254,12 +259,14 @@ fn create_python_node_function(
                         }
                         output
                     } else {
-                        eprintln!("Python function did not return a dict");
+                        let _ = py.import("sys")
+                            .and_then(|sys| sys.getattr("stderr"))
+                            .and_then(|stderr| stderr.call_method1("write", ("Error: Python function did not return a dict\n",)));
                         HashMap::new()
                     }
                 }
                 Err(e) => {
-                    eprintln!("Python function call failed: {}", e);
+                    // Use Python's traceback printing for better error visibility
                     e.print(py);
                     HashMap::new()
                 }
@@ -271,9 +278,7 @@ fn create_python_node_function(
 /// Initialize the Python module
 #[pymodule]
 fn graph_sp(_py: Python, m: &PyModule) -> PyResult<()> {
-    // Ensure Python is initialized for multi-threaded access
-    pyo3::prepare_freethreaded_python();
-    
+    // PyO3 0.18.3 with auto-initialize feature handles multi-threading initialization automatically
     m.add_class::<PyGraph>()?;
     m.add_class::<PyDag>()?;
     Ok(())
