@@ -60,12 +60,12 @@ jobs:
         run: pip install maturin==1.2.0
       
       - name: Publish to PyPI (if token exists)
-        if: env.PYPI_API_TOKEN != ''
+        if: secrets.PYPI_API_TOKEN != ''
         env:
           PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           # Build and publish for manylinux
-          maturin publish --username __token__ --password $PYPI_API_TOKEN --no-sdist --skip-existing --strip --features python
+          maturin publish --username __token__ --password $PYPI_API_TOKEN --skip-existing --strip --features python
         continue-on-error: true
 
   publish-crates-io:
@@ -80,7 +80,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       
       - name: Publish to crates.io (if token exists)
-        if: env.CRATES_IO_TOKEN != ''
+        if: secrets.CRATES_IO_TOKEN != ''
         env:
           CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
         run: |
