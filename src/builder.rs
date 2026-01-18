@@ -2,6 +2,7 @@
 
 use crate::dag::Dag;
 use crate::node::{Node, NodeId};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 /// Trait for types that can be converted into variant values
@@ -407,10 +408,17 @@ impl Graph {
         self
     }
 
-    /// Merge multiple branches back together
+    /// Merge multiple branches back together with a merge function
     ///
     /// After branching, use `.merge()` to bring parallel paths back to a single point.
-    /// The merge node will depend on all branches that were added since the last branch point.
+    /// The merge function receives outputs from all specified branches and combines them.
+    ///
+    /// # Arguments
+    ///
+    /// * `merge_fn` - Function that combines outputs from all branches
+    /// * `label` - Optional label for visualization
+    /// * `inputs` - List of input variables from branches to merge
+    /// * `outputs` - Optional list of output variables this merge node produces
     ///
     /// # Example
     ///
@@ -425,25 +433,69 @@ impl Graph {
     /// 
     /// graph.branch(branch_a);
     /// graph.branch(branch_b);
-    /// graph.merge(); // Merges both branches
     /// 
-    /// graph.add(combine_fn, Some("Combine"), Some(vec!["result_a", "result_b"]), Some(vec!["final"]));
+    /// // Merge function combines results from both branches
+    /// graph.merge(
+    ///     combine_fn,
+    ///     Some("Combine"),
+    ///     vec!["result_a", "result_b"],
+    ///     Some(vec!["final"])
+    /// );
     /// ```
-    pub fn merge(&mut self) -> &mut Self {
-        // Collect all terminal nodes from branches that need to be merged
+    pub fn merge<F>(
+        &mut self,
+        merge_fn: F,
+        label: Option<&str>,
+        inputs: Vec<&str>,
+        outputs: Option<Vec<&str>>,
+    ) -> &mut Self
+    where
+        F: Fn(&std::collections::HashMap<String, String>, &std::collections::HashMap<String, String>) -> std::collections::HashMap<String, String>
+            + Send
+            + Sync
+            + 'static,
+    {
+        // First, integrate all pending branches into the main graph
+        let branches = std::mem::take(&mut self.branches);
         let mut branch_terminals = Vec::new();
         
-        for branch in &self.branches {
+        for branch in branches {
             if let Some(last_id) = branch.last_node_id {
                 branch_terminals.push(last_id);
             }
+            self.merge_branch(branch);
         }
         
-        // Store these as merge targets for the next added node
-        self.merge_targets = branch_terminals;
+        // Create the merge node
+        let id = self.next_id;
+        self.next_id += 1;
+
+        let broadcast_vars = inputs
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+
+        let output_vars = outputs
+            .unwrap_or_default()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+
+        let mut node = Node::new(
+            id,
+            Arc::new(merge_fn),
+            label.map(|s| s.to_string()),
+            broadcast_vars,
+            output_vars,
+        );
+
+        // Connect to all branch terminals
+        node.dependencies.extend(branch_terminals);
+
+        self.nodes.push(node);
+        self.last_node_id = Some(id);
         
-        // Reset last_node_id so next add() will depend on merge targets
-        self.last_node_id = None;
+        // Reset branch point
         self.last_branch_point = None;
         
         self
@@ -468,17 +520,42 @@ impl Graph {
 
     /// Merge a branch builder's nodes into this builder
     fn merge_branch(&mut self, branch: Graph) {
-        // Add all nodes from branch
-        self.nodes.extend(branch.nodes);
+        // Create a mapping from old branch IDs to new IDs
+        let mut id_mapping: HashMap<NodeId, NodeId> = HashMap::new();
+        
+        // Get the set of existing node IDs in the main graph (before merging)
+        let existing_ids: HashSet<NodeId> = self.nodes.iter().map(|n| n.id).collect();
+        
+        // Renumber all nodes from the branch
+        for mut node in branch.nodes {
+            let old_id = node.id;
+            let new_id = self.next_id;
+            self.next_id += 1;
+            
+            id_mapping.insert(old_id, new_id);
+            node.id = new_id;
+            
+            // Update dependencies with new IDs
+            // Only remap dependencies that were part of the branch (not from main graph)
+            node.dependencies = node.dependencies
+                .iter()
+                .map(|&dep_id| {
+                    if existing_ids.contains(&dep_id) {
+                        // This dependency is from the main graph, keep it as-is
+                        dep_id
+                    } else {
+                        // This dependency is from the branch, remap it
+                        *id_mapping.get(&dep_id).unwrap_or(&dep_id)
+                    }
+                })
+                .collect();
+            
+            self.nodes.push(node);
+        }
 
         // Recursively merge nested branches
         for nested_branch in branch.branches {
             self.merge_branch(nested_branch);
-        }
-
-        // Update next_id to ensure uniqueness
-        if let Some(max_id) = self.nodes.iter().map(|n| n.id).max() {
-            self.next_id = max_id + 1;
         }
     }
 }

@@ -75,11 +75,15 @@ fn main() {
     graph.branch(ml_branch);
     graph.branch(viz_branch);
     
-    // MERGE: Bring all branches back together
-    graph.merge();
+    // MERGE: Bring all branches back together with merge function
+    graph.merge(
+        combine_results,
+        Some("Combine"),
+        vec!["stats", "predictions", "plots"],
+        Some(vec!["report"])
+    );
     
-    // Continue with merged results
-    graph.add(combine_results, Some("Combine"), Some(vec!["stats", "predictions", "plots"]), Some(vec!["report"]));
+    // Continue after merge
     graph.add(publish, Some("Publish"), Some(vec!["report"]), None);
     
     println!("\nGraph structure:");

@@ -51,7 +51,7 @@ fn model_b1(inputs: &HashMap<String, String>, _variant_params: &HashMap<String, 
     outputs
 }
 
-fn ensemble(inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
+fn ensemble(_inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
     println!("\n✓ Ensemble: Combined all model outputs");
     let mut outputs = HashMap::new();
     outputs.insert("final".to_string(), "ensemble_prediction".to_string());
@@ -93,11 +93,13 @@ fn main() {
     graph.branch(branch_a);
     graph.branch(branch_b);
     
-    // Merge everything
-    graph.merge();
-    
-    // Final ensemble
-    graph.add(ensemble, Some("Ensemble"), Some(vec!["model_a1_out", "model_a2_out", "model_b1_out"]), Some(vec!["final"]));
+    // Merge everything with ensemble function
+    graph.merge(
+        ensemble,
+        Some("Ensemble"),
+        vec!["model_a1_out", "model_a2_out", "model_b1_out"],
+        Some(vec!["final"])
+    );
     
     println!("\nGraph structure:");
     println!("                      ┌─→ Model A1");
