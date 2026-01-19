@@ -2,8 +2,6 @@ name: Publish to crates.io and PyPI
 
 on:
   push:
-    branches:
-      - 'main'
     tags:
       - 'v*'
   workflow_dispatch:
@@ -87,7 +85,7 @@ jobs:
     name: Publish to PyPI
     needs: build-wheels
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: startsWith(github.ref, 'refs/tags/v')
     
     steps:
       - uses: actions/checkout@v4
@@ -118,7 +116,7 @@ jobs:
     name: Publish to crates.io
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: startsWith(github.ref, 'refs/tags/v')
     
     steps:
       - uses: actions/checkout@v4
