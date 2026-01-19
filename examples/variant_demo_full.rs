@@ -60,13 +60,13 @@ fn make_filter(config: FilterConfig) -> impl Fn(&HashMap<String, GraphData>, &Ha
 // Example 3: Offset Factory (Simple Parameter Sweep)
 // =============================================================================
 
-fn make_offsetter(offset: i32) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+fn make_offsetter(offset: i64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     move |inputs, _variant_params| {
-        let value = inputs.get("number").and_then(|d| d.as_int()).unwrap_or(0) as i32;
+        let value = inputs.get("number").and_then(|d| d.as_int()).unwrap_or(0);
         let result = value + offset;
         
         let mut outputs = HashMap::new();
-        outputs.insert("offset_result".to_string(), GraphData::int(result as i64));
+        outputs.insert("offset_result".to_string(), GraphData::int(result));
         outputs
     }
 }
