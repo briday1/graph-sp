@@ -13,66 +13,88 @@
 use graph_sp::{Graph, GraphData};
 use std::collections::HashMap;
 
-fn data_generator(_inputs: &HashMap<String, GraphData>, _params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+fn data_generator(
+    _inputs: &HashMap<String, GraphData>,
+    _params: &HashMap<String, GraphData>,
+) -> HashMap<String, GraphData> {
     println!("{}", "=".repeat(70));
     println!("DataGenerator: Creating diverse data types");
     println!("{}", "=".repeat(70));
-    
+
     let mut outputs = HashMap::new();
-    
+
     // Basic types
     outputs.insert("integer".to_string(), GraphData::int(42));
     outputs.insert("float".to_string(), GraphData::float(3.14159));
     outputs.insert("string".to_string(), GraphData::string("Hello, GraphData!"));
-    
+
     // Collections
-    outputs.insert("int_list".to_string(), GraphData::int_vec(vec![1, 2, 3, 4, 5]));
-    outputs.insert("float_list".to_string(), GraphData::float_vec(vec![1.1, 2.2, 3.3, 4.4, 5.5]));
-    
+    outputs.insert(
+        "int_list".to_string(),
+        GraphData::int_vec(vec![1, 2, 3, 4, 5]),
+    );
+    outputs.insert(
+        "float_list".to_string(),
+        GraphData::float_vec(vec![1.1, 2.2, 3.3, 4.4, 5.5]),
+    );
+
     // Nested structures (simulating complex objects)
     let mut metadata = HashMap::new();
-    metadata.insert("timestamp".to_string(), GraphData::string("2026-01-19T03:21:05"));
+    metadata.insert(
+        "timestamp".to_string(),
+        GraphData::string("2026-01-19T03:21:05"),
+    );
     metadata.insert("version".to_string(), GraphData::string("1.0.0"));
     metadata.insert("author".to_string(), GraphData::string("graph-sp"));
-    
+
     let mut config = HashMap::new();
     config.insert("mode".to_string(), GraphData::string("demo"));
     config.insert("verbose".to_string(), GraphData::int(1)); // bool as int
     config.insert("threshold".to_string(), GraphData::float(0.5));
     metadata.insert("config".to_string(), GraphData::map(config));
-    
+
     outputs.insert("metadata".to_string(), GraphData::map(metadata));
-    
+
     // Custom object (sensor reading)
     let mut sensor = HashMap::new();
     sensor.insert("type".to_string(), GraphData::string("sensor_reading"));
     sensor.insert("sensor_id".to_string(), GraphData::string("SENSOR_001"));
-    sensor.insert("readings".to_string(), GraphData::float_vec(vec![23.5, 23.7, 23.9, 24.1]));
+    sensor.insert(
+        "readings".to_string(),
+        GraphData::float_vec(vec![23.5, 23.7, 23.9, 24.1]),
+    );
     sensor.insert("status".to_string(), GraphData::string("nominal"));
-    
+
     let mut calibration = HashMap::new();
     calibration.insert("offset".to_string(), GraphData::float(0.1));
     calibration.insert("scale".to_string(), GraphData::float(1.02));
     sensor.insert("calibration".to_string(), GraphData::map(calibration));
-    
+
     outputs.insert("custom_object".to_string(), GraphData::map(sensor));
-    
+
     outputs
 }
 
-fn type_inspector(inputs: &HashMap<String, GraphData>, _params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+fn type_inspector(
+    inputs: &HashMap<String, GraphData>,
+    _params: &HashMap<String, GraphData>,
+) -> HashMap<String, GraphData> {
     println!("\n{}", "=".repeat(70));
     println!("TypeInspector: Analyzing received data types");
     println!("{}", "=".repeat(70));
-    
+
     for (key, value) in inputs.iter() {
         println!("\n{}:", key);
         match value {
             GraphData::Int(v) => println!("  Type: Int, Value: {}", v),
             GraphData::Float(v) => println!("  Type: Float, Value: {}", v),
             GraphData::String(v) => println!("  Type: String, Value: {}", v),
-            GraphData::IntVec(v) => println!("  Type: IntVec, Length: {}, Values: {:?}", v.len(), v),
-            GraphData::FloatVec(v) => println!("  Type: FloatVec, Length: {}, Values: {:?}", v.len(), v),
+            GraphData::IntVec(v) => {
+                println!("  Type: IntVec, Length: {}, Values: {:?}", v.len(), v)
+            }
+            GraphData::FloatVec(v) => {
+                println!("  Type: FloatVec, Length: {}, Values: {:?}", v.len(), v)
+            }
             GraphData::Map(m) => {
                 println!("  Type: Map, Keys: {}", m.len());
                 for (k, _) in m.iter() {
@@ -84,36 +106,42 @@ fn type_inspector(inputs: &HashMap<String, GraphData>, _params: &HashMap<String,
             _ => println!("  Type: Other (radar type)"),
         }
     }
-    
+
     // Pass everything through unchanged
     inputs.clone()
 }
 
-fn data_processor(inputs: &HashMap<String, GraphData>, _params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+fn data_processor(
+    inputs: &HashMap<String, GraphData>,
+    _params: &HashMap<String, GraphData>,
+) -> HashMap<String, GraphData> {
     println!("\n{}", "=".repeat(70));
     println!("DataProcessor: Processing multiple data types");
     println!("{}", "=".repeat(70));
-    
+
     let mut results = HashMap::new();
-    
+
     // Process integer
     if let Some(GraphData::Int(val)) = inputs.get("integer") {
         results.insert("integer_doubled".to_string(), GraphData::int(val * 2));
         println!("Integer: {} → doubled → {}", val, val * 2);
     }
-    
+
     // Process float
     if let Some(GraphData::Float(val)) = inputs.get("float") {
         results.insert("float_squared".to_string(), GraphData::float(val * val));
         println!("Float: {:.5} → squared → {:.5}", val, val * val);
     }
-    
+
     // Process string
     if let Some(GraphData::String(val)) = inputs.get("string") {
-        results.insert("string_upper".to_string(), GraphData::string(val.to_uppercase()));
+        results.insert(
+            "string_upper".to_string(),
+            GraphData::string(val.to_uppercase()),
+        );
         println!("String: '{}' → upper → '{}'", val, val.to_uppercase());
     }
-    
+
     // Process list
     if let Some(GraphData::FloatVec(list)) = inputs.get("float_list") {
         let sum: f64 = list.iter().sum();
@@ -123,18 +151,21 @@ fn data_processor(inputs: &HashMap<String, GraphData>, _params: &HashMap<String,
         println!("Float List: {:?}", list);
         println!("  Sum: {:.2}, Average: {:.2}", sum, avg);
     }
-    
+
     // Process nested structure
     if let Some(GraphData::Map(meta)) = inputs.get("metadata") {
         if let Some(GraphData::String(version)) = meta.get("version") {
             if let Some(GraphData::String(author)) = meta.get("author") {
                 let summary = format!("Version {} by {}", version, author);
-                results.insert("meta_summary".to_string(), GraphData::string(summary.clone()));
+                results.insert(
+                    "meta_summary".to_string(),
+                    GraphData::string(summary.clone()),
+                );
                 println!("Metadata: {}", summary);
             }
         }
     }
-    
+
     // Process custom object
     if let Some(GraphData::Map(obj)) = inputs.get("custom_object") {
         if let Some(GraphData::String(sensor_id)) = obj.get("sensor_id") {
@@ -145,20 +176,23 @@ fn data_processor(inputs: &HashMap<String, GraphData>, _params: &HashMap<String,
             }
         }
     }
-    
+
     results
 }
 
-fn result_aggregator(inputs: &HashMap<String, GraphData>, _params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+fn result_aggregator(
+    inputs: &HashMap<String, GraphData>,
+    _params: &HashMap<String, GraphData>,
+) -> HashMap<String, GraphData> {
     println!("\n{}", "=".repeat(70));
     println!("ResultAggregator: Creating final summary");
     println!("{}", "=".repeat(70));
-    
+
     // Count different types of results
     let mut numeric = 0;
     let mut string = 0;
     let mut other = 0;
-    
+
     for (_, value) in inputs.iter() {
         match value {
             GraphData::Int(_) | GraphData::Float(_) => numeric += 1,
@@ -166,24 +200,31 @@ fn result_aggregator(inputs: &HashMap<String, GraphData>, _params: &HashMap<Stri
             _ => other += 1,
         }
     }
-    
+
     println!("\nSummary:");
     println!("  Total outputs: {}", inputs.len());
     println!("  Numeric results: {}", numeric);
     println!("  String results: {}", string);
     println!("  Other results: {}", other);
-    println!("  Keys: {}", inputs.keys().map(|k| k.as_str()).collect::<Vec<_>>().join(", "));
-    
+    println!(
+        "  Keys: {}",
+        inputs
+            .keys()
+            .map(|k| k.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+
     let mut summary = HashMap::new();
     summary.insert("total".to_string(), GraphData::int(inputs.len() as i64));
     summary.insert("numeric".to_string(), GraphData::int(numeric));
     summary.insert("string".to_string(), GraphData::int(string));
     summary.insert("other".to_string(), GraphData::int(other));
-    
+
     let mut outputs = HashMap::new();
     outputs.insert("summary".to_string(), GraphData::map(summary));
     outputs.insert("success".to_string(), GraphData::int(1)); // true as 1
-    
+
     outputs
 }
 
@@ -195,10 +236,10 @@ fn main() {
     println!("The graph executor doesn't care about the data - it just passes it.");
     println!("Your node functions can work with any Rust types.");
     println!("{}", "=".repeat(70));
-    
+
     // Build the graph
     let mut graph = Graph::new();
-    
+
     // Node 1: Generate diverse data types
     graph.add(
         data_generator,
@@ -211,10 +252,10 @@ fn main() {
             ("int_list", "int_list"),
             ("float_list", "float_list"),
             ("metadata", "meta"),
-            ("custom_object", "custom")
-        ])
+            ("custom_object", "custom"),
+        ]),
     );
-    
+
     // Node 2: Inspect types
     graph.add(
         type_inspector,
@@ -226,7 +267,7 @@ fn main() {
             ("int_list", "int_list"),
             ("float_list", "float_list"),
             ("meta", "metadata"),
-            ("custom", "custom_object")
+            ("custom", "custom_object"),
         ]),
         Some(vec![
             ("integer", "inspected_int"),
@@ -234,10 +275,10 @@ fn main() {
             ("string", "inspected_str"),
             ("float_list", "inspected_list"),
             ("metadata", "inspected_meta"),
-            ("custom_object", "inspected_custom")
-        ])
+            ("custom_object", "inspected_custom"),
+        ]),
     );
-    
+
     // Node 3: Process the data
     graph.add(
         data_processor,
@@ -248,7 +289,7 @@ fn main() {
             ("inspected_str", "string"),
             ("inspected_list", "float_list"),
             ("inspected_meta", "metadata"),
-            ("inspected_custom", "custom_object")
+            ("inspected_custom", "custom_object"),
         ]),
         Some(vec![
             ("integer_doubled", "result_int"),
@@ -257,10 +298,10 @@ fn main() {
             ("list_sum", "result_sum"),
             ("list_avg", "result_avg"),
             ("meta_summary", "result_meta"),
-            ("sensor_avg", "result_sensor")
-        ])
+            ("sensor_avg", "result_sensor"),
+        ]),
     );
-    
+
     // Node 4: Aggregate results
     graph.add(
         result_aggregator,
@@ -272,28 +313,25 @@ fn main() {
             ("result_sum", "list_sum"),
             ("result_avg", "list_avg"),
             ("result_meta", "meta_summary"),
-            ("result_sensor", "sensor_avg")
+            ("result_sensor", "sensor_avg"),
         ]),
-        Some(vec![
-            ("summary", "final_summary"),
-            ("success", "status")
-        ])
+        Some(vec![("summary", "final_summary"), ("success", "status")]),
     );
-    
+
     // Build and execute
     println!("\nBuilding DAG...");
     let dag = graph.build();
-    
+
     println!("\n{}", "=".repeat(70));
     println!("Mermaid Diagram");
     println!("{}", "=".repeat(70));
     println!("{}", dag.to_mermaid());
-    
+
     println!("\n{}", "=".repeat(70));
     println!("Executing Graph");
     println!("{}", "=".repeat(70));
     let result = dag.execute(false, None);
-    
+
     println!("\n{}", "=".repeat(70));
     println!("Final Results");
     println!("{}", "=".repeat(70));
@@ -306,11 +344,12 @@ fn main() {
     if let Some(status) = result.get("status") {
         println!("\nStatus: {}", status.to_string_repr());
     }
-    
+
     println!("\n{}", "=".repeat(70));
     println!("Key Takeaway");
     println!("{}", "=".repeat(70));
-    println!(r#"
+    println!(
+        r#"
 GraphData is a TRANSPORT container, not a type restriction!
 
 You can pass ANY Rust type through the graph:
@@ -322,5 +361,6 @@ You can pass ANY Rust type through the graph:
 The graph executor doesn't care what's in the container.
 Your node functions decide what to do with the data.
 This gives you complete flexibility!
-    "#);
+    "#
+    );
 }

@@ -13,39 +13,39 @@
 //! ## Example
 //!
 //! ```rust
-//! use graph_sp::Graph;
+//! use graph_sp::{Graph, GraphData};
 //! use std::collections::HashMap;
 //!
-//! fn data_source(_: &HashMap<String, String>) -> HashMap<String, String> {
+//! fn data_source(_: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
 //!     let mut result = HashMap::new();
-//!     result.insert("output".to_string(), "Hello, World!".to_string());
+//!     result.insert("output".to_string(), GraphData::string("Hello, World!"));
 //!     result
 //! }
 //!
-//! fn processor(inputs: &HashMap<String, String>) -> HashMap<String, String> {
+//! fn processor(inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
 //!     let mut result = HashMap::new();
-//!     if let Some(data) = inputs.get("input") {
-//!         result.insert("output".to_string(), data.to_uppercase());
+//!     if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
+//!         result.insert("output".to_string(), GraphData::string(data.to_uppercase()));
 //!     }
 //!     result
 //! }
 //!
 //! let mut graph = Graph::new();
-//! graph.add(data_source, Some("Source"), None, Some(vec!["output"]));
-//! graph.add(processor, Some("Processor"), Some(vec!["input"]), Some(vec!["output"]));
+//! graph.add(data_source, Some("Source"), None, Some(vec![("output", "output")]));
+//! graph.add(processor, Some("Processor"), Some(vec![("output", "input")]), Some(vec![("output", "output")]));
 //!
 //! let dag = graph.build();
 //! ```
 
 mod builder;
 mod dag;
-mod node;
 mod graph_data;
+mod node;
 
 #[cfg(feature = "python")]
 mod python_bindings;
 
 pub use builder::{Generator, Geomspace, Graph, IntoVariantValues, Linspace, Logspace};
 pub use dag::{Dag, ExecutionContext, ExecutionResult};
-pub use node::{NodeFunction, NodeId};
 pub use graph_data::GraphData;
+pub use node::{NodeFunction, NodeId};

@@ -9,7 +9,11 @@ pub type NodeId = usize;
 
 /// Type alias for node execution functions using GraphData
 /// Takes GraphData ports and variant parameters as input, returns output ports
-pub type NodeFunction = Arc<dyn Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> + Send + Sync>;
+pub type NodeFunction = Arc<
+    dyn Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
+        + Send
+        + Sync,
+>;
 
 /// Represents a node in the graph
 #[derive(Clone)]
@@ -67,13 +71,15 @@ impl Node {
             .input_mapping
             .iter()
             .filter_map(|(broadcast_var, impl_var)| {
-                context.get(broadcast_var).map(|val| (impl_var.clone(), val.clone()))
+                context
+                    .get(broadcast_var)
+                    .map(|val| (impl_var.clone(), val.clone()))
             })
             .collect();
 
         // Execute function with both inputs and variant parameters
         let func_outputs = (self.function)(&inputs, &self.variant_params);
-        
+
         // Map function outputs to broadcast vars using output_mapping
         // output_mapping: impl_var -> broadcast_var
         let mut context_outputs = HashMap::new();
@@ -82,7 +88,7 @@ impl Node {
                 context_outputs.insert(broadcast_var.clone(), value.clone());
             }
         }
-        
+
         context_outputs
     }
 

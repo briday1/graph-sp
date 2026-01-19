@@ -57,13 +57,13 @@ impl IntoVariantValues for Linspace {
         if self.count == 0 {
             return Vec::new();
         }
-        
+
         let step = if self.count > 1 {
             (self.end - self.start) / (self.count - 1) as f64
         } else {
             0.0
         };
-        
+
         (0..self.count)
             .map(|i| {
                 let value = self.start + step * i as f64;
@@ -91,7 +91,7 @@ impl IntoVariantValues for Logspace {
         if self.count == 0 || self.start <= 0.0 || self.end <= 0.0 {
             return Vec::new();
         }
-        
+
         let log_start = self.start.ln();
         let log_end = self.end.ln();
         let step = if self.count > 1 {
@@ -99,7 +99,7 @@ impl IntoVariantValues for Logspace {
         } else {
             0.0
         };
-        
+
         (0..self.count)
             .map(|i| {
                 let value = (log_start + step * i as f64).exp();
@@ -118,7 +118,11 @@ pub struct Geomspace {
 
 impl Geomspace {
     pub fn new(start: f64, ratio: f64, count: usize) -> Self {
-        Self { start, ratio, count }
+        Self {
+            start,
+            ratio,
+            count,
+        }
     }
 }
 
@@ -242,7 +246,10 @@ impl Graph {
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
-        F: Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
+        F: Fn(
+                &HashMap<String, GraphData>,
+                &HashMap<String, GraphData>,
+            ) -> HashMap<String, GraphData>
             + Send
             + Sync
             + 'static,
@@ -283,7 +290,7 @@ impl Graph {
 
         self.nodes.push(node);
         self.last_node_id = Some(id);
-        
+
         // Reset branch point after adding a regular node
         self.last_branch_point = None;
 
@@ -308,7 +315,7 @@ impl Graph {
     pub fn branch(&mut self, mut subgraph: Graph) -> usize {
         // Assign a branch ID to this subgraph
         let branch_id = self.get_branch_id();
-        
+
         // Determine the branch point
         let branch_point = if let Some(bp) = self.last_branch_point {
             // Sequential .branch() calls - use the same branch point
@@ -333,7 +340,7 @@ impl Graph {
             first_node.is_branch = true;
             first_node.branch_id = Some(branch_id);
         }
-        
+
         // Mark all nodes in this branch with the branch ID
         for node in &mut subgraph.nodes {
             node.branch_id = Some(branch_id);
@@ -397,19 +404,22 @@ impl Graph {
     where
         F: Fn(P) -> NF,
         P: ToString + Clone,
-        NF: Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
+        NF: Fn(
+                &HashMap<String, GraphData>,
+                &HashMap<String, GraphData>,
+            ) -> HashMap<String, GraphData>
             + Send
             + Sync
             + 'static,
     {
         // Remember the branch point before adding variants
         let branch_point = self.last_node_id;
-        
+
         // Create a variant node for each parameter value
         for (idx, param_value) in param_values.iter().enumerate() {
             // Create the node function using the factory
             let node_fn = factory(param_value.clone());
-            
+
             let id = self.next_id;
             self.next_id += 1;
 
@@ -439,7 +449,10 @@ impl Graph {
 
             // Set variant index and param value
             node.variant_index = Some(idx);
-            node.variant_params.insert("param_value".to_string(), GraphData::from_string(&param_value.to_string()));
+            node.variant_params.insert(
+                "param_value".to_string(),
+                GraphData::from_string(&param_value.to_string()),
+            );
 
             // Connect to branch point (all variants branch from same node)
             if let Some(bp_id) = branch_point {
@@ -473,16 +486,16 @@ impl Graph {
     ///
     /// ```ignore
     /// graph.add(source_fn, Some("Source"), None, Some(vec![("src_out", "data")]));
-    /// 
+    ///
     /// let mut branch_a = Graph::new();
     /// branch_a.add(process_a, Some("Process A"), Some(vec![("data", "input")]), Some(vec![("output", "result")]));
-    /// 
+    ///
     /// let mut branch_b = Graph::new();
     /// branch_b.add(process_b, Some("Process B"), Some(vec![("data", "input")]), Some(vec![("output", "result")]));
-    /// 
+    ///
     /// let branch_a_id = graph.branch(branch_a);
     /// let branch_b_id = graph.branch(branch_b);
-    /// 
+    ///
     /// // Merge function combines results from both branches
     /// // Branches can use same output name "result", merge maps them distinctly
     /// graph.merge(
@@ -503,7 +516,10 @@ impl Graph {
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
-        F: Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
+        F: Fn(
+                &HashMap<String, GraphData>,
+                &HashMap<String, GraphData>,
+            ) -> HashMap<String, GraphData>
             + Send
             + Sync
             + 'static,
@@ -511,14 +527,14 @@ impl Graph {
         // First, integrate all pending branches into the main graph
         let branches = std::mem::take(&mut self.branches);
         let mut branch_terminals = Vec::new();
-        
+
         for (_branch_id, branch) in branches {
             if let Some(last_id) = branch.last_node_id {
                 branch_terminals.push(last_id);
             }
             self.merge_branch(branch);
         }
-        
+
         // Create the merge node
         let id = self.next_id;
         self.next_id += 1;
@@ -530,7 +546,10 @@ impl Graph {
             .iter()
             .map(|(branch_id, broadcast_var, impl_var)| {
                 // Store as "branch_id:broadcast_var" -> impl_var for unique identification
-                (format!("{}:{}", branch_id, broadcast_var), impl_var.to_string())
+                (
+                    format!("{}:{}", branch_id, broadcast_var),
+                    impl_var.to_string(),
+                )
             })
             .collect();
 
@@ -554,10 +573,10 @@ impl Graph {
 
         self.nodes.push(node);
         self.last_node_id = Some(id);
-        
+
         // Reset branch point
         self.last_branch_point = None;
-        
+
         self
     }
 
@@ -582,22 +601,23 @@ impl Graph {
     fn merge_branch(&mut self, branch: Graph) {
         // Create a mapping from old branch IDs to new IDs
         let mut id_mapping: HashMap<NodeId, NodeId> = HashMap::new();
-        
+
         // Get the set of existing node IDs in the main graph (before merging)
         let existing_ids: HashSet<NodeId> = self.nodes.iter().map(|n| n.id).collect();
-        
+
         // Renumber all nodes from the branch
         for mut node in branch.nodes {
             let old_id = node.id;
             let new_id = self.next_id;
             self.next_id += 1;
-            
+
             id_mapping.insert(old_id, new_id);
             node.id = new_id;
-            
+
             // Update dependencies with new IDs
             // Only remap dependencies that were part of the branch (not from main graph)
-            node.dependencies = node.dependencies
+            node.dependencies = node
+                .dependencies
                 .iter()
                 .map(|&dep_id| {
                     if existing_ids.contains(&dep_id) {
@@ -609,7 +629,7 @@ impl Graph {
                     }
                 })
                 .collect();
-            
+
             self.nodes.push(node);
         }
 
