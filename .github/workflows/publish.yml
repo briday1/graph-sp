@@ -2,6 +2,8 @@ name: Publish to crates.io and PyPI
 
 on:
   push:
+    branches:
+      - 'copilot/fix-publish-workflow-issues-again'
     tags:
       - 'v*'
   workflow_dispatch:
@@ -85,7 +87,7 @@ jobs:
     name: Publish to PyPI
     needs: build-wheels
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push'
     
     steps:
       - uses: actions/checkout@v4
@@ -117,7 +119,7 @@ jobs:
     name: Publish to crates.io
     needs: test
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push'
     
     steps:
       - uses: actions/checkout@v4
