@@ -165,9 +165,9 @@ plt.colorbar(im1, ax=ax1, label='Magnitude')
 
 # Find and mark peak
 peak_idx = np.unravel_index(np.argmax(np.abs(range_doppler)), range_doppler.shape)
-ax1.plot(peak_idx[1], peak_idx[0], 'wx', markersize=15, markeredgewidth=2, 
-         label=f'Peak @ Doppler={peak_idx[0]}, Range={peak_idx[1]}')
-ax1.legend()
+ax1.plot(peak_idx[1], peak_idx[0], 'w+', markersize=10, markeredgewidth=1.5, 
+         label=f'Peak @ Dop={peak_idx[0]}, Rng={peak_idx[1]}')
+ax1.legend(fontsize=9)
 
 # dB scale
 rd_db = 20 * np.log10(np.abs(range_doppler) + 1e-10)
@@ -176,7 +176,7 @@ ax2.set_xlabel('Range Bin')
 ax2.set_ylabel('Doppler Bin')
 ax2.set_title('Rust: Range-Doppler Map (dB Scale)')
 plt.colorbar(im2, ax=ax2, label='Magnitude (dB)')
-ax2.plot(peak_idx[1], peak_idx[0], 'wx', markersize=15, markeredgewidth=2)
+ax2.plot(peak_idx[1], peak_idx[0], 'w+', markersize=10, markeredgewidth=1.5)
 
 plt.tight_layout()
 plt.savefig('rust_04_range_doppler_map.png', dpi=150, bbox_inches='tight')

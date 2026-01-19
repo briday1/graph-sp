@@ -43,7 +43,7 @@ fn lfm_generator(_inputs: &HashMap<String, GraphData>, params: &HashMap<String, 
     // Generate LFM pulse with rectangular envelope
     let chirp_rate = bandwidth / pulse_width;
     
-    let pulse_start = (num_samples as f64 * 0.2) as usize; // Start at 20%
+    let pulse_start = (num_samples as f64 * 0.15) as usize; // Start at 15% so peak appears mid-range
     let pulse_samples = (pulse_width * sample_rate) as usize;
     let pulse_end = (pulse_start + pulse_samples).min(num_samples);
     

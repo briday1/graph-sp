@@ -149,9 +149,9 @@ plt.colorbar(im1, ax=ax1, label='Magnitude')
 # Mark peak
 max_val = magnitude.max()
 max_idx = np.unravel_index(np.argmax(magnitude), magnitude.shape)
-ax1.plot(max_idx[1], max_idx[0], 'w*', markersize=15, markeredgecolor='k')
-ax1.text(max_idx[1], max_idx[0] - 5, f'Peak: {max_val:.0f}', 
-         color='white', ha='center', fontweight='bold',
+ax1.plot(max_idx[1], max_idx[0], 'w+', markersize=10, markeredgewidth=1.5)
+ax1.text(max_idx[1] - 15, max_idx[0], f'Peak @ Dop={max_idx[0]}, Rng={max_idx[1]}', 
+         color='white', ha='right', fontsize=9, fontweight='bold',
          bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
 
 # dB scale
@@ -163,7 +163,7 @@ ax2.set_title('Python: Range-Doppler Map (dB scale)')
 plt.colorbar(im2, ax=ax2, label='Magnitude (dB)')
 
 # Mark peak
-ax2.plot(max_idx[1], max_idx[0], 'w*', markersize=15, markeredgecolor='k')
+ax2.plot(max_idx[1], max_idx[0], 'w+', markersize=10, markeredgewidth=1.5)
 
 plt.tight_layout()
 plt.savefig('python_04_range_doppler_map.png', dpi=150, bbox_inches='tight')
