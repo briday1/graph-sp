@@ -34,19 +34,26 @@ fn lfm_generator(_inputs: &HashMap<String, GraphData>, params: &HashMap<String, 
         .and_then(|d| d.as_float())
         .unwrap_or(100e6); // 100 MHz
     
-    let duration = params.get("duration")
+    let pulse_width = params.get("pulse_width")
         .and_then(|d| d.as_float())
-        .unwrap_or(10e-6); // 10 microseconds
+        .unwrap_or(2e-6); // 2 microseconds
     
-    // Generate LFM pulse
-    let sample_rate = num_samples as f64 / duration;
-    let chirp_rate = bandwidth / duration;
+    let sample_rate = 100e6; // 100 MHz sample rate
+    
+    // Generate LFM pulse with rectangular envelope
+    let chirp_rate = bandwidth / pulse_width;
+    
+    let pulse_start = (num_samples as f64 * 0.2) as usize; // Start at 20%
+    let pulse_samples = (pulse_width * sample_rate) as usize;
+    let pulse_end = (pulse_start + pulse_samples).min(num_samples);
     
     let mut signal = Array1::<Complex<f64>>::zeros(num_samples);
-    for (i, sample) in signal.iter_mut().enumerate() {
-        let t = i as f64 / sample_rate;
-        let phase = 2.0 * PI * (chirp_rate / 2.0 * t * t);
-        *sample = Complex::new(phase.cos(), phase.sin());
+    
+    // Generate chirp only within pulse envelope
+    for i in pulse_start..pulse_end {
+        let t_pulse = (i - pulse_start) as f64 / sample_rate;
+        let phase = 2.0 * PI * (chirp_rate / 2.0 * t_pulse * t_pulse);
+        signal[i] = Complex::new(phase.cos(), phase.sin());
     }
     
     println!("LFMGenerator: Generated {} sample LFM pulse", num_samples);
@@ -121,7 +128,6 @@ fn range_compress(inputs: &HashMap<String, GraphData>, _params: &HashMap<String,
     
     // Matched filter: correlate with conjugate of reference pulse
     // Time-reverse and conjugate the reference
-    let ref_len = reference.len();
     let mut ref_conj: Vec<Complex64> = reference.iter().rev()
         .map(|c| Complex64::new(c.re, -c.im))
         .collect();
@@ -131,7 +137,7 @@ fn range_compress(inputs: &HashMap<String, GraphData>, _params: &HashMap<String,
     ref_conj.resize(stacked_len, Complex64::new(0.0, 0.0));
     
     // Convert stacked to Complex64 for FFT
-    let mut signal: Vec<Complex64> = stacked.iter()
+    let signal: Vec<Complex64> = stacked.iter()
         .map(|c| Complex64::new(c.re, c.im))
         .collect();
     

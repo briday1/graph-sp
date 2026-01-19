@@ -17,7 +17,7 @@ import numpy as np
 
 def lfm_generator(inputs, variant_params):
     """
-    Generate a Linear Frequency Modulation (LFM) pulse.
+    Generate a Linear Frequency Modulation (LFM) pulse with rectangular envelope.
     
     Args:
         inputs: Dictionary of input variables (empty for source nodes)
@@ -28,15 +28,27 @@ def lfm_generator(inputs, variant_params):
     """
     num_samples = 256
     bandwidth = 100e6  # 100 MHz
-    duration = 10e-6   # 10 microseconds
+    pulse_width = 2e-6  # 2 microseconds pulse width
+    sample_rate = 100e6  # 100 MHz sample rate
     
-    # Generate LFM pulse
-    sample_rate = num_samples / duration
-    chirp_rate = bandwidth / duration
-    
+    # Generate LFM chirp
+    chirp_rate = bandwidth / pulse_width
     t = np.arange(num_samples) / sample_rate
-    phase = 2 * np.pi * (chirp_rate / 2.0 * t * t)
-    signal = np.exp(1j * phase)
+    
+    # Create rectangular pulse envelope
+    pulse_envelope = np.zeros(num_samples)
+    pulse_start = int(num_samples * 0.2)  # Start at 20% of samples
+    pulse_end = pulse_start + int(pulse_width * sample_rate)  # Pulse duration
+    pulse_envelope[pulse_start:pulse_end] = 1.0
+    
+    # Generate chirp phase (only within pulse)
+    phase = np.zeros(num_samples)
+    for i in range(pulse_start, min(pulse_end, num_samples)):
+        t_pulse = (i - pulse_start) / sample_rate
+        phase[i] = 2 * np.pi * (chirp_rate / 2.0 * t_pulse * t_pulse)
+    
+    # Apply envelope to create pulsed LFM signal
+    signal = pulse_envelope * np.exp(1j * phase)
     
     print(f"LFMGenerator: Generated {num_samples} sample LFM pulse")
     
