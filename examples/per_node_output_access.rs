@@ -32,7 +32,7 @@ fn demo_per_node_access() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), GraphData::string("10"));
+            result.insert("value".to_string(), GraphData::int(10));
             result
         },
         Some("Source"),
@@ -43,9 +43,9 @@ fn demo_per_node_access() {
     // Node 1: Double
     graph.add(
         |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("in").and_then(|d| d.as_string()).unwrap().parse::<i32>().unwrap();
+            let value = inputs.get("in").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
-            result.insert("doubled".to_string(), GraphData::string(&(value * 2).to_string()));
+            result.insert("doubled".to_string(), GraphData::int(value * 2));
             result
         },
         Some("Double"),
@@ -56,9 +56,9 @@ fn demo_per_node_access() {
     // Node 2: Add Ten
     graph.add(
         |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("in").and_then(|d| d.as_string()).unwrap().parse::<i32>().unwrap();
+            let value = inputs.get("in").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
-            result.insert("added".to_string(), GraphData::string(&(value + 10).to_string()));
+            result.insert("added".to_string(), GraphData::int(value + 10));
             result
         },
         Some("AddTen"),
@@ -122,7 +122,7 @@ fn demo_per_branch_access() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("dataset".to_string(), GraphData::string("100"));
+            result.insert("dataset".to_string(), GraphData::int(100));
             result
         },
         Some("Source"),
@@ -134,7 +134,7 @@ fn demo_per_branch_access() {
     let mut branch_a = Graph::new();
     branch_a.add(
         |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("input").and_then(|d| d.as_string()).unwrap();
+            let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("stat_result".to_string(), GraphData::string(&format!("Mean of {}", value)));
             result
@@ -148,7 +148,7 @@ fn demo_per_branch_access() {
     let mut branch_b = Graph::new();
     branch_b.add(
         |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("input").and_then(|d| d.as_string()).unwrap();
+            let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("model_result".to_string(), GraphData::string(&format!("Model trained on {}", value)));
             result
@@ -162,7 +162,7 @@ fn demo_per_branch_access() {
     let mut branch_c = Graph::new();
     branch_c.add(
         |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("input").and_then(|d| d.as_string()).unwrap();
+            let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("viz_result".to_string(), GraphData::string(&format!("Plot of {}", value)));
             result
@@ -233,7 +233,7 @@ fn demo_variant_per_node_access() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("base_value".to_string(), GraphData::string("10"));
+            result.insert("base_value".to_string(), GraphData::int(10));
             result
         },
         Some("Source"),
@@ -244,9 +244,9 @@ fn demo_variant_per_node_access() {
     // Variant factory for scaling
     fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
         move |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("input_data").and_then(|d| d.as_string()).unwrap().parse::<f64>().unwrap();
+            let value = inputs.get("input_data").and_then(|d| d.as_int()).unwrap() as f64;
             let mut result = HashMap::new();
-            result.insert("scaled_value".to_string(), GraphData::string(&(value * factor).to_string()));
+            result.insert("scaled_value".to_string(), GraphData::float(value * factor));
             result
         }
     }
@@ -302,7 +302,7 @@ fn demo_execution_history_tracking() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("raw".to_string(), GraphData::string("5"));
+            result.insert("raw".to_string(), GraphData::int(5));
             result
         },
         Some("Load"),
@@ -312,9 +312,9 @@ fn demo_execution_history_tracking() {
     
     graph.add(
         |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("x").and_then(|d| d.as_string()).unwrap().parse::<i32>().unwrap();
+            let value = inputs.get("x").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
-            result.insert("cleaned".to_string(), GraphData::string(&(value + 1).to_string()));
+            result.insert("cleaned".to_string(), GraphData::int(value + 1));
             result
         },
         Some("Clean"),
@@ -324,9 +324,9 @@ fn demo_execution_history_tracking() {
     
     graph.add(
         |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("x").and_then(|d| d.as_string()).unwrap().parse::<i32>().unwrap();
+            let value = inputs.get("x").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
-            result.insert("normalized".to_string(), GraphData::string(&(value * 10).to_string()));
+            result.insert("normalized".to_string(), GraphData::int(value * 10));
             result
         },
         Some("Normalize"),
@@ -336,7 +336,7 @@ fn demo_execution_history_tracking() {
     
     graph.add(
         |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("x").and_then(|d| d.as_string()).unwrap().parse::<i32>().unwrap();
+            let value = inputs.get("x").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("transformed".to_string(), GraphData::string(&format!("FINAL_{}", value)));
             result
