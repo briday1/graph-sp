@@ -496,6 +496,35 @@ python examples/python_radar_demo.py
 - **Type Safety**: Accessor methods (`.as_complex_array()`, `.as_int()`, `.as_float()`) provide safe type extraction
 - **Complex Signal Processing**: Full FFT-based radar processing with ndarray integration
 
+### Adding Plotting Nodes
+
+Plotting and visualization functions can be added as terminal nodes that take input but produce no output:
+
+```rust
+fn plot_range_doppler(inputs: &HashMap<String, GraphData>, _params: &HashMap<String, GraphData>) 
+    -> HashMap<String, GraphData> {
+    // Extract data for plotting
+    if let Some(map) = inputs.get("range_doppler").and_then(|d| d.as_complex_array()) {
+        // Generate plot (save to file, display, etc.)
+        println!("Generating Range-Doppler map plot...");
+        // ... plotting code using matplotlib, plotters, etc. ...
+    }
+    
+    // No outputs - this is a terminal/visualization node
+    HashMap::new()
+}
+
+// Add to graph
+graph.add(
+    plot_range_doppler,
+    Some("PlotRangeDoppler"),
+    Some(vec![("range_doppler_map", "range_doppler")]),
+    None  // No outputs for visualization nodes
+);
+```
+
+This pattern allows visualization and logging nodes to be integrated into the pipeline without affecting data flow.
+
 ## API Overview
 
 ### Rust API
