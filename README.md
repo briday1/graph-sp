@@ -406,11 +406,9 @@ def lfm_generator(inputs, variant_params):
     
     # ... signal generation code ...
     
-    # Convert complex array to list of tuples (real, imag)
-    pulse_data = [(float(c.real), float(c.imag)) for c in signal]
-    
+    # Return complex array directly (implicit handling)
     return {
-        "pulse": pulse_data,
+        "pulse": signal.tolist(),  # Converts to Python list of complex numbers
         "num_samples": num_samples
     }
 
@@ -418,18 +416,16 @@ def stack_pulses(inputs, variant_params):
     """Stack multiple pulses with Doppler shifts."""
     num_pulses = 128
     
-    # Get pulse data and convert back to complex array
+    # Get pulse data directly as complex array (implicit handling)
     pulse_data = inputs.get("pulse", [])
-    pulse = np.array([complex(r, i) for r, i in pulse_data])
+    pulse = np.array(pulse_data, dtype=complex)
     
     # Stack with Doppler shifts
     # ... stacking logic ...
     
-    # Convert stacked data
-    stacked_list = [[(float(c.real), float(c.imag)) for c in row] for row in stacked]
-    
+    # Return stacked data (implicit complex handling)
     return {
-        "stacked": stacked_list,
+        "stacked": [row.tolist() for row in stacked],
         "num_pulses": num_pulses
     }
 
@@ -493,6 +489,7 @@ python examples/python_radar_demo.py
 
 - **Native Type Support**: Uses `GraphData::complex_array()` for signal data, `GraphData::int()` for metadata
 - **No String Conversions**: Numeric data stays in native format (i64, f64, Complex<f64>)
+- **Implicit Complex Number Handling**: Python complex numbers (numpy.complex128, built-in complex) are automatically converted to/from GraphData::Complex without manual real/imag splitting
 - **Type Safety**: Accessor methods (`.as_complex_array()`, `.as_int()`, `.as_float()`) provide safe type extraction
 - **Complex Signal Processing**: Full FFT-based radar processing with ndarray integration
 

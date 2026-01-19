@@ -5,6 +5,8 @@
 
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
+#[cfg(feature = "radar_examples")]
+use pyo3::types::PyComplex;
 use pyo3::exceptions::PyValueError;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -348,8 +350,8 @@ fn graph_data_to_python(py: Python, data: &GraphData) -> PyObject {
         GraphData::None => py.None(),
         #[cfg(feature = "radar_examples")]
         GraphData::Complex(c) => {
-            // Convert complex to tuple (real, imag)
-            (c.re, c.im).to_object(py)
+            // Convert to Python complex number (not tuple)
+            PyComplex::from_doubles(py, c.re, c.im).to_object(py)
         }
         #[cfg(feature = "radar_examples")]
         GraphData::FloatArray(a) => {
@@ -358,9 +360,13 @@ fn graph_data_to_python(py: Python, data: &GraphData) -> PyObject {
         }
         #[cfg(feature = "radar_examples")]
         GraphData::ComplexArray(a) => {
-            // Convert complex array to list of tuples
-            let vec: Vec<(f64, f64)> = a.iter().map(|c| (c.re, c.im)).collect();
-            vec.to_object(py)
+            // Convert complex array to list of Python complex numbers
+            let list = PyList::empty(py);
+            for c in a.iter() {
+                let py_complex = PyComplex::from_doubles(py, c.re, c.im);
+                let _ = list.append(py_complex);
+            }
+            list.to_object(py)
         }
     }
 }
@@ -379,10 +385,26 @@ fn python_to_graph_data(obj: &PyAny) -> GraphData {
     if let Ok(v) = obj.extract::<String>() {
         return GraphData::String(v);
     }
-    // Try tuple of floats (for complex numbers as (real, imag))
-    if let Ok((r, i)) = obj.extract::<(f64, f64)>() {
-        return GraphData::FloatVec(vec![r, i]);
+    
+    // Try Python complex number (numpy.complex128, complex, etc.)
+    #[cfg(feature = "radar_examples")]
+    {
+        if let Ok(complex) = obj.downcast::<PyComplex>() {
+            let real = complex.real();
+            let imag = complex.imag();
+            use num_complex::Complex;
+            return GraphData::Complex(Complex::new(real, imag));
+        }
+        
+        // Also try getting real/imag attributes (for numpy complex types)
+        if let (Ok(real), Ok(imag)) = (obj.getattr("real"), obj.getattr("imag")) {
+            if let (Ok(r), Ok(i)) = (real.extract::<f64>(), imag.extract::<f64>()) {
+                use num_complex::Complex;
+                return GraphData::Complex(Complex::new(r, i));
+            }
+        }
     }
+    
     // Try list
     if let Ok(list) = obj.downcast::<PyList>() {
         // Try list of floats
@@ -393,18 +415,40 @@ fn python_to_graph_data(obj: &PyAny) -> GraphData {
         if let Ok(vec) = list.extract::<Vec<i64>>() {
             return GraphData::IntVec(vec);
         }
-        // Try list of tuples (complex numbers)
-        if let Ok(vec) = list.extract::<Vec<(f64, f64)>>() {
-            // Store as Map with special structure for complex arrays
-            let mut map = HashMap::new();
-            for (idx, (r, i)) in vec.iter().enumerate() {
-                let mut complex_map = HashMap::new();
-                complex_map.insert("re".to_string(), GraphData::Float(*r));
-                complex_map.insert("im".to_string(), GraphData::Float(*i));
-                map.insert(idx.to_string(), GraphData::Map(complex_map));
+        
+        // Try list of complex numbers (implicit handling)
+        #[cfg(feature = "radar_examples")]
+        {
+            let mut complex_vec = Vec::new();
+            let mut all_complex = true;
+            
+            for item in list.iter() {
+                // Try PyComplex
+                if let Ok(complex) = item.downcast::<PyComplex>() {
+                    use num_complex::Complex;
+                    complex_vec.push(Complex::new(complex.real(), complex.imag()));
+                } 
+                // Try numpy complex (has real/imag attributes)
+                else if let (Ok(real), Ok(imag)) = (item.getattr("real"), item.getattr("imag")) {
+                    if let (Ok(r), Ok(i)) = (real.extract::<f64>(), imag.extract::<f64>()) {
+                        use num_complex::Complex;
+                        complex_vec.push(Complex::new(r, i));
+                    } else {
+                        all_complex = false;
+                        break;
+                    }
+                } else {
+                    all_complex = false;
+                    break;
+                }
             }
-            return GraphData::Map(map);
+            
+            if all_complex && !complex_vec.is_empty() {
+                use ndarray::Array1;
+                return GraphData::ComplexArray(Array1::from_vec(complex_vec));
+            }
         }
+        
         // Try nested list - convert to Map with indices
         if !list.is_empty() {
             // Check if it's a nested structure

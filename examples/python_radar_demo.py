@@ -56,11 +56,9 @@ def lfm_generator(inputs, variant_params):
     
     print(f"LFMGenerator: Generated {num_samples} sample LFM pulse")
     
-    # Convert complex array to list of tuples (real, imag) for compatibility
-    pulse_data = [(float(c.real), float(c.imag)) for c in signal]
-    
+    # Return complex array directly - no need to convert to tuples
     return {
-        "pulse": pulse_data,
+        "pulse": signal.tolist(),  # Convert to Python list of complex numbers
         "num_samples": num_samples
     }
 
@@ -82,8 +80,8 @@ def stack_pulses(inputs, variant_params):
         print(f"StackPulses: No pulse data found or wrong format. Got: {type(pulse_data)}")
         return {"stacked": None}
     
-    # Convert list of tuples (real, imag) back to complex
-    pulse = np.array([complex(r, i) for r, i in pulse_data])
+    # Convert directly to numpy complex array (no tuple conversion needed)
+    pulse = np.array(pulse_data, dtype=complex)
     num_samples = len(pulse)
     
     # Stack pulses (in real radar, these would be from different transmit times)
@@ -96,14 +94,15 @@ def stack_pulses(inputs, variant_params):
         # Add Doppler shift
         phase_shift = 2 * np.pi * doppler_freq * pulse_idx / prf
         shifted_pulse = pulse * np.exp(1j * phase_shift)
-        # Convert back to list of tuples
-        shifted_data = [(float(c.real), float(c.imag)) for c in shifted_pulse]
-        stacked.append(shifted_data)
+        stacked.append(shifted_pulse)
+    
+    stacked = np.array(stacked)  # Shape: (num_pulses, num_samples)
     
     print(f"StackPulses: Stacked {num_pulses} pulses of {num_samples} samples each")
     
+    # Return as list of complex arrays (implicit handling)
     return {
-        "stacked": stacked,  # 2D list of tuples
+        "stacked": [row.tolist() for row in stacked],
         "num_pulses": num_pulses,
         "num_samples": num_samples
     }
@@ -131,9 +130,9 @@ def range_compress(inputs, variant_params):
         print(f"RangeCompress: No reference pulse found")
         return {"compressed": None}
     
-    # Convert list of tuples back to complex numpy arrays
-    reference = np.array([complex(r, i) for r, i in reference_data])
-    stacked = np.array([[complex(r, i) for r, i in pulse] for pulse in stacked_data])
+    # Convert directly to numpy complex arrays (implicit handling)
+    reference = np.array(reference_data, dtype=complex)
+    stacked = np.array([np.array(pulse, dtype=complex) for pulse in stacked_data])
     
     # Matched filter: correlate with conjugate of reference pulse
     # This is the standard pulse compression technique
@@ -148,13 +147,11 @@ def range_compress(inputs, variant_params):
     
     compressed = np.array(compressed)
     
-    # Convert back to list of lists of tuples
-    compressed_data = [[(float(c.real), float(c.imag)) for c in pulse] for pulse in compressed]
-    
     print(f"RangeCompress: Performed matched filtering on {compressed.shape} data")
     
+    # Return as list of complex arrays (implicit handling)
     return {
-        "compressed": compressed_data
+        "compressed": [row.tolist() for row in compressed]
     }
 
 def doppler_compress(inputs, variant_params):
@@ -173,8 +170,8 @@ def doppler_compress(inputs, variant_params):
         print(f"DopplerCompress: No compressed data found or wrong format. Got: {type(compressed_data)}")
         return {"rd_map": None}
     
-    # Convert list of lists of tuples to numpy array
-    compressed = np.array([[complex(r, i) for r, i in pulse] for pulse in compressed_data])
+    # Convert directly to numpy complex array (implicit handling)
+    compressed = np.array([np.array(pulse, dtype=complex) for pulse in compressed_data])
     
     # Perform FFT along slow-time (axis=0, pulse dimension)
     rd_map = np.fft.fft(compressed, axis=0)
