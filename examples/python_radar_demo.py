@@ -37,7 +37,7 @@ def lfm_generator(inputs, variant_params):
     
     # Create rectangular pulse envelope
     pulse_envelope = np.zeros(num_samples)
-    pulse_start = int(num_samples * 0.15)  # Start at 15% so peak appears mid-range
+    pulse_start = int(num_samples * 0.35)  # Start at 35% for central peak position
     pulse_end = pulse_start + int(pulse_width * sample_rate)  # Pulse duration
     pulse_envelope[pulse_start:pulse_end] = 1.0
     
