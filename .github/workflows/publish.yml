@@ -97,20 +97,49 @@ jobs:
           pattern: wheels-*
           merge-multiple: true
       
+      - name: List downloaded artifacts
+        run: |
+          echo "Contents of dist directory:"
+          ls -lah dist/
+          echo "Number of wheels: $(ls -1 dist/*.whl 2>/dev/null | wc -l)"
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       
-      - name: Install twine
-        run: pip install twine
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install maturin and twine
+        run: |
+          pip install maturin==1.2.0 twine
+          echo "Maturin version: $(maturin --version)"
+          echo "Twine version: $(twine --version)"
+      
+      - name: Build source distribution
+        run: |
+          maturin build --release --features python --sdist --out dist
+          echo "Contents of dist after sdist:"
+          ls -lah dist/
+      
+      - name: Verify PyPI token is available
+        run: |
+          if [ -z "${{ secrets.PYPI_API_TOKEN }}" ]; then
+            echo "ERROR: PYPI_API_TOKEN secret is not set"
+            exit 1
+          else
+            echo "PYPI_API_TOKEN is set (length: ${#PYPI_API_TOKEN})"
+          fi
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
       
       - name: Publish to PyPI
         env:
           PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
-          # Publish all downloaded wheels to PyPI
-          twine upload dist/*.whl --username __token__ --password $PYPI_API_TOKEN --skip-existing
+          echo "Publishing to PyPI..."
+          twine upload dist/* --username __token__ --password $PYPI_API_TOKEN --skip-existing --verbose
 
   publish-crates-io:
     name: Publish to crates.io
