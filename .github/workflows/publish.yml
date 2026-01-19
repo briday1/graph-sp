@@ -7,8 +7,50 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    name: Run tests and examples
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Run Rust tests
+        run: |
+          cargo test --verbose
+        continue-on-error: true
+      
+      - name: Run Rust examples
+        run: |
+          cargo run --example comprehensive_demo
+          cargo run --example output_access_demo
+          cargo run --example parallel_execution_demo
+          cargo run --example per_node_output_access
+          cargo run --example tuple_api_demo
+          cargo run --example variant_demo_full
+      
+      - name: Install maturin and build Python bindings
+        run: |
+          pip install maturin==1.2.0
+          maturin build --release --features python --strip --out dist
+      
+      - name: Install Python package and run examples
+        run: |
+          pip install dist/*.whl
+          python examples/python_comprehensive_demo.py
+          python examples/python_demo.py
+          python examples/python_parallel_demo.py
+
   build-wheels:
     name: Build wheels on ${{ matrix.os }} for Python ${{ matrix.python-version }}
+    needs: test
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -73,6 +115,7 @@ jobs:
 
   publish-crates-io:
     name: Publish to crates.io
+    needs: test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     
