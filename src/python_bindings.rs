@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 use crate::builder::Graph;
 use crate::dag::Dag;
+use crate::graph_data::GraphData;
 
 /// Python wrapper for Graph builder
 #[pyclass]
@@ -87,7 +88,7 @@ impl PyGraph {
             );
         } else {
             // No-op function if None provided
-            let noop = |_: &HashMap<String, String>, _: &HashMap<String, String>| HashMap::new();
+            let noop = |_: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| HashMap::new();
             graph.add(
                 noop,
                 label.as_deref(),
@@ -154,10 +155,10 @@ impl PyDag {
         // Release GIL during Rust execution
         let context = py.allow_threads(|| self.dag.execute(parallel, max_threads));
         
-        // Convert HashMap to Python dict
+        // Convert HashMap<String, GraphData> to Python dict
         let py_dict = PyDict::new(py);
         for (key, value) in context.iter() {
-            py_dict.set_item(key, value)?;
+            py_dict.set_item(key, graph_data_to_python(py, value))?;
         }
         Ok(py_dict.to_object(py))
     }
@@ -203,17 +204,17 @@ fn parse_mapping(obj: &PyAny) -> PyResult<Vec<(String, String)>> {
 /// when calling the Python function.
 fn create_python_node_function(
     py_func: PyObject,
-) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> + Send + Sync + 'static {
+) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> + Send + Sync + 'static {
     // Wrap in Arc to make it cloneable and shareable
     let py_func = Arc::new(py_func);
     
-    move |inputs: &HashMap<String, String>, variant_params: &HashMap<String, String>| {
+    move |inputs: &HashMap<String, GraphData>, variant_params: &HashMap<String, GraphData>| {
         // Acquire GIL only for the duration of this call
         Python::with_gil(|py| {
             // Convert inputs to Python dict
             let py_inputs = PyDict::new(py);
             for (key, value) in inputs.iter() {
-                if let Err(e) = py_inputs.set_item(key, value) {
+                if let Err(e) = py_inputs.set_item(key, graph_data_to_python(py, value)) {
                     // Log to Python's stderr for better integration
                     let _ = py.import("sys")
                         .and_then(|sys| sys.getattr("stderr"))
@@ -225,7 +226,7 @@ fn create_python_node_function(
             // Convert variant_params to Python dict
             let py_variant_params = PyDict::new(py);
             for (key, value) in variant_params.iter() {
-                if let Err(e) = py_variant_params.set_item(key, value) {
+                if let Err(e) = py_variant_params.set_item(key, graph_data_to_python(py, value)) {
                     let _ = py.import("sys")
                         .and_then(|sys| sys.getattr("stderr"))
                         .and_then(|stderr| stderr.call_method1("write", (format!("Error setting variant param '{}': {}\n", key, e),)));
@@ -242,8 +243,8 @@ fn create_python_node_function(
                     if let Ok(result_dict) = py_result.downcast::<PyDict>(py) {
                         let mut output = HashMap::new();
                         for (key, value) in result_dict.iter() {
-                            if let (Ok(k), Ok(v)) = (key.extract::<String>(), value.extract::<String>()) {
-                                output.insert(k, v);
+                            if let Ok(k) = key.extract::<String>() {
+                                output.insert(k, python_to_graph_data(value));
                             }
                         }
                         output
@@ -262,6 +263,78 @@ fn create_python_node_function(
             }
         })
     }
+}
+
+/// Convert GraphData to Python object
+fn graph_data_to_python(py: Python, data: &GraphData) -> PyObject {
+    match data {
+        GraphData::Int(v) => v.to_object(py),
+        GraphData::Float(v) => v.to_object(py),
+        GraphData::String(s) => s.to_object(py),
+        GraphData::FloatVec(v) => v.to_object(py),
+        GraphData::IntVec(v) => v.to_object(py),
+        GraphData::Map(m) => {
+            let dict = PyDict::new(py);
+            for (k, v) in m.iter() {
+                let _ = dict.set_item(k, graph_data_to_python(py, v));
+            }
+            dict.to_object(py)
+        }
+        GraphData::None => py.None(),
+        #[cfg(feature = "radar_examples")]
+        GraphData::Complex(c) => {
+            // Convert complex to tuple (real, imag)
+            (c.re, c.im).to_object(py)
+        }
+        #[cfg(feature = "radar_examples")]
+        GraphData::FloatArray(a) => {
+            // Convert ndarray to Python list
+            a.to_vec().to_object(py)
+        }
+        #[cfg(feature = "radar_examples")]
+        GraphData::ComplexArray(a) => {
+            // Convert complex array to list of tuples
+            let vec: Vec<(f64, f64)> = a.iter().map(|c| (c.re, c.im)).collect();
+            vec.to_object(py)
+        }
+    }
+}
+
+/// Convert Python object to GraphData
+fn python_to_graph_data(obj: &PyAny) -> GraphData {
+    // Try int first
+    if let Ok(v) = obj.extract::<i64>() {
+        return GraphData::Int(v);
+    }
+    // Try float
+    if let Ok(v) = obj.extract::<f64>() {
+        return GraphData::Float(v);
+    }
+    // Try string
+    if let Ok(v) = obj.extract::<String>() {
+        return GraphData::String(v);
+    }
+    // Try list of floats
+    if let Ok(list) = obj.downcast::<PyList>() {
+        if let Ok(vec) = list.extract::<Vec<f64>>() {
+            return GraphData::FloatVec(vec);
+        }
+        if let Ok(vec) = list.extract::<Vec<i64>>() {
+            return GraphData::IntVec(vec);
+        }
+    }
+    // Try dict
+    if let Ok(dict) = obj.downcast::<PyDict>() {
+        let mut map = HashMap::new();
+        for (key, value) in dict.iter() {
+            if let Ok(k) = key.extract::<String>() {
+                map.insert(k, python_to_graph_data(value));
+            }
+        }
+        return GraphData::Map(map);
+    }
+    // Default to None
+    GraphData::None
 }
 
 /// Initialize the Python module
