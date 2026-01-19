@@ -94,30 +94,48 @@ def stack_pulses(inputs, variant_params):
 
 def range_compress(inputs, variant_params):
     """
-    Perform range compression using FFT along the fast-time dimension.
+    Perform range compression using matched filter (correlate with reference pulse).
+    This implements pulse compression for radar signal processing.
     
     Args:
-        inputs: Dictionary with 'data' key containing stacked pulses
+        inputs: Dictionary with 'data' (stacked pulses) and 'reference' (LFM pulse) keys
         variant_params: Dictionary of variant parameters
     
     Returns:
         Dictionary with 'compressed' range-compressed data
     """
     stacked_data = inputs.get("data", None)
+    reference_data = inputs.get("reference", None)
+    
     if stacked_data is None or not isinstance(stacked_data, list):
         print(f"RangeCompress: No stacked data found or wrong format. Got: {type(stacked_data)}")
         return {"compressed": None}
     
-    # Convert list of lists of tuples to numpy array
+    if reference_data is None or not isinstance(reference_data, list):
+        print(f"RangeCompress: No reference pulse found")
+        return {"compressed": None}
+    
+    # Convert list of tuples back to complex numpy arrays
+    reference = np.array([complex(r, i) for r, i in reference_data])
     stacked = np.array([[complex(r, i) for r, i in pulse] for pulse in stacked_data])
     
-    # Perform FFT along each pulse (axis=1, fast-time/range dimension)
-    compressed = np.fft.fft(stacked, axis=1)
+    # Matched filter: correlate with conjugate of reference pulse
+    # This is the standard pulse compression technique
+    reference_conj = np.conj(reference[::-1])  # Time-reversed conjugate
+    
+    # Apply matched filter to each pulse
+    compressed = []
+    for pulse in stacked:
+        # Correlation via FFT (more efficient)
+        compressed_pulse = np.fft.ifft(np.fft.fft(pulse) * np.fft.fft(reference_conj, len(pulse)))
+        compressed.append(compressed_pulse)
+    
+    compressed = np.array(compressed)
     
     # Convert back to list of lists of tuples
     compressed_data = [[(float(c.real), float(c.imag)) for c in pulse] for pulse in compressed]
     
-    print(f"RangeCompress: Performed FFT on {compressed.shape} data")
+    print(f"RangeCompress: Performed matched filtering on {compressed.shape} data")
     
     return {
         "compressed": compressed_data
@@ -195,11 +213,11 @@ def main():
         ]
     )
     
-    # Add range compression
+    # Add range compression (needs both stacked data and reference pulse)
     graph.add(
         function=range_compress,
         label="RangeCompress",
-        inputs=[("stacked_data", "data")],
+        inputs=[("stacked_data", "data"), ("lfm_pulse", "reference")],
         outputs=[("compressed", "compressed_data")]
     )
     

@@ -98,7 +98,7 @@ fn stack_pulses(inputs: &HashMap<String, GraphData>, params: &HashMap<String, Gr
 
 #[cfg(feature = "radar_examples")]
 fn range_compress(inputs: &HashMap<String, GraphData>, _params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
-    // Get the stacked data
+    // Get the stacked data and reference pulse
     let stacked = match inputs.get("data").and_then(|d| d.as_complex_array()) {
         Some(s) => s,
         None => {
@@ -109,22 +109,58 @@ fn range_compress(inputs: &HashMap<String, GraphData>, _params: &HashMap<String,
         }
     };
     
-    // Convert to rustfft's Complex64
-    let mut buffer: Vec<Complex64> = stacked.iter()
+    let reference = match inputs.get("reference").and_then(|d| d.as_complex_array()) {
+        Some(r) => r,
+        None => {
+            eprintln!("RangeCompress: No reference pulse found");
+            let mut output = HashMap::new();
+            output.insert("compressed".to_string(), GraphData::none());
+            return output;
+        }
+    };
+    
+    // Matched filter: correlate with conjugate of reference pulse
+    // Time-reverse and conjugate the reference
+    let ref_len = reference.len();
+    let mut ref_conj: Vec<Complex64> = reference.iter().rev()
+        .map(|c| Complex64::new(c.re, -c.im))
+        .collect();
+    
+    // Pad reference conjugate to match stacked length
+    let stacked_len = stacked.len();
+    ref_conj.resize(stacked_len, Complex64::new(0.0, 0.0));
+    
+    // Convert stacked to Complex64 for FFT
+    let mut signal: Vec<Complex64> = stacked.iter()
         .map(|c| Complex64::new(c.re, c.im))
         .collect();
     
-    // Perform FFT
+    // Perform matched filtering via FFT
     let mut planner = FftPlanner::<f64>::new();
-    let fft = planner.plan_fft_forward(buffer.len());
-    fft.process(&mut buffer);
+    let fft = planner.plan_fft_forward(stacked_len);
+    let ifft = planner.plan_fft_inverse(stacked_len);
     
-    // Convert back to our Complex type and wrap in Array1
-    let compressed: Array1<Complex<f64>> = buffer.iter()
-        .map(|c| Complex::new(c.re, c.im))
+    // FFT of signal and reference
+    let mut signal_fft = signal.clone();
+    let mut ref_fft = ref_conj;
+    fft.process(&mut signal_fft);
+    fft.process(&mut ref_fft);
+    
+    // Multiply in frequency domain
+    for (s, r) in signal_fft.iter_mut().zip(ref_fft.iter()) {
+        *s = *s * r;
+    }
+    
+    // IFFT to get correlation
+    ifft.process(&mut signal_fft);
+    
+    // Normalize by length
+    let norm = stacked_len as f64;
+    let compressed: Array1<Complex<f64>> = signal_fft.iter()
+        .map(|c| Complex::new(c.re / norm, c.im / norm))
         .collect();
     
-    println!("RangeCompress: Performed FFT on {} samples", compressed.len());
+    println!("RangeCompress: Performed matched filtering on {} samples", compressed.len());
     
     let mut output = HashMap::new();
     output.insert("compressed".to_string(), GraphData::complex_array(compressed));
@@ -197,11 +233,11 @@ fn main() {
         ])
     );
     
-    // Add range compression
+    // Add range compression (needs both stacked data and reference pulse)
     graph.add(
         range_compress,
         Some("RangeCompress"),
-        Some(vec![("stacked_data", "data")]),
+        Some(vec![("stacked_data", "data"), ("lfm_pulse", "reference")]),
         Some(vec![("compressed", "compressed_data")])
     );
     
