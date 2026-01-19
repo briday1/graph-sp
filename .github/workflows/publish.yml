@@ -2,6 +2,8 @@ name: Publish to crates.io and PyPI
 
 on:
   push:
+    branches:
+      - 'copilot/fix-publish-workflow-issues-again'
     tags:
       - 'v*'
   workflow_dispatch:
