@@ -68,7 +68,7 @@ fn demo_per_node_access() {
     
     // Execute and get detailed results
     let dag = graph.build();
-    let result = dag.execute_detailed();
+    let result = dag.execute_detailed(false, None);
     
     println!("🌍 Global Context (all variables):");
     for (key, value) in &result.context {
@@ -178,7 +178,7 @@ fn demo_per_branch_access() {
     
     // Execute and get detailed results
     let dag = graph.build();
-    let result = dag.execute_detailed();
+    let result = dag.execute_detailed(false, None);
     
     println!("🌍 Global Context:");
     for (key, value) in &result.context {
@@ -261,7 +261,7 @@ fn demo_variant_per_node_access() {
     );
     
     let dag = graph.build();
-    let result = dag.execute_detailed();
+    let result = dag.execute_detailed(false, None);
     
     println!("🌍 Global Context (note: 'result' contains last variant's output):");
     for (key, value) in &result.context {
@@ -347,7 +347,7 @@ fn demo_execution_history_tracking() {
     );
     
     let dag = graph.build();
-    let result = dag.execute_detailed();
+    let result = dag.execute_detailed(false, None);
     
     println!("📊 Execution History (Data Flow Tracking):");
     println!();
