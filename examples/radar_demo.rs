@@ -68,7 +68,7 @@ fn lfm_generator(_inputs: &HashMap<String, GraphData>, params: &HashMap<String, 
 fn stack_pulses(inputs: &HashMap<String, GraphData>, params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let num_pulses = params.get("num_pulses")
         .and_then(|d| d.as_int())
-        .unwrap_or(128) as usize;  // Default to 128 pulses (matching sigexec)
+        .unwrap_or(128) as usize;  // Default to 128 pulses (matching sigexec and Python)
     
     // Get the input pulse
     let pulse = match inputs.get("pulse").and_then(|d| d.as_complex_array()) {
@@ -83,18 +83,25 @@ fn stack_pulses(inputs: &HashMap<String, GraphData>, params: &HashMap<String, Gr
     
     let num_samples = pulse.len();
     
-    // Create a 2D-like representation as a flattened array
-    // In a real system, this would be a 2D ndarray
+    // Doppler simulation parameters (matching Python demo)
+    let doppler_freq = 1000.0; // Hz, simulated target velocity
+    let prf = 10000.0; // Pulse Repetition Frequency (Hz)
+    
+    // Create a 2D-like representation as a flattened array with Doppler shifts
     let mut stacked = Array1::<Complex<f64>>::zeros(num_samples * num_pulses);
     
     for pulse_idx in 0..num_pulses {
+        // Add Doppler shift (matching Python implementation exactly)
+        let phase_shift = 2.0 * PI * doppler_freq * pulse_idx as f64 / prf;
+        let doppler_shift = Complex::new(phase_shift.cos(), phase_shift.sin());
+        
         let offset = pulse_idx * num_samples;
         for (i, &val) in pulse.iter().enumerate() {
-            stacked[offset + i] = val;
+            stacked[offset + i] = val * doppler_shift;
         }
     }
     
-    println!("StackPulses: Stacked {} pulses of {} samples each", num_pulses, num_samples);
+    println!("StackPulses: Stacked {} pulses with Doppler shifts", num_pulses);
     
     let mut output = HashMap::new();
     output.insert("stacked".to_string(), GraphData::complex_array(stacked));
@@ -174,36 +181,85 @@ fn range_compress(inputs: &HashMap<String, GraphData>, _params: &HashMap<String,
 }
 
 #[cfg(feature = "radar_examples")]
-fn magnitude_extractor(inputs: &HashMap<String, GraphData>, _params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
-    // Get the compressed data
+fn doppler_compress(inputs: &HashMap<String, GraphData>, _params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+    // Get the range-compressed data and metadata
     let compressed = match inputs.get("data").and_then(|d| d.as_complex_array()) {
         Some(c) => c,
         None => {
-            eprintln!("MagnitudeExtractor: No compressed data found");
+            eprintln!("DopplerCompress: No compressed data found");
             let mut output = HashMap::new();
-            output.insert("magnitude".to_string(), GraphData::none());
+            output.insert("range_doppler".to_string(), GraphData::none());
             return output;
         }
     };
     
-    // Extract magnitude
-    let magnitude: Array1<f64> = compressed.iter()
-        .map(|c| c.norm())
-        .collect();
+    let num_pulses = match inputs.get("num_pulses").and_then(|d| d.as_int()) {
+        Some(n) => n as usize,
+        None => {
+            eprintln!("DopplerCompress: No num_pulses found");
+            let mut output = HashMap::new();
+            output.insert("range_doppler".to_string(), GraphData::none());
+            return output;
+        }
+    };
     
-    // Find peak
-    let max_val = magnitude.iter().cloned().fold(0.0f64, f64::max);
-    let max_idx = magnitude.iter().enumerate()
+    let num_samples = match inputs.get("num_samples").and_then(|d| d.as_int()) {
+        Some(n) => n as usize,
+        None => {
+            eprintln!("DopplerCompress: No num_samples found");
+            let mut output = HashMap::new();
+            output.insert("range_doppler".to_string(), GraphData::none());
+            return output;
+        }
+    };
+    
+    // Perform FFT along slow-time (Doppler) dimension
+    let mut planner = FftPlanner::<f64>::new();
+    let fft = planner.plan_fft_forward(num_pulses);
+    
+    // Process each range bin
+    let mut range_doppler = Array1::<Complex<f64>>::zeros(num_pulses * num_samples);
+    
+    for range_bin in 0..num_samples {
+        // Extract slow-time samples for this range bin
+        let mut slow_time: Vec<Complex64> = (0..num_pulses)
+            .map(|pulse_idx| {
+                let idx = pulse_idx * num_samples + range_bin;
+                let c = &compressed[idx];
+                Complex64::new(c.re, c.im)
+            })
+            .collect();
+        
+        // Apply FFT
+        fft.process(&mut slow_time);
+        
+        // Store in range-doppler map
+        for (doppler_bin, val) in slow_time.iter().enumerate() {
+            let idx = doppler_bin * num_samples + range_bin;
+            range_doppler[idx] = Complex::new(val.re, val.im);
+        }
+    }
+    
+    // Find peak in Range-Doppler map
+    let magnitudes: Vec<f64> = range_doppler.iter().map(|c| c.norm()).collect();
+    let max_val = magnitudes.iter().cloned().fold(0.0f64, f64::max);
+    let max_idx = magnitudes.iter().enumerate()
         .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
         .map(|(idx, _)| idx)
         .unwrap_or(0);
     
-    println!("MagnitudeExtractor: Peak magnitude {} at index {}", max_val, max_idx);
+    let doppler_bin = max_idx / num_samples;
+    let range_bin = max_idx % num_samples;
+    
+    println!("DopplerCompress: Created Range-Doppler map of shape ({}, {})", num_pulses, num_samples);
+    println!("  Peak at Doppler bin {}, Range bin {}", doppler_bin, range_bin);
+    println!("  Magnitude: {:.2}", max_val);
     
     let mut output = HashMap::new();
-    output.insert("magnitude".to_string(), GraphData::float_array(magnitude));
+    output.insert("range_doppler".to_string(), GraphData::complex_array(range_doppler));
     output.insert("peak_value".to_string(), GraphData::float(max_val));
-    output.insert("peak_index".to_string(), GraphData::int(max_idx as i64));
+    output.insert("peak_doppler_bin".to_string(), GraphData::int(doppler_bin as i64));
+    output.insert("peak_range_bin".to_string(), GraphData::int(range_bin as i64));
     output
 }
 
@@ -247,15 +303,20 @@ fn main() {
         Some(vec![("compressed", "compressed_data")])
     );
     
-    // Add magnitude extraction
+    // Add Doppler compression (FFT along slow-time dimension)
     graph.add(
-        magnitude_extractor,
-        Some("MagnitudeExtractor"),
-        Some(vec![("compressed_data", "data")]),
+        doppler_compress,
+        Some("DopplerCompress"),
         Some(vec![
-            ("magnitude", "magnitude"),
+            ("compressed_data", "data"),
+            ("num_pulses", "num_pulses"),
+            ("num_samples", "num_samples")
+        ]),
+        Some(vec![
+            ("range_doppler", "range_doppler_map"),
             ("peak_value", "peak"),
-            ("peak_index", "peak_idx")
+            ("peak_doppler_bin", "peak_doppler"),
+            ("peak_range_bin", "peak_range")
         ])
     );
     
@@ -284,8 +345,11 @@ fn main() {
     if let Some(peak) = context.get("peak").and_then(|d| d.as_float()) {
         println!("Peak magnitude: {:.2}", peak);
     }
-    if let Some(idx) = context.get("peak_idx").and_then(|d| d.as_int()) {
-        println!("Peak index: {}", idx);
+    if let Some(doppler) = context.get("peak_doppler").and_then(|d| d.as_int()) {
+        println!("Peak Doppler bin: {}", doppler);
+    }
+    if let Some(range) = context.get("peak_range").and_then(|d| d.as_int()) {
+        println!("Peak Range bin: {}", range);
     }
     
     println!("\nRadar demo completed successfully!");
