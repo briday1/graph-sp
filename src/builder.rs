@@ -1,6 +1,7 @@
 //! Graph builder with implicit connections API
 
 use crate::dag::Dag;
+use crate::graph_data::GraphData;
 use crate::node::{Node, NodeId};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -216,8 +217,8 @@ impl Graph {
     /// # Function Signature
     ///
     /// Functions receive two parameters:
-    /// - `inputs: &HashMap<String, String>` - Mapped input variables (impl_var names)
-    /// - `variant_params: &HashMap<String, String>` - Variant parameter values
+    /// - `inputs: &HashMap<String, GraphData>` - Mapped input variables (impl_var names)
+    /// - `variant_params: &HashMap<String, GraphData>` - Variant parameter values
     ///
     /// Functions return outputs using impl_var names, which get mapped to broadcast_var names.
     ///
@@ -241,7 +242,7 @@ impl Graph {
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
-        F: Fn(&std::collections::HashMap<String, String>, &std::collections::HashMap<String, String>) -> std::collections::HashMap<String, String>
+        F: Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
             + Send
             + Sync
             + 'static,
@@ -360,11 +361,11 @@ impl Graph {
     /// # Example
     ///
     /// ```ignore
-    /// fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> {
+    /// fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     ///     move |inputs, _variant_params| {
     ///         let mut outputs = HashMap::new();
-    ///         if let Some(val) = inputs.get("x").and_then(|s| s.parse::<f64>().ok()) {
-    ///             outputs.insert("scaled_x".to_string(), (val * factor).to_string());
+    ///         if let Some(val) = inputs.get("x").and_then(|d| d.as_float()) {
+    ///             outputs.insert("scaled_x".to_string(), GraphData::float(val * factor));
     ///         }
     ///         outputs
     ///     }
@@ -396,7 +397,7 @@ impl Graph {
     where
         F: Fn(P) -> NF,
         P: ToString + Clone,
-        NF: Fn(&std::collections::HashMap<String, String>, &std::collections::HashMap<String, String>) -> std::collections::HashMap<String, String>
+        NF: Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
             + Send
             + Sync
             + 'static,
@@ -438,7 +439,7 @@ impl Graph {
 
             // Set variant index and param value
             node.variant_index = Some(idx);
-            node.variant_params.insert("param_value".to_string(), param_value.to_string());
+            node.variant_params.insert("param_value".to_string(), GraphData::from_string(&param_value.to_string()));
 
             // Connect to branch point (all variants branch from same node)
             if let Some(bp_id) = branch_point {
@@ -502,7 +503,7 @@ impl Graph {
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
-        F: Fn(&std::collections::HashMap<String, String>, &std::collections::HashMap<String, String>) -> std::collections::HashMap<String, String>
+        F: Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
             + Send
             + Sync
             + 'static,

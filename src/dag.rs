@@ -1,11 +1,12 @@
 //! DAG representation with execution and visualization support
 
+use crate::graph_data::GraphData;
 use crate::node::{Node, NodeId};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 
 /// Execution context for storing variable values during graph execution
-pub type ExecutionContext = HashMap<String, String>;
+pub type ExecutionContext = HashMap<String, GraphData>;
 
 /// Execution result that tracks outputs per node and per branch
 #[derive(Debug, Clone)]
@@ -13,9 +14,9 @@ pub struct ExecutionResult {
     /// Global execution context (all variables accessible by broadcast name)
     pub context: ExecutionContext,
     /// Outputs per node (node_id -> HashMap of output variables)
-    pub node_outputs: HashMap<NodeId, HashMap<String, String>>,
+    pub node_outputs: HashMap<NodeId, HashMap<String, GraphData>>,
     /// Outputs per branch (branch_id -> HashMap of output variables)
-    pub branch_outputs: HashMap<usize, HashMap<String, String>>,
+    pub branch_outputs: HashMap<usize, HashMap<String, GraphData>>,
 }
 
 impl ExecutionResult {
@@ -29,27 +30,27 @@ impl ExecutionResult {
     }
     
     /// Get a value from the global context
-    pub fn get(&self, key: &str) -> Option<&String> {
+    pub fn get(&self, key: &str) -> Option<&GraphData> {
         self.context.get(key)
     }
     
     /// Get all outputs from a specific node
-    pub fn get_node_outputs(&self, node_id: NodeId) -> Option<&HashMap<String, String>> {
+    pub fn get_node_outputs(&self, node_id: NodeId) -> Option<&HashMap<String, GraphData>> {
         self.node_outputs.get(&node_id)
     }
     
     /// Get all outputs from a specific branch
-    pub fn get_branch_outputs(&self, branch_id: usize) -> Option<&HashMap<String, String>> {
+    pub fn get_branch_outputs(&self, branch_id: usize) -> Option<&HashMap<String, GraphData>> {
         self.branch_outputs.get(&branch_id)
     }
     
     /// Get a specific variable from a node
-    pub fn get_from_node(&self, node_id: NodeId, key: &str) -> Option<&String> {
+    pub fn get_from_node(&self, node_id: NodeId, key: &str) -> Option<&GraphData> {
         self.node_outputs.get(&node_id).and_then(|outputs| outputs.get(key))
     }
     
     /// Get a specific variable from a branch
-    pub fn get_from_branch(&self, branch_id: usize, key: &str) -> Option<&String> {
+    pub fn get_from_branch(&self, branch_id: usize, key: &str) -> Option<&GraphData> {
         self.branch_outputs.get(&branch_id).and_then(|outputs| outputs.get(key))
     }
     
@@ -196,8 +197,7 @@ impl Dag {
                     result.context.extend(outputs.clone());
                     
                     // Store outputs per node (using broadcast variable names from output_mapping)
-                    let node_outputs: HashMap<String, String> = outputs.clone();
-                    result.node_outputs.insert(node_id, node_outputs);
+                    result.node_outputs.insert(node_id, outputs.clone());
                     
                     // Store outputs per branch if this node belongs to a branch
                     if let Some(branch_id) = node.branch_id {
