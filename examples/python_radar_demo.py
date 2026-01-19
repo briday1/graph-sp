@@ -56,9 +56,9 @@ def lfm_generator(inputs, variant_params):
     
     print(f"LFMGenerator: Generated {num_samples} sample LFM pulse")
     
-    # Return complex array directly - no need to convert to tuples
+    # Return complex array directly (numpy array supported)
     return {
-        "pulse": signal.tolist(),  # Convert to Python list of complex numbers
+        "pulse": signal,  # Can pass numpy array directly
         "num_samples": num_samples
     }
 
@@ -100,9 +100,9 @@ def stack_pulses(inputs, variant_params):
     
     print(f"StackPulses: Stacked {num_pulses} pulses of {num_samples} samples each")
     
-    # Return as list of complex arrays (implicit handling)
+    # Return as numpy array directly (no conversion needed)
     return {
-        "stacked": [row.tolist() for row in stacked],
+        "stacked": stacked,  # Can pass numpy array directly
         "num_pulses": num_pulses,
         "num_samples": num_samples
     }
@@ -149,9 +149,9 @@ def range_compress(inputs, variant_params):
     
     print(f"RangeCompress: Performed matched filtering on {compressed.shape} data")
     
-    # Return as list of complex arrays (implicit handling)
+    # Return as numpy array directly (no conversion needed)
     return {
-        "compressed": [row.tolist() for row in compressed]
+        "compressed": compressed  # Can pass numpy array directly
     }
 
 def doppler_compress(inputs, variant_params):
@@ -189,7 +189,7 @@ def doppler_compress(inputs, variant_params):
     print(f"DopplerCompress: Peak magnitude: {max_val:.2f}")
     
     return {
-        "rd_map": magnitude.tolist(),
+        "rd_map": magnitude,  # Can pass numpy array directly
         "peak_magnitude": float(max_val),
         "doppler_bin": int(doppler_bin),
         "range_bin": int(range_bin)

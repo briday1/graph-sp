@@ -405,6 +405,15 @@ fn python_to_graph_data(obj: &PyAny) -> GraphData {
         }
     }
     
+    // Try numpy array (check for __array__ method or tolist method)
+    // This allows passing numpy arrays directly without .tolist()
+    if let Ok(tolist_method) = obj.getattr("tolist") {
+        if let Ok(list_result) = tolist_method.call0() {
+            // Recursively convert the resulting list
+            return python_to_graph_data(list_result);
+        }
+    }
+    
     // Try list
     if let Ok(list) = obj.downcast::<PyList>() {
         // Try list of floats
