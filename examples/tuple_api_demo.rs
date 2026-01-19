@@ -14,7 +14,10 @@ fn main() {
     let mut graph = Graph::new();
 
     // Source node - no inputs, produces "dataset" in context
-    fn data_source(_inputs: &HashMap<String, GraphData>, _variant: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+    fn data_source(
+        _inputs: &HashMap<String, GraphData>,
+        _variant: &HashMap<String, GraphData>,
+    ) -> HashMap<String, GraphData> {
         let mut outputs = HashMap::new();
         outputs.insert("raw".to_string(), GraphData::string("Sample Data"));
         outputs
@@ -23,28 +26,35 @@ fn main() {
     graph.add(
         data_source,
         Some("Source"),
-        None,  // No inputs
-        Some(vec![("raw", "dataset")])  // Function returns "raw", stored as "dataset" in context
+        None,                           // No inputs
+        Some(vec![("raw", "dataset")]), // Function returns "raw", stored as "dataset" in context
     );
 
     println!("✓ Added source node");
     println!("  Output mapping: function's 'raw' → context's 'dataset'\n");
 
     // Process node - consumes "dataset" from context as "input_data", produces "processed_data" to context as "result"
-    fn processor(inputs: &HashMap<String, GraphData>, _variant: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
-        let data = inputs.get("input_data")
+    fn processor(
+        inputs: &HashMap<String, GraphData>,
+        _variant: &HashMap<String, GraphData>,
+    ) -> HashMap<String, GraphData> {
+        let data = inputs
+            .get("input_data")
             .and_then(|d| d.as_string())
             .unwrap_or("");
         let mut outputs = HashMap::new();
-        outputs.insert("processed_data".to_string(), GraphData::string(format!("Processed: {}", data)));
+        outputs.insert(
+            "processed_data".to_string(),
+            GraphData::string(format!("Processed: {}", data)),
+        );
         outputs
     }
 
     graph.add(
         processor,
         Some("Process"),
-        Some(vec![("dataset", "input_data")]),      // Context's "dataset" → function's "input_data"
-        Some(vec![("processed_data", "result")])    // Function's "processed_data" → context's "result"
+        Some(vec![("dataset", "input_data")]), // Context's "dataset" → function's "input_data"
+        Some(vec![("processed_data", "result")]), // Function's "processed_data" → context's "result"
     );
 
     println!("✓ Added processor node");
@@ -53,35 +63,43 @@ fn main() {
 
     // Create branches that both use the same variable names internally
     let mut branch_a = Graph::new();
-    fn transform_a(inputs: &HashMap<String, GraphData>, _variant: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
-        let data = inputs.get("x")
-            .and_then(|d| d.as_string())
-            .unwrap_or("");
+    fn transform_a(
+        inputs: &HashMap<String, GraphData>,
+        _variant: &HashMap<String, GraphData>,
+    ) -> HashMap<String, GraphData> {
+        let data = inputs.get("x").and_then(|d| d.as_string()).unwrap_or("");
         let mut outputs = HashMap::new();
-        outputs.insert("y".to_string(), GraphData::string(format!("{} [Path A]", data)));
+        outputs.insert(
+            "y".to_string(),
+            GraphData::string(format!("{} [Path A]", data)),
+        );
         outputs
     }
     branch_a.add(
         transform_a,
         Some("Transform A"),
-        Some(vec![("result", "x")]),  // Context's "result" → function's "x"
-        Some(vec![("y", "output")])    // Function's "y" → context's "output"
+        Some(vec![("result", "x")]), // Context's "result" → function's "x"
+        Some(vec![("y", "output")]), // Function's "y" → context's "output"
     );
 
     let mut branch_b = Graph::new();
-    fn transform_b(inputs: &HashMap<String, GraphData>, _variant: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
-        let data = inputs.get("x")
-            .and_then(|d| d.as_string())
-            .unwrap_or("");
+    fn transform_b(
+        inputs: &HashMap<String, GraphData>,
+        _variant: &HashMap<String, GraphData>,
+    ) -> HashMap<String, GraphData> {
+        let data = inputs.get("x").and_then(|d| d.as_string()).unwrap_or("");
         let mut outputs = HashMap::new();
-        outputs.insert("y".to_string(), GraphData::string(format!("{} [Path B]", data)));
+        outputs.insert(
+            "y".to_string(),
+            GraphData::string(format!("{} [Path B]", data)),
+        );
         outputs
     }
     branch_b.add(
         transform_b,
         Some("Transform B"),
-        Some(vec![("result", "x")]),  // Same variable names as branch_a
-        Some(vec![("y", "output")])    // Same variable names as branch_a
+        Some(vec![("result", "x")]), // Same variable names as branch_a
+        Some(vec![("y", "output")]), // Same variable names as branch_a
     );
 
     println!("✓ Created two branches");
@@ -97,15 +115,23 @@ fn main() {
     println!("  Branch B ID: {}\n", branch_b_id);
 
     // Merge branches with branch-specific variable resolution
-    fn combine(inputs: &HashMap<String, GraphData>, _variant: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
-        let a = inputs.get("from_a")
+    fn combine(
+        inputs: &HashMap<String, GraphData>,
+        _variant: &HashMap<String, GraphData>,
+    ) -> HashMap<String, GraphData> {
+        let a = inputs
+            .get("from_a")
             .and_then(|d| d.as_string())
             .unwrap_or("");
-        let b = inputs.get("from_b")
+        let b = inputs
+            .get("from_b")
             .and_then(|d| d.as_string())
             .unwrap_or("");
         let mut outputs = HashMap::new();
-        outputs.insert("merged".to_string(), GraphData::string(format!("Combined: {} + {}", a, b)));
+        outputs.insert(
+            "merged".to_string(),
+            GraphData::string(format!("Combined: {} + {}", a, b)),
+        );
         outputs
     }
 
@@ -113,22 +139,32 @@ fn main() {
         combine,
         Some("Combine"),
         vec![
-            (branch_a_id, "output", "from_a"),  // Branch A's "output" → merge function's "from_a"
-            (branch_b_id, "output", "from_b")   // Branch B's "output" → merge function's "from_b"
+            (branch_a_id, "output", "from_a"), // Branch A's "output" → merge function's "from_a"
+            (branch_b_id, "output", "from_b"), // Branch B's "output" → merge function's "from_b"
         ],
-        Some(vec![("merged", "final_result")])  // Merge function's "merged" → context's "final_result"
+        Some(vec![("merged", "final_result")]), // Merge function's "merged" → context's "final_result"
     );
 
     println!("✓ Added merge node");
     println!("  Branch-specific input mapping:");
-    println!("    Branch {} 'output' → merge function's 'from_a'", branch_a_id);
-    println!("    Branch {} 'output' → merge function's 'from_b'", branch_b_id);
+    println!(
+        "    Branch {} 'output' → merge function's 'from_a'",
+        branch_a_id
+    );
+    println!(
+        "    Branch {} 'output' → merge function's 'from_b'",
+        branch_b_id
+    );
     println!("  Output mapping: merge function's 'merged' → context's 'final_result'\n");
 
     // Variant example with factory pattern
-    fn make_multiplier(factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+    fn make_multiplier(
+        factor: f64,
+    ) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
+    {
         move |inputs, _variant| {
-            let val = inputs.get("value")
+            let val = inputs
+                .get("value")
                 .and_then(|d| d.as_float())
                 .unwrap_or(1.0);
             let mut outputs = HashMap::new();
@@ -141,8 +177,8 @@ fn main() {
         make_multiplier,
         vec![2.0, 3.0, 5.0],
         Some("Multiply"),
-        Some(vec![("final_result", "value")]),  // Context's "final_result" → function's "value"
-        Some(vec![("scaled", "multiplied")])    // Function's "scaled" → context's "multiplied"
+        Some(vec![("final_result", "value")]), // Context's "final_result" → function's "value"
+        Some(vec![("scaled", "multiplied")]),  // Function's "scaled" → context's "multiplied"
     );
 
     println!("✓ Added variant nodes with parameter sweep");

@@ -335,7 +335,7 @@ mod tests {
         map.insert("x".to_string(), GraphData::int(10));
         map.insert("y".to_string(), GraphData::float(20.5));
         let data = GraphData::map(map);
-        
+
         let extracted = data.as_map().unwrap();
         assert_eq!(extracted.get("x").and_then(|d| d.as_int()), Some(10));
         assert_eq!(extracted.get("y").and_then(|d| d.as_float()), Some(20.5));
