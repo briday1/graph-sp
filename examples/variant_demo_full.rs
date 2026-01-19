@@ -109,15 +109,9 @@ fn text_source(_inputs: &HashMap<String, GraphData>, _variant_params: &HashMap<S
 }
 
 fn stats_node(inputs: &HashMap<String, GraphData>, _variant_params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
-    let result_str = if let Some(value) = inputs.get("result") {
-        match value {
-            GraphData::Float(f) => format!("{}", f),
-            GraphData::Int(i) => format!("{}", i),
-            _ => value.to_string_repr(),
-        }
-    } else {
-        "N/A".to_string()
-    };
+    let result_str = inputs.get("result")
+        .map(|v| v.to_string_repr())
+        .unwrap_or_else(|| "N/A".to_string());
     let mut outputs = HashMap::new();
     outputs.insert("summary".to_string(), GraphData::string(format!("Result: {}", result_str)));
     outputs
