@@ -10,6 +10,9 @@ use ndarray::Array1;
 #[cfg(feature = "radar_examples")]
 use num_complex::Complex;
 
+#[cfg(feature = "python")]
+use pyo3::PyObject;
+
 /// GraphData enum supporting multiple data types
 #[derive(Clone, Debug)]
 pub enum GraphData {
@@ -34,6 +37,9 @@ pub enum GraphData {
     ComplexArray(Array1<Complex<f64>>),
     /// Nested map of GraphData (for structured data)
     Map(HashMap<String, GraphData>),
+    /// Python object (opaque, no conversion)
+    #[cfg(feature = "python")]
+    PyObject(PyObject),
     /// Empty/null value
     None,
 }
@@ -90,6 +96,12 @@ impl GraphData {
     /// Create a ComplexArray variant
     pub fn complex_array(value: Array1<Complex<f64>>) -> Self {
         GraphData::ComplexArray(value)
+    }
+
+    #[cfg(feature = "python")]
+    /// Create a PyObject variant (stores Python object without conversion)
+    pub fn py_object(value: PyObject) -> Self {
+        GraphData::PyObject(value)
     }
 
     /// Try to extract as i64
@@ -168,6 +180,15 @@ impl GraphData {
         }
     }
 
+    #[cfg(feature = "python")]
+    /// Try to extract as PyObject reference
+    pub fn as_py_object(&self) -> Option<&PyObject> {
+        match self {
+            GraphData::PyObject(obj) => Some(obj),
+            _ => None,
+        }
+    }
+
     /// Check if this is None
     pub fn is_none(&self) -> bool {
         matches!(self, GraphData::None)
@@ -188,6 +209,8 @@ impl GraphData {
             #[cfg(feature = "radar_examples")]
             GraphData::ComplexArray(a) => format!("{:?}", a),
             GraphData::Map(m) => format!("{:?}", m),
+            #[cfg(feature = "python")]
+            GraphData::PyObject(_) => "<PyObject>".to_string(),
             GraphData::None => "None".to_string(),
         }
     }

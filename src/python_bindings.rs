@@ -348,6 +348,11 @@ fn graph_data_to_python(py: Python, data: &GraphData) -> PyObject {
             }
         }
         GraphData::None => py.None(),
+        #[cfg(feature = "python")]
+        GraphData::PyObject(obj) => {
+            // Return the stored Python object directly without conversion
+            obj.clone_ref(py)
+        }
         #[cfg(feature = "radar_examples")]
         GraphData::Complex(c) => {
             // Convert to Python complex number (not tuple)
@@ -372,117 +377,10 @@ fn graph_data_to_python(py: Python, data: &GraphData) -> PyObject {
 }
 
 /// Convert Python object to GraphData
+/// Now stores Python objects directly without conversion
 fn python_to_graph_data(obj: &PyAny) -> GraphData {
-    // Try int first
-    if let Ok(v) = obj.extract::<i64>() {
-        return GraphData::Int(v);
-    }
-    // Try float
-    if let Ok(v) = obj.extract::<f64>() {
-        return GraphData::Float(v);
-    }
-    // Try string
-    if let Ok(v) = obj.extract::<String>() {
-        return GraphData::String(v);
-    }
-    
-    // Try Python complex number (numpy.complex128, complex, etc.)
-    #[cfg(feature = "radar_examples")]
-    {
-        if let Ok(complex) = obj.downcast::<PyComplex>() {
-            let real = complex.real();
-            let imag = complex.imag();
-            use num_complex::Complex;
-            return GraphData::Complex(Complex::new(real, imag));
-        }
-        
-        // Also try getting real/imag attributes (for numpy complex types)
-        if let (Ok(real), Ok(imag)) = (obj.getattr("real"), obj.getattr("imag")) {
-            if let (Ok(r), Ok(i)) = (real.extract::<f64>(), imag.extract::<f64>()) {
-                use num_complex::Complex;
-                return GraphData::Complex(Complex::new(r, i));
-            }
-        }
-    }
-    
-    // Try numpy array (check for __array__ method or tolist method)
-    // This allows passing numpy arrays directly without .tolist()
-    if let Ok(tolist_method) = obj.getattr("tolist") {
-        if let Ok(list_result) = tolist_method.call0() {
-            // Recursively convert the resulting list
-            return python_to_graph_data(list_result);
-        }
-    }
-    
-    // Try list
-    if let Ok(list) = obj.downcast::<PyList>() {
-        // Try list of floats
-        if let Ok(vec) = list.extract::<Vec<f64>>() {
-            return GraphData::FloatVec(vec);
-        }
-        // Try list of integers
-        if let Ok(vec) = list.extract::<Vec<i64>>() {
-            return GraphData::IntVec(vec);
-        }
-        
-        // Try list of complex numbers (implicit handling)
-        #[cfg(feature = "radar_examples")]
-        {
-            let mut complex_vec = Vec::new();
-            let mut all_complex = true;
-            
-            for item in list.iter() {
-                // Try PyComplex
-                if let Ok(complex) = item.downcast::<PyComplex>() {
-                    use num_complex::Complex;
-                    complex_vec.push(Complex::new(complex.real(), complex.imag()));
-                } 
-                // Try numpy complex (has real/imag attributes)
-                else if let (Ok(real), Ok(imag)) = (item.getattr("real"), item.getattr("imag")) {
-                    if let (Ok(r), Ok(i)) = (real.extract::<f64>(), imag.extract::<f64>()) {
-                        use num_complex::Complex;
-                        complex_vec.push(Complex::new(r, i));
-                    } else {
-                        all_complex = false;
-                        break;
-                    }
-                } else {
-                    all_complex = false;
-                    break;
-                }
-            }
-            
-            if all_complex && !complex_vec.is_empty() {
-                use ndarray::Array1;
-                return GraphData::ComplexArray(Array1::from_vec(complex_vec));
-            }
-        }
-        
-        // Try nested list - convert to Map with indices
-        if !list.is_empty() {
-            // Check if it's a nested structure
-            let mut map = HashMap::new();
-            for (idx, item) in list.iter().enumerate() {
-                map.insert(idx.to_string(), python_to_graph_data(item));
-            }
-            // If all items converted to something (not all None), return as Map
-            if map.values().any(|v| !v.is_none()) {
-                return GraphData::Map(map);
-            }
-        }
-    }
-    // Try dict
-    if let Ok(dict) = obj.downcast::<PyDict>() {
-        let mut map = HashMap::new();
-        for (key, value) in dict.iter() {
-            if let Ok(k) = key.extract::<String>() {
-                map.insert(k, python_to_graph_data(value));
-            }
-        }
-        return GraphData::Map(map);
-    }
-    // Default to None
-    GraphData::None
+    // Store as PyObject directly without any conversion
+    GraphData::PyObject(obj.to_object(obj.py()))
 }
 
 /// Initialize the Python module
