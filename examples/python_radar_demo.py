@@ -59,7 +59,7 @@ def stack_pulses(inputs, variant_params):
     Returns:
         Dictionary with 'stacked' (2D array as list) and metadata
     """
-    num_pulses = 16  # Number of pulses to stack
+    num_pulses = 128  # Number of pulses to stack (matching sigexec)
     
     pulse_data = inputs.get("pulse", None)
     if not pulse_data or not isinstance(pulse_data, list):

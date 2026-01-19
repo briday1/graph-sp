@@ -61,7 +61,7 @@ fn lfm_generator(_inputs: &HashMap<String, GraphData>, params: &HashMap<String, 
 fn stack_pulses(inputs: &HashMap<String, GraphData>, params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let num_pulses = params.get("num_pulses")
         .and_then(|d| d.as_int())
-        .unwrap_or(4) as usize;
+        .unwrap_or(128) as usize;  // Default to 128 pulses (matching sigexec)
     
     // Get the input pulse
     let pulse = match inputs.get("pulse").and_then(|d| d.as_complex_array()) {
