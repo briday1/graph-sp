@@ -274,11 +274,76 @@ fn graph_data_to_python(py: Python, data: &GraphData) -> PyObject {
         GraphData::FloatVec(v) => v.to_object(py),
         GraphData::IntVec(v) => v.to_object(py),
         GraphData::Map(m) => {
-            let dict = PyDict::new(py);
+            // Check if this is a complex array structure (keys are indices, values have "re" and "im")
+            let mut is_complex_array = true;
+            let mut max_idx = 0;
             for (k, v) in m.iter() {
-                let _ = dict.set_item(k, graph_data_to_python(py, v));
+                if let Ok(idx) = k.parse::<usize>() {
+                    if idx > max_idx {
+                        max_idx = idx;
+                    }
+                    // Check if value is a map with "re" and "im"
+                    if let Some(inner_map) = v.as_map() {
+                        if !inner_map.contains_key("re") || !inner_map.contains_key("im") {
+                            is_complex_array = false;
+                            break;
+                        }
+                    } else {
+                        is_complex_array = false;
+                        break;
+                    }
+                } else {
+                    is_complex_array = false;
+                    break;
+                }
             }
-            dict.to_object(py)
+            
+            // Convert complex array structure back to list of tuples
+            if is_complex_array && m.len() > 0 && m.len() == max_idx + 1 {
+                let list = PyList::empty(py);
+                for i in 0..m.len() {
+                    if let Some(v) = m.get(&i.to_string()) {
+                        if let Some(inner_map) = v.as_map() {
+                            let re = inner_map.get("re").and_then(|d| d.as_float()).unwrap_or(0.0);
+                            let im = inner_map.get("im").and_then(|d| d.as_float()).unwrap_or(0.0);
+                            let _ = list.append((re, im).to_object(py));
+                        }
+                    }
+                }
+                return list.to_object(py);
+            }
+            
+            // Check if all keys are numeric indices (0, 1, 2, ...)
+            let mut is_list = true;
+            let mut max_idx = 0;
+            for k in m.keys() {
+                if let Ok(idx) = k.parse::<usize>() {
+                    if idx > max_idx {
+                        max_idx = idx;
+                    }
+                } else {
+                    is_list = false;
+                    break;
+                }
+            }
+            
+            // If it looks like a list (sequential numeric keys), convert to list
+            if is_list && m.len() > 0 && m.len() == max_idx + 1 {
+                let list = PyList::empty(py);
+                for i in 0..m.len() {
+                    if let Some(v) = m.get(&i.to_string()) {
+                        let _ = list.append(graph_data_to_python(py, v));
+                    }
+                }
+                list.to_object(py)
+            } else {
+                // Otherwise, keep as dict
+                let dict = PyDict::new(py);
+                for (k, v) in m.iter() {
+                    let _ = dict.set_item(k, graph_data_to_python(py, v));
+                }
+                dict.to_object(py)
+            }
         }
         GraphData::None => py.None(),
         #[cfg(feature = "radar_examples")]
@@ -314,13 +379,43 @@ fn python_to_graph_data(obj: &PyAny) -> GraphData {
     if let Ok(v) = obj.extract::<String>() {
         return GraphData::String(v);
     }
-    // Try list of floats
+    // Try tuple of floats (for complex numbers as (real, imag))
+    if let Ok((r, i)) = obj.extract::<(f64, f64)>() {
+        return GraphData::FloatVec(vec![r, i]);
+    }
+    // Try list
     if let Ok(list) = obj.downcast::<PyList>() {
+        // Try list of floats
         if let Ok(vec) = list.extract::<Vec<f64>>() {
             return GraphData::FloatVec(vec);
         }
+        // Try list of integers
         if let Ok(vec) = list.extract::<Vec<i64>>() {
             return GraphData::IntVec(vec);
+        }
+        // Try list of tuples (complex numbers)
+        if let Ok(vec) = list.extract::<Vec<(f64, f64)>>() {
+            // Store as Map with special structure for complex arrays
+            let mut map = HashMap::new();
+            for (idx, (r, i)) in vec.iter().enumerate() {
+                let mut complex_map = HashMap::new();
+                complex_map.insert("re".to_string(), GraphData::Float(*r));
+                complex_map.insert("im".to_string(), GraphData::Float(*i));
+                map.insert(idx.to_string(), GraphData::Map(complex_map));
+            }
+            return GraphData::Map(map);
+        }
+        // Try nested list - convert to Map with indices
+        if list.len() > 0 {
+            // Check if it's a nested structure
+            let mut map = HashMap::new();
+            for (idx, item) in list.iter().enumerate() {
+                map.insert(idx.to_string(), python_to_graph_data(item));
+            }
+            // If all items converted to something (not all None), return as Map
+            if map.values().any(|v| !v.is_none()) {
+                return GraphData::Map(map);
+            }
         }
     }
     // Try dict
