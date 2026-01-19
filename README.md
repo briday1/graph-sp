@@ -27,7 +27,7 @@ graph-sp = "0.1.0"
 The library can also be used from Python via PyO3 bindings:
 
 ```bash
-pip install graph_sp
+pip install pygraph-sp
 ```
 
 Or build from source:
@@ -35,7 +35,7 @@ Or build from source:
 ```bash
 pip install maturin
 maturin build --release --features python
-pip install target/wheels/graph_sp-*.whl
+pip install target/wheels/pygraph_sp-*.whl
 ```
 
 ## Quick Start
@@ -356,7 +356,7 @@ The workflow will:
 
 **Important notes:**
 
-- Installing from PyPI with `pip install graph_sp` will **not require Rust** on the target machine because prebuilt platform-specific wheels are published
+- Installing from PyPI with `pip install pygraph-sp` will **not require Rust** on the target machine because prebuilt platform-specific wheels are published
 - Both crates.io and PyPI will reject duplicate version numbers - update versions before tagging
 - The workflow will continue even if tokens are not set, allowing you to download artifacts for manual publishing
 - For local testing, you can build wheels with `maturin build --release --features python`
