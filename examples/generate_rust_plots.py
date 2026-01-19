@@ -16,16 +16,20 @@ def generate_lfm_pulse():
     """Generate LFM pulse matching Rust implementation"""
     num_samples = 256
     bandwidth = 100e6  # 100 MHz
-    pulse_width = 2e-6  # 2 microseconds
+    pulse_width = 1e-6  # 1 microsecond (shorter for centered target)
     sample_rate = 100e6  # 100 MHz sample rate
     
     # Generate LFM chirp
     chirp_rate = bandwidth / pulse_width
     
     # Create rectangular pulse envelope
+    # Position pulse so peak appears at center (bin ~128) after matched filtering
+    # With 'same' mode correlation, peak appears at pulse center
+    # pulse_samples = 100, center should be at 128, so start at 78
     pulse_envelope = np.zeros(num_samples)
-    pulse_start = int(num_samples * 0.35)  # Start at 35% for central peak position
-    pulse_end = pulse_start + int(pulse_width * sample_rate)  # Pulse duration
+    pulse_samples = int(pulse_width * sample_rate)
+    pulse_start = 78  # Chosen so peak appears at bin 128
+    pulse_end = pulse_start + pulse_samples
     pulse_envelope[pulse_start:pulse_end] = 1.0
     
     # Generate chirp phase (only within pulse)
@@ -58,21 +62,18 @@ def stack_pulses_rust(pulse, num_pulses=128):
 
 def range_compress_rust(stacked, reference):
     """Range compression matching Rust implementation"""
-    # Flatten stacked for processing
-    stacked_flat = stacked.flatten()
+    # Matched filter: correlate with conjugate of time-reversed reference
+    reference_matched = np.conj(reference[::-1])
     
-    # Matched filter: correlate with conjugate of reference pulse
-    reference_conj = np.conj(reference[::-1])  # Time-reversed conjugate
+    # Apply matched filter to each pulse using linear correlation
+    num_pulses, num_samples = stacked.shape
+    compressed = np.zeros((num_pulses, num_samples), dtype=complex)
     
-    # Pad to match stacked length
-    ref_padded = np.pad(reference_conj, (0, len(stacked_flat) - len(reference_conj)), 'constant')
+    for i in range(num_pulses):
+        # Use 'same' mode to keep same length and center the output
+        compressed[i, :] = np.correlate(stacked[i, :], reference_matched, mode='same')
     
-    # FFT-based correlation
-    signal_fft = np.fft.fft(stacked_flat)
-    ref_fft = np.fft.fft(ref_padded)
-    compressed = np.fft.ifft(signal_fft * ref_fft)
-    
-    return compressed
+    return compressed.flatten()
 
 def doppler_compress_rust(compressed, num_pulses, num_samples):
     """Doppler compression via FFT along slow-time"""

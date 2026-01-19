@@ -11,16 +11,20 @@ def generate_lfm_pulse():
     """Generate LFM pulse matching Python implementation"""
     num_samples = 256
     bandwidth = 100e6  # 100 MHz
-    pulse_width = 2e-6  # 2 microseconds
+    pulse_width = 1e-6  # 1 microsecond (shorter for centered target)
     sample_rate = 100e6  # 100 MHz sample rate
     
     # Generate LFM chirp
     chirp_rate = bandwidth / pulse_width
     
     # Create rectangular pulse envelope
+    # Position pulse so peak appears at center (bin ~128) after matched filtering
+    # With 'same' mode correlation, peak appears at pulse center
+    # pulse_samples = 100, center should be at 128, so start at 78
     pulse_envelope = np.zeros(num_samples)
-    pulse_start = int(num_samples * 0.35)  # Start at 35% for central peak position
-    pulse_end = pulse_start + int(pulse_width * sample_rate)  # Pulse duration
+    pulse_samples = int(pulse_width * sample_rate)
+    pulse_start = 78  # Chosen so peak appears at bin 128
+    pulse_end = pulse_start + pulse_samples
     pulse_envelope[pulse_start:pulse_end] = 1.0
     
     # Generate chirp phase (only within pulse)
@@ -51,14 +55,14 @@ def stack_pulses_python(pulse, num_pulses=128):
 
 def range_compress_python(stacked, reference):
     """Range compression matching Python implementation"""
-    # Matched filter: correlate with conjugate of reference pulse
-    reference_conj = np.conj(reference[::-1])  # Time-reversed conjugate
+    # Matched filter: correlate with conjugate of time-reversed reference
+    reference_matched = np.conj(reference[::-1])
     
-    # Apply matched filter to each pulse
+    # Apply matched filter to each pulse using linear correlation
     compressed = []
     for pulse in stacked:
-        # Correlation via FFT
-        compressed_pulse = np.fft.ifft(np.fft.fft(pulse) * np.fft.fft(reference_conj, len(pulse)))
+        # Use 'same' mode to keep same length and center the output
+        compressed_pulse = np.correlate(pulse, reference_matched, mode='same')
         compressed.append(compressed_pulse)
     
     return np.array(compressed)

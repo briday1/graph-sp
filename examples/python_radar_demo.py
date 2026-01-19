@@ -28,7 +28,7 @@ def lfm_generator(inputs, variant_params):
     """
     num_samples = 256
     bandwidth = 100e6  # 100 MHz
-    pulse_width = 2e-6  # 2 microseconds pulse width
+    pulse_width = 1e-6  # 1 microsecond pulse width (shorter for centered target)
     sample_rate = 100e6  # 100 MHz sample rate
     
     # Generate LFM chirp
@@ -36,9 +36,13 @@ def lfm_generator(inputs, variant_params):
     t = np.arange(num_samples) / sample_rate
     
     # Create rectangular pulse envelope
+    # Position pulse so peak appears at center (bin ~128) after matched filtering
+    # With 'same' mode correlation, peak appears at pulse center
+    # pulse_samples = 100, center should be at 128, so start at 78
     pulse_envelope = np.zeros(num_samples)
-    pulse_start = int(num_samples * 0.35)  # Start at 35% for central peak position
-    pulse_end = pulse_start + int(pulse_width * sample_rate)  # Pulse duration
+    pulse_samples = int(pulse_width * sample_rate)
+    pulse_start = 78  # Chosen so peak appears at bin 128
+    pulse_end = pulse_start + pulse_samples
     pulse_envelope[pulse_start:pulse_end] = 1.0
     
     # Generate chirp phase (only within pulse)

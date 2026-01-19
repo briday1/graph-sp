@@ -36,15 +36,18 @@ fn lfm_generator(_inputs: &HashMap<String, GraphData>, params: &HashMap<String, 
     
     let pulse_width = params.get("pulse_width")
         .and_then(|d| d.as_float())
-        .unwrap_or(2e-6); // 2 microseconds
+        .unwrap_or(1e-6); // 1 microsecond (shorter pulse for centered target)
     
     let sample_rate = 100e6; // 100 MHz sample rate
     
     // Generate LFM pulse with rectangular envelope
     let chirp_rate = bandwidth / pulse_width;
     
-    let pulse_start = (num_samples as f64 * 0.35) as usize; // Start at 35% for central peak position
+    // Position pulse so peak appears at center (bin ~128) after matched filtering
+    // With 'same' mode correlation, peak appears at pulse center
+    // pulse_samples = 100, center should be at 128, so start at 78
     let pulse_samples = (pulse_width * sample_rate) as usize;
+    let pulse_start = 78; // Chosen so peak appears at bin 128
     let pulse_end = (pulse_start + pulse_samples).min(num_samples);
     
     let mut signal = Array1::<Complex<f64>>::zeros(num_samples);
