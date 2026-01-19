@@ -3,7 +3,7 @@ name: Publish to crates.io and PyPI
 on:
   push:
     branches:
-      - 'copilot/fix-publish-workflow-issues-again'
+      - 'main'
     tags:
       - 'v*'
   workflow_dispatch:
