@@ -32,7 +32,7 @@ fn demo_simple_output_access() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("initial_value".to_string(), GraphData::string("100"));
+            result.insert("initial_value".to_string(), GraphData::int(100));
             result
         },
         Some("Source"),
@@ -43,9 +43,9 @@ fn demo_simple_output_access() {
     // Node 2: Process the data
     graph.add(
         |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("input").and_then(|d| d.as_string()).unwrap().parse::<i32>().unwrap();
+            let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
-            result.insert("processed".to_string(), GraphData::string(&(value * 2).to_string()));
+            result.insert("processed".to_string(), GraphData::int(value * 2));
             result
         },
         Some("Process"),
@@ -92,7 +92,7 @@ fn demo_branch_output_access() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), GraphData::string("50"));
+            result.insert("value".to_string(), GraphData::int(50));
             result
         },
         Some("Source"),
@@ -104,7 +104,7 @@ fn demo_branch_output_access() {
     let mut branch_a = Graph::new();
     branch_a.add(
         |inputs: &HashMap<String, GraphData>, _| {
-            let val = inputs.get("data").and_then(|d| d.as_string()).unwrap_or("unknown");
+            let val = inputs.get("data").map(|d| d.to_string_repr()).unwrap_or("unknown".to_string());
             let mut result = HashMap::new();
             result.insert("stats_output".to_string(), GraphData::string(&format!("Stats of {}", val)));
             result
@@ -118,7 +118,7 @@ fn demo_branch_output_access() {
     let mut branch_b = Graph::new();
     branch_b.add(
         |inputs: &HashMap<String, GraphData>, _| {
-            let val = inputs.get("data").and_then(|d| d.as_string()).unwrap_or("unknown");
+            let val = inputs.get("data").map(|d| d.to_string_repr()).unwrap_or("unknown".to_string());
             let mut result = HashMap::new();
             result.insert("model_output".to_string(), GraphData::string(&format!("Model trained on {}", val)));
             result
@@ -132,7 +132,7 @@ fn demo_branch_output_access() {
     let mut branch_c = Graph::new();
     branch_c.add(
         |inputs: &HashMap<String, GraphData>, _| {
-            let val = inputs.get("data").and_then(|d| d.as_string()).unwrap_or("unknown");
+            let val = inputs.get("data").map(|d| d.to_string_repr()).unwrap_or("unknown".to_string());
             let mut result = HashMap::new();
             result.insert("viz_output".to_string(), GraphData::string(&format!("Plot of {}", val)));
             result
@@ -185,7 +185,7 @@ fn demo_variant_output_access() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), GraphData::string("10.0"));
+            result.insert("value".to_string(), GraphData::float(10.0));
             result
         },
         Some("DataSource"),
@@ -197,9 +197,9 @@ fn demo_variant_output_access() {
     // Factory function that creates a scaler for each factor
     fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
         move |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("data").and_then(|d| d.as_string()).unwrap_or("0.0").parse::<f64>().unwrap();
+            let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
             let mut result = HashMap::new();
-            result.insert("scaled".to_string(), GraphData::string(&(value * factor).to_string()));
+            result.insert("scaled".to_string(), GraphData::float(value * factor));
             result
         }
     }
@@ -236,7 +236,7 @@ fn demo_variant_output_access() {
     graph2.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), GraphData::string("10.0"));
+            result.insert("value".to_string(), GraphData::float(10.0));
             result
         },
         Some("DataSource"),
@@ -247,9 +247,9 @@ fn demo_variant_output_access() {
     // Variant 1: 2x
     fn make_scaler_unique(label: &str, factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> + '_ {
         move |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("data").and_then(|d| d.as_string()).unwrap_or("0.0").parse::<f64>().unwrap();
+            let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
             let mut result = HashMap::new();
-            result.insert(label.to_string(), GraphData::string(&(value * factor).to_string()));
+            result.insert(label.to_string(), GraphData::float(value * factor));
             result
         }
     }
@@ -295,10 +295,10 @@ fn demo_multiple_outputs() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("mean".to_string(), GraphData::string("50.5"));
-            result.insert("median".to_string(), GraphData::string("48.0"));
-            result.insert("stddev".to_string(), GraphData::string("12.3"));
-            result.insert("count".to_string(), GraphData::string("100"));
+            result.insert("mean".to_string(), GraphData::float(50.5));
+            result.insert("median".to_string(), GraphData::float(48.0));
+            result.insert("stddev".to_string(), GraphData::float(12.3));
+            result.insert("count".to_string(), GraphData::int(100));
             result
         },
         Some("Statistics"),
