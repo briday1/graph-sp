@@ -5,7 +5,7 @@
 //! - Outputs: (impl_var, broadcast_var) - function return value mapped to context variable
 //! - Merge inputs: (branch_id, broadcast_var, impl_var) - branch-specific variable resolution
 
-use graph_sp::Graph;
+use graph_sp::{Graph, GraphData};
 use std::collections::HashMap;
 
 fn main() {
@@ -14,9 +14,9 @@ fn main() {
     let mut graph = Graph::new();
 
     // Source node - no inputs, produces "dataset" in context
-    fn data_source(_inputs: &HashMap<String, String>, _variant: &HashMap<String, String>) -> HashMap<String, String> {
+    fn data_source(_inputs: &HashMap<String, GraphData>, _variant: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
         let mut outputs = HashMap::new();
-        outputs.insert("raw".to_string(), "Sample Data".to_string());
+        outputs.insert("raw".to_string(), GraphData::string("Sample Data"));
         outputs
     }
 
@@ -31,11 +31,12 @@ fn main() {
     println!("  Output mapping: function's 'raw' → context's 'dataset'\n");
 
     // Process node - consumes "dataset" from context as "input_data", produces "processed_data" to context as "result"
-    fn processor(inputs: &HashMap<String, String>, _variant: &HashMap<String, String>) -> HashMap<String, String> {
-        let default = String::new();
-        let data = inputs.get("input_data").unwrap_or(&default);
+    fn processor(inputs: &HashMap<String, GraphData>, _variant: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+        let data = inputs.get("input_data")
+            .and_then(|d| d.as_string())
+            .unwrap_or("");
         let mut outputs = HashMap::new();
-        outputs.insert("processed_data".to_string(), format!("Processed: {}", data));
+        outputs.insert("processed_data".to_string(), GraphData::string(format!("Processed: {}", data)));
         outputs
     }
 
@@ -52,11 +53,12 @@ fn main() {
 
     // Create branches that both use the same variable names internally
     let mut branch_a = Graph::new();
-    fn transform_a(inputs: &HashMap<String, String>, _variant: &HashMap<String, String>) -> HashMap<String, String> {
-        let default = String::new();
-        let data = inputs.get("x").unwrap_or(&default);
+    fn transform_a(inputs: &HashMap<String, GraphData>, _variant: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+        let data = inputs.get("x")
+            .and_then(|d| d.as_string())
+            .unwrap_or("");
         let mut outputs = HashMap::new();
-        outputs.insert("y".to_string(), format!("{} [Path A]", data));
+        outputs.insert("y".to_string(), GraphData::string(format!("{} [Path A]", data)));
         outputs
     }
     branch_a.add(
@@ -67,11 +69,12 @@ fn main() {
     );
 
     let mut branch_b = Graph::new();
-    fn transform_b(inputs: &HashMap<String, String>, _variant: &HashMap<String, String>) -> HashMap<String, String> {
-        let default = String::new();
-        let data = inputs.get("x").unwrap_or(&default);
+    fn transform_b(inputs: &HashMap<String, GraphData>, _variant: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+        let data = inputs.get("x")
+            .and_then(|d| d.as_string())
+            .unwrap_or("");
         let mut outputs = HashMap::new();
-        outputs.insert("y".to_string(), format!("{} [Path B]", data));
+        outputs.insert("y".to_string(), GraphData::string(format!("{} [Path B]", data)));
         outputs
     }
     branch_b.add(
@@ -94,12 +97,15 @@ fn main() {
     println!("  Branch B ID: {}\n", branch_b_id);
 
     // Merge branches with branch-specific variable resolution
-    fn combine(inputs: &HashMap<String, String>, _variant: &HashMap<String, String>) -> HashMap<String, String> {
-        let default = String::new();
-        let a = inputs.get("from_a").unwrap_or(&default);
-        let b = inputs.get("from_b").unwrap_or(&default);
+    fn combine(inputs: &HashMap<String, GraphData>, _variant: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+        let a = inputs.get("from_a")
+            .and_then(|d| d.as_string())
+            .unwrap_or("");
+        let b = inputs.get("from_b")
+            .and_then(|d| d.as_string())
+            .unwrap_or("");
         let mut outputs = HashMap::new();
-        outputs.insert("merged".to_string(), format!("Combined: {} + {}", a, b));
+        outputs.insert("merged".to_string(), GraphData::string(format!("Combined: {} + {}", a, b)));
         outputs
     }
 
@@ -120,13 +126,14 @@ fn main() {
     println!("  Output mapping: merge function's 'merged' → context's 'final_result'\n");
 
     // Variant example with factory pattern
-    fn make_multiplier(factor: f64) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> {
+    fn make_multiplier(factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
         move |inputs, _variant| {
-            let default = "1.0".to_string();
-            let data = inputs.get("value").unwrap_or(&default);
+            let data = inputs.get("value")
+                .and_then(|d| d.as_string())
+                .unwrap_or("1.0");
             if let Ok(val) = data.parse::<f64>() {
                 let mut outputs = HashMap::new();
-                outputs.insert("scaled".to_string(), (val * factor).to_string());
+                outputs.insert("scaled".to_string(), GraphData::string((val * factor).to_string()));
                 outputs
             } else {
                 HashMap::new()
