@@ -128,16 +128,12 @@ fn main() {
     // Variant example with factory pattern
     fn make_multiplier(factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
         move |inputs, _variant| {
-            let data = inputs.get("value")
-                .and_then(|d| d.as_string())
-                .unwrap_or("1.0");
-            if let Ok(val) = data.parse::<f64>() {
-                let mut outputs = HashMap::new();
-                outputs.insert("scaled".to_string(), GraphData::string((val * factor).to_string()));
-                outputs
-            } else {
-                HashMap::new()
-            }
+            let val = inputs.get("value")
+                .and_then(|d| d.as_float())
+                .unwrap_or(1.0);
+            let mut outputs = HashMap::new();
+            outputs.insert("scaled".to_string(), GraphData::float(val * factor));
+            outputs
         }
     }
 

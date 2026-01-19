@@ -144,7 +144,7 @@ fn demo_complex_dependencies() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("source1_data".to_string(), GraphData::string("100"));
+            result.insert("source1_data".to_string(), GraphData::int(100));
             result
         },
         Some("Source1"),
@@ -155,7 +155,7 @@ fn demo_complex_dependencies() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("source2_data".to_string(), GraphData::string("200"));
+            result.insert("source2_data".to_string(), GraphData::int(200));
             result
         },
         Some("Source2"),
@@ -167,9 +167,9 @@ fn demo_complex_dependencies() {
     graph.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("in").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()) {
+            if let Some(val) = inputs.get("in").and_then(|d| d.as_int()) {
                 thread::sleep(Duration::from_millis(50));
-                result.insert("processed".to_string(), GraphData::string((val * 2).to_string()));
+                result.insert("processed".to_string(), GraphData::int(val * 2));
             }
             result
         },
@@ -181,9 +181,9 @@ fn demo_complex_dependencies() {
     graph.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("in").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()) {
+            if let Some(val) = inputs.get("in").and_then(|d| d.as_int()) {
                 thread::sleep(Duration::from_millis(50));
-                result.insert("processed".to_string(), GraphData::string((val * 3).to_string()));
+                result.insert("processed".to_string(), GraphData::int(val * 3));
             }
             result
         },
@@ -196,10 +196,10 @@ fn demo_complex_dependencies() {
     graph.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            let v1 = inputs.get("p1").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
-            let v2 = inputs.get("p2").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
+            let v1 = inputs.get("p1").and_then(|d| d.as_int()).unwrap_or(0);
+            let v2 = inputs.get("p2").and_then(|d| d.as_int()).unwrap_or(0);
             thread::sleep(Duration::from_millis(30));
-            result.insert("combined".to_string(), GraphData::string(format!("{}", v1 + v2)));
+            result.insert("combined".to_string(), GraphData::int(v1 + v2));
             result
         },
         Some("Combine[30ms]"),
@@ -254,7 +254,7 @@ fn demo_variant_parallelism() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), GraphData::string("1000"));
+            result.insert("value".to_string(), GraphData::float(1000.0));
             result
         },
         Some("DataSource"),
@@ -267,10 +267,10 @@ fn demo_variant_parallelism() {
         move |inputs: &HashMap<String, GraphData>, _| {
             let start = Instant::now();
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("input").and_then(|d| d.as_string()).and_then(|s| s.parse::<f64>().ok()) {
+            if let Some(val) = inputs.get("input").and_then(|d| d.as_float()) {
                 // Simulate 100ms of work
                 thread::sleep(Duration::from_millis(100));
-                result.insert("result".to_string(), GraphData::string(format!("{:.1}", val * factor)));
+                result.insert("result".to_string(), GraphData::float(val * factor));
             }
             println!("    [{}ms] Variant (factor={}) completed", start.elapsed().as_millis(), factor);
             result
