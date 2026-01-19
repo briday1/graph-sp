@@ -40,10 +40,21 @@ def generate_lfm_pulse():
     return signal
 
 def stack_pulses_rust(pulse, num_pulses=128):
-    """Stack pulses matching Rust implementation"""
+    """Stack pulses with Doppler shifts matching Rust implementation"""
     num_samples = len(pulse)
-    stacked = np.tile(pulse, num_pulses)
-    return stacked.reshape(num_pulses, num_samples)
+    
+    # Doppler simulation parameters (matching Rust/Python demos)
+    doppler_freq = 1000  # Hz
+    prf = 10000  # Hz
+    
+    stacked = np.zeros((num_pulses, num_samples), dtype=complex)
+    for pulse_idx in range(num_pulses):
+        # Add Doppler shift
+        phase_shift = 2 * np.pi * doppler_freq * pulse_idx / prf
+        doppler_shift = np.exp(1j * phase_shift)
+        stacked[pulse_idx, :] = pulse * doppler_shift
+    
+    return stacked
 
 def range_compress_rust(stacked, reference):
     """Range compression matching Rust implementation"""
@@ -63,11 +74,24 @@ def range_compress_rust(stacked, reference):
     
     return compressed
 
+def doppler_compress_rust(compressed, num_pulses, num_samples):
+    """Doppler compression via FFT along slow-time"""
+    # Reshape to 2D (pulses x samples)
+    data_2d = compressed.reshape(num_pulses, num_samples)
+    
+    # FFT along slow-time (axis=0) for each range bin
+    range_doppler = np.fft.fft(data_2d, axis=0)
+    
+    return range_doppler
+
 # Generate data
 print("Generating Rust radar processing data...")
 pulse = generate_lfm_pulse()
-stacked = stack_pulses_rust(pulse)
+num_pulses = 128
+num_samples = len(pulse)
+stacked = stack_pulses_rust(pulse, num_pulses)
 compressed = range_compress_rust(stacked, pulse)
+range_doppler = doppler_compress_rust(compressed, num_pulses, num_samples)
 
 # Create plots
 print("Creating Rust radar plots...")
@@ -96,12 +120,12 @@ plt.savefig('rust_01_lfm_pulse.png', dpi=150, bbox_inches='tight')
 print("Saved: rust_01_lfm_pulse.png")
 plt.close()
 
-# Plot 2: Pulse Stacking (Real part to show actual signal)
+# Plot 2: Pulse Stacking with Doppler (Real part to show actual signal)
 fig, ax = plt.subplots(1, 1, figsize=(10, 6))
 im = ax.imshow(stacked.real, aspect='auto', cmap='RdBu', interpolation='nearest', vmin=-1, vmax=1)
 ax.set_xlabel('Fast-time (Range samples)')
 ax.set_ylabel('Slow-time (Pulse #)')
-ax.set_title('Rust: 128 Stacked Pulses (Real Part)')
+ax.set_title('Rust: 128 Pulses with Doppler Shifts (Real Part)')
 plt.colorbar(im, ax=ax, label='Amplitude')
 plt.tight_layout()
 plt.savefig('rust_02_pulse_stacking.png', dpi=150, bbox_inches='tight')
@@ -111,32 +135,56 @@ plt.close()
 # Plot 3: Range Compression
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
 
-# Before compression (first pulse)
-ax1.plot(np.abs(stacked.flatten()), 'b-', linewidth=0.5)
-ax1.set_xlabel('Sample Index')
-ax1.set_ylabel('Magnitude')
+# Before compression (show 2D view)
+ax1.imshow(np.abs(stacked), aspect='auto', cmap='viridis', interpolation='nearest')
+ax1.set_xlabel('Fast-time (Range samples)')
+ax1.set_ylabel('Slow-time (Pulse #)')
 ax1.set_title('Rust: Before Range Compression')
-ax1.grid(True, alpha=0.3)
 
-# After compression
-compressed_mag = np.abs(compressed)
-ax2.plot(compressed_mag, 'r-', linewidth=0.5)
+# After compression (show 2D view)
+compressed_2d = compressed.reshape(num_pulses, num_samples)
+ax2.imshow(np.abs(compressed_2d), aspect='auto', cmap='hot', interpolation='nearest')
 ax2.set_xlabel('Range Bin')
-ax2.set_ylabel('Magnitude')
-ax2.set_title(f'Rust: After Range Compression (Peak: {compressed_mag.max():.2f})')
-ax2.grid(True, alpha=0.3)
-
-# Mark peak
-peak_idx = np.argmax(compressed_mag)
-ax2.axvline(peak_idx, color='g', linestyle='--', alpha=0.7, label=f'Peak @ {peak_idx}')
-ax2.legend()
+ax2.set_ylabel('Pulse #')
+ax2.set_title(f'Rust: After Range Compression')
 
 plt.tight_layout()
 plt.savefig('rust_03_range_compression.png', dpi=150, bbox_inches='tight')
 print("Saved: rust_03_range_compression.png")
 plt.close()
 
+# Plot 4: Range-Doppler Map
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+# Linear scale
+im1 = ax1.imshow(np.abs(range_doppler), aspect='auto', cmap='jet', interpolation='nearest')
+ax1.set_xlabel('Range Bin')
+ax1.set_ylabel('Doppler Bin')
+ax1.set_title('Rust: Range-Doppler Map (Linear Scale)')
+plt.colorbar(im1, ax=ax1, label='Magnitude')
+
+# Find and mark peak
+peak_idx = np.unravel_index(np.argmax(np.abs(range_doppler)), range_doppler.shape)
+ax1.plot(peak_idx[1], peak_idx[0], 'wx', markersize=15, markeredgewidth=2, 
+         label=f'Peak @ Doppler={peak_idx[0]}, Range={peak_idx[1]}')
+ax1.legend()
+
+# dB scale
+rd_db = 20 * np.log10(np.abs(range_doppler) + 1e-10)
+im2 = ax2.imshow(rd_db, aspect='auto', cmap='jet', interpolation='nearest')
+ax2.set_xlabel('Range Bin')
+ax2.set_ylabel('Doppler Bin')
+ax2.set_title('Rust: Range-Doppler Map (dB Scale)')
+plt.colorbar(im2, ax=ax2, label='Magnitude (dB)')
+ax2.plot(peak_idx[1], peak_idx[0], 'wx', markersize=15, markeredgewidth=2)
+
+plt.tight_layout()
+plt.savefig('rust_04_range_doppler_map.png', dpi=150, bbox_inches='tight')
+print("Saved: rust_04_range_doppler_map.png")
+plt.close()
+
 print("\nRust plots generated successfully!")
 print("  - rust_01_lfm_pulse.png")
 print("  - rust_02_pulse_stacking.png")
 print("  - rust_03_range_compression.png")
+print("  - rust_04_range_doppler_map.png")
