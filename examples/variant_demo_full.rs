@@ -1,7 +1,7 @@
 // Comprehensive demonstration of the variant pattern (sigexec-style)
 // Shows the full actual syntax with working examples
 
-use graph_sp::Graph;
+use graph_sp::{Graph, GraphData};
 use std::collections::HashMap;
 
 // =============================================================================
@@ -10,14 +10,14 @@ use std::collections::HashMap;
 
 /// Factory function that creates a scaler for a specific factor
 /// This is the key pattern: factory takes a parameter, returns a closure
-fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> {
+fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     move |inputs, _variant_params| {
-        let value = inputs.get("input_data").unwrap().parse::<f64>().unwrap();
+        let value = inputs.get("input_data").and_then(|d| d.as_string()).unwrap_or("0").parse::<f64>().unwrap();
         let scaled = value * factor;
         
         let mut outputs = HashMap::new();
-        outputs.insert("scaled_value".to_string(), scaled.to_string());
-        outputs.insert("factor_used".to_string(), factor.to_string());
+        outputs.insert("scaled_value".to_string(), GraphData::string(scaled.to_string()));
+        outputs.insert("factor_used".to_string(), GraphData::string(factor.to_string()));
         outputs
     }
 }
@@ -38,9 +38,9 @@ impl std::fmt::Display for FilterConfig {
     }
 }
 
-fn make_filter(config: FilterConfig) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> {
+fn make_filter(config: FilterConfig) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     move |inputs, _variant_params| {
-        let value = inputs.get("data").unwrap().parse::<f64>().unwrap();
+        let value = inputs.get("data").and_then(|d| d.as_string()).unwrap_or("0").parse::<f64>().unwrap();
         
         // Apply filtering based on config
         let filtered = match config.mode.as_str() {
@@ -50,8 +50,8 @@ fn make_filter(config: FilterConfig) -> impl Fn(&HashMap<String, String>, &HashM
         };
         
         let mut outputs = HashMap::new();
-        outputs.insert("filtered".to_string(), filtered.to_string());
-        outputs.insert("filter_mode".to_string(), config.mode.clone());
+        outputs.insert("filtered".to_string(), GraphData::string(filtered.to_string()));
+        outputs.insert("filter_mode".to_string(), GraphData::string(config.mode.clone()));
         outputs
     }
 }
@@ -60,13 +60,13 @@ fn make_filter(config: FilterConfig) -> impl Fn(&HashMap<String, String>, &HashM
 // Example 3: Offset Factory (Simple Parameter Sweep)
 // =============================================================================
 
-fn make_offsetter(offset: i32) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> {
+fn make_offsetter(offset: i32) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     move |inputs, _variant_params| {
-        let value = inputs.get("number").unwrap().parse::<i32>().unwrap();
+        let value = inputs.get("number").and_then(|d| d.as_string()).unwrap_or("0").parse::<i32>().unwrap();
         let result = value + offset;
         
         let mut outputs = HashMap::new();
-        outputs.insert("offset_result".to_string(), result.to_string());
+        outputs.insert("offset_result".to_string(), GraphData::string(result.to_string()));
         outputs
     }
 }
@@ -75,13 +75,13 @@ fn make_offsetter(offset: i32) -> impl Fn(&HashMap<String, String>, &HashMap<Str
 // Example 4: String Processor Factory
 // =============================================================================
 
-fn make_processor(prefix: &'static str) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> {
+fn make_processor(prefix: &'static str) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     move |inputs, _variant_params| {
-        let text = inputs.get("text").unwrap();
+        let text = inputs.get("text").and_then(|d| d.as_string()).unwrap_or("");
         let processed = format!("[{}] {}", prefix, text);
         
         let mut outputs = HashMap::new();
-        outputs.insert("processed_text".to_string(), processed);
+        outputs.insert("processed_text".to_string(), GraphData::string(processed));
         outputs
     }
 }
@@ -90,28 +90,28 @@ fn make_processor(prefix: &'static str) -> impl Fn(&HashMap<String, String>, &Ha
 // Helper Functions for Demonstrations
 // =============================================================================
 
-fn data_source(_inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
+fn data_source(_inputs: &HashMap<String, GraphData>, _variant_params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let mut outputs = HashMap::new();
-    outputs.insert("value".to_string(), "10.0".to_string());
+    outputs.insert("value".to_string(), GraphData::string("10.0".to_string()));
     outputs
 }
 
-fn number_source(_inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
+fn number_source(_inputs: &HashMap<String, GraphData>, _variant_params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let mut outputs = HashMap::new();
-    outputs.insert("num".to_string(), "42".to_string());
+    outputs.insert("num".to_string(), GraphData::string("42".to_string()));
     outputs
 }
 
-fn text_source(_inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
+fn text_source(_inputs: &HashMap<String, GraphData>, _variant_params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let mut outputs = HashMap::new();
-    outputs.insert("message".to_string(), "Hello World".to_string());
+    outputs.insert("message".to_string(), GraphData::string("Hello World".to_string()));
     outputs
 }
 
-fn stats_node(inputs: &HashMap<String, String>, _variant_params: &HashMap<String, String>) -> HashMap<String, String> {
-    let scaled = inputs.get("result").unwrap();
+fn stats_node(inputs: &HashMap<String, GraphData>, _variant_params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+    let scaled = inputs.get("result").and_then(|d| d.as_string()).unwrap_or("");
     let mut outputs = HashMap::new();
-    outputs.insert("summary".to_string(), format!("Result: {}", scaled));
+    outputs.insert("summary".to_string(), GraphData::string(format!("Result: {}", scaled)));
     outputs
 }
 

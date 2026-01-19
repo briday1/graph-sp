@@ -8,7 +8,7 @@
 //! - Variant parameter sweeps
 //! - DAG statistics and visualization
 
-use graph_sp::{Graph, Linspace};
+use graph_sp::{Graph, GraphData};
 use std::collections::HashMap;
 
 fn main() {
@@ -34,9 +34,9 @@ fn demo_simple_pipeline() {
     
     // Data source node
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), "42".to_string());
+            result.insert("value".to_string(), GraphData::string("42"));
             result
         },
         Some("DataSource"),
@@ -46,10 +46,10 @@ fn demo_simple_pipeline() {
     
     // Processing node: multiply by 2
     graph.add(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("x").and_then(|s| s.parse::<i32>().ok()) {
-                result.insert("doubled".to_string(), (val * 2).to_string());
+            if let Some(val) = inputs.get("x").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()) {
+                result.insert("doubled".to_string(), GraphData::string((val * 2).to_string()));
             }
             result
         },
@@ -60,10 +60,10 @@ fn demo_simple_pipeline() {
     
     // Final processing: add 10
     graph.add(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("num").and_then(|s| s.parse::<i32>().ok()) {
-                result.insert("sum".to_string(), (val + 10).to_string());
+            if let Some(val) = inputs.get("num").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()) {
+                result.insert("sum".to_string(), GraphData::string((val + 10).to_string()));
             }
             result
         },
@@ -76,9 +76,9 @@ fn demo_simple_pipeline() {
     println!("\n📊 Execution:");
     let context = dag.execute(false, None);
     
-    println!("  Input:  data = {}", context.get("data").unwrap());
-    println!("  Step 1: result = {} (data * 2)", context.get("result").unwrap());
-    println!("  Step 2: final = {} (result + 10)", context.get("final").unwrap());
+    println!("  Input:  data = {}", context.get("data").unwrap().to_string_repr());
+    println!("  Step 1: result = {} (data * 2)", context.get("result").unwrap().to_string_repr());
+    println!("  Step 2: final = {} (result + 10)", context.get("final").unwrap().to_string_repr());
     
     println!("\n📈 DAG Statistics:");
     let stats = dag.stats();
@@ -98,9 +98,9 @@ fn demo_branching() {
     
     // Source node
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("dataset".to_string(), "100".to_string());
+            result.insert("dataset".to_string(), GraphData::string("100"));
             result
         },
         Some("Source"),
@@ -111,10 +111,10 @@ fn demo_branching() {
     // Branch A: Compute statistics
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("input") {
-                result.insert("stats".to_string(), format!("Mean: {}", val));
+            if let Some(val) = inputs.get("input").and_then(|d| d.as_string()) {
+                result.insert("stats".to_string(), GraphData::string(format!("Mean: {}", val)));
             }
             result
         },
@@ -126,10 +126,10 @@ fn demo_branching() {
     // Branch B: Train model
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("input") {
-                result.insert("model".to_string(), format!("Model trained on {}", val));
+            if let Some(val) = inputs.get("input").and_then(|d| d.as_string()) {
+                result.insert("model".to_string(), GraphData::string(format!("Model trained on {}", val)));
             }
             result
         },
@@ -141,10 +141,10 @@ fn demo_branching() {
     // Branch C: Generate visualization
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("input") {
-                result.insert("plot".to_string(), format!("Plot of {}", val));
+            if let Some(val) = inputs.get("input").and_then(|d| d.as_string()) {
+                result.insert("plot".to_string(), GraphData::string(format!("Plot of {}", val)));
             }
             result
         },
@@ -161,10 +161,10 @@ fn demo_branching() {
     println!("\n📊 Execution:");
     let context = dag.execute(false, None);
     
-    println!("  Source: data = {}", context.get("data").unwrap());
-    println!("  Branch A (Stats): {}", context.get("stats_result").unwrap());
-    println!("  Branch B (Model): {}", context.get("model_result").unwrap());
-    println!("  Branch C (Viz):   {}", context.get("viz_result").unwrap());
+    println!("  Source: data = {}", context.get("data").unwrap().to_string_repr());
+    println!("  Branch A (Stats): {}", context.get("stats_result").unwrap().to_string_repr());
+    println!("  Branch B (Model): {}", context.get("model_result").unwrap().to_string_repr());
+    println!("  Branch C (Viz):   {}", context.get("viz_result").unwrap().to_string_repr());
     
     println!("\n📈 DAG Statistics:");
     let stats = dag.stats();
@@ -185,9 +185,9 @@ fn demo_merging() {
     
     // Source
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), "50".to_string());
+            result.insert("value".to_string(), GraphData::string("50"));
             result
         },
         Some("Source"),
@@ -198,10 +198,10 @@ fn demo_merging() {
     // Branch A: Add 10
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("x").and_then(|s| s.parse::<i32>().ok()) {
-                result.insert("output".to_string(), (val + 10).to_string());
+            if let Some(val) = inputs.get("x").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()) {
+                result.insert("output".to_string(), GraphData::string((val + 10).to_string()));
             }
             result
         },
@@ -213,10 +213,10 @@ fn demo_merging() {
     // Branch B: Add 20
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("x").and_then(|s| s.parse::<i32>().ok()) {
-                result.insert("output".to_string(), (val + 20).to_string());
+            if let Some(val) = inputs.get("x").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()) {
+                result.insert("output".to_string(), GraphData::string((val + 20).to_string()));
             }
             result
         },
@@ -230,11 +230,11 @@ fn demo_merging() {
     
     // Merge node: Combine results from both branches
     graph.merge(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            let a = inputs.get("from_a").and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
-            let b = inputs.get("from_b").and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
-            result.insert("combined".to_string(), format!("{} + {} = {}", a, b, a + b));
+            let a = inputs.get("from_a").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
+            let b = inputs.get("from_b").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
+            result.insert("combined".to_string(), GraphData::string(format!("{} + {} = {}", a, b, a + b)));
             result
         },
         Some("Merge"),
@@ -249,10 +249,10 @@ fn demo_merging() {
     println!("\n📊 Execution:");
     let context = dag.execute(false, None);
     
-    println!("  Source: data = {}", context.get("data").unwrap());
+    println!("  Source: data = {}", context.get("data").unwrap().to_string_repr());
     println!("  Branch A: 50 + 10 = 60");
     println!("  Branch B: 50 + 20 = 70");
-    println!("  Merged: {}", context.get("final").unwrap());
+    println!("  Merged: {}", context.get("final").unwrap().to_string_repr());
     
     println!("\n📈 DAG Statistics:");
     let stats = dag.stats();
@@ -272,9 +272,9 @@ fn demo_variants() {
     
     // Source node
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("base_value".to_string(), "10.0".to_string());
+            result.insert("base_value".to_string(), GraphData::string("10.0"));
             result
         },
         Some("DataSource"),
@@ -283,12 +283,12 @@ fn demo_variants() {
     );
     
     // Variant factory: Scale by different learning rates
-    fn make_scaler(learning_rate: f64) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> {
-        move |inputs: &HashMap<String, String>, _| {
+    fn make_scaler(learning_rate: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+        move |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("input").and_then(|s| s.parse::<f64>().ok()) {
+            if let Some(val) = inputs.get("input").and_then(|d| d.as_string()).and_then(|s| s.parse::<f64>().ok()) {
                 let scaled = val * learning_rate;
-                result.insert("scaled_value".to_string(), format!("{:.2}", scaled));
+                result.insert("scaled_value".to_string(), GraphData::string(format!("{:.2}", scaled)));
             }
             result
         }
@@ -307,7 +307,7 @@ fn demo_variants() {
     println!("\n📊 Execution:");
     let context = dag.execute(false, None);
     
-    println!("  Source: data = {}", context.get("data").unwrap());
+    println!("  Source: data = {}", context.get("data").unwrap().to_string_repr());
     println!("  Variants created for learning rates: [0.001, 0.01, 0.1, 1.0]");
     println!("  (Each variant computes: data * learning_rate)");
     
@@ -330,9 +330,9 @@ fn demo_complex_graph() {
     
     // 1. Data ingestion
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("raw_data".to_string(), "1000".to_string());
+            result.insert("raw_data".to_string(), GraphData::string("1000"));
             result
         },
         Some("Ingest"),
@@ -342,10 +342,10 @@ fn demo_complex_graph() {
     
     // 2. Preprocessing
     graph.add(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("raw").and_then(|s| s.parse::<i32>().ok()) {
-                result.insert("cleaned".to_string(), (val / 10).to_string());
+            if let Some(val) = inputs.get("raw").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()) {
+                result.insert("cleaned".to_string(), GraphData::string((val / 10).to_string()));
             }
             result
         },
@@ -357,10 +357,10 @@ fn demo_complex_graph() {
     // 3. Branch for different analyses
     let mut stats_branch = Graph::new();
     stats_branch.add(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("data") {
-                result.insert("stats".to_string(), format!("Stats({})", val));
+            if let Some(val) = inputs.get("data").and_then(|d| d.as_string()) {
+                result.insert("stats".to_string(), GraphData::string(format!("Stats({})", val)));
             }
             result
         },
@@ -371,10 +371,10 @@ fn demo_complex_graph() {
     
     let mut ml_branch = Graph::new();
     ml_branch.add(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("data") {
-                result.insert("prediction".to_string(), format!("Pred({})", val));
+            if let Some(val) = inputs.get("data").and_then(|d| d.as_string()) {
+                result.insert("prediction".to_string(), GraphData::string(format!("Pred({})", val)));
             }
             result
         },
@@ -388,11 +388,11 @@ fn demo_complex_graph() {
     
     // 4. Merge branches
     graph.merge(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            let stats = inputs.get("stats_in").cloned().unwrap_or_default();
-            let ml = inputs.get("ml_in").cloned().unwrap_or_default();
-            result.insert("report".to_string(), format!("{} & {}", stats, ml));
+            let stats = inputs.get("stats_in").and_then(|d| d.as_string()).unwrap_or("");
+            let ml = inputs.get("ml_in").and_then(|d| d.as_string()).unwrap_or("");
+            result.insert("report".to_string(), GraphData::string(format!("{} & {}", stats, ml)));
             result
         },
         Some("Combine"),
@@ -405,10 +405,10 @@ fn demo_complex_graph() {
     
     // 5. Final output formatting
     graph.add(
-        |inputs: &HashMap<String, String>, _| {
+        |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(report) = inputs.get("report") {
-                result.insert("formatted".to_string(), format!("[FINAL] {}", report));
+            if let Some(report) = inputs.get("report").and_then(|d| d.as_string()) {
+                result.insert("formatted".to_string(), GraphData::string(format!("[FINAL] {}", report)));
             }
             result
         },
@@ -421,12 +421,12 @@ fn demo_complex_graph() {
     println!("\n📊 Execution:");
     let context = dag.execute(false, None);
     
-    println!("  Step 1: Ingest      → data = {}", context.get("data").unwrap());
-    println!("  Step 2: Preprocess  → clean_data = {}", context.get("clean_data").unwrap());
-    println!("  Step 3: Branch A    → statistics = {}", context.get("statistics").unwrap());
-    println!("          Branch B    → ml_result = {}", context.get("ml_result").unwrap());
-    println!("  Step 4: Merge       → final_report = {}", context.get("final_report").unwrap());
-    println!("  Step 5: Format      → output = {}", context.get("output").unwrap());
+    println!("  Step 1: Ingest      → data = {}", context.get("data").unwrap().to_string_repr());
+    println!("  Step 2: Preprocess  → clean_data = {}", context.get("clean_data").unwrap().to_string_repr());
+    println!("  Step 3: Branch A    → statistics = {}", context.get("statistics").unwrap().to_string_repr());
+    println!("          Branch B    → ml_result = {}", context.get("ml_result").unwrap().to_string_repr());
+    println!("  Step 4: Merge       → final_report = {}", context.get("final_report").unwrap().to_string_repr());
+    println!("  Step 5: Format      → output = {}", context.get("output").unwrap().to_string_repr());
     
     println!("\n📈 DAG Statistics:");
     let stats = dag.stats();

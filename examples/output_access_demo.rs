@@ -6,7 +6,7 @@
 //! - Variant parameter sweeps
 //! - Complex graphs with multiple outputs
 
-use graph_sp::Graph;
+use graph_sp::{Graph, GraphData};
 use std::collections::HashMap;
 
 fn main() {
@@ -30,9 +30,9 @@ fn demo_simple_output_access() {
     
     // Node 1: Generate initial data
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("initial_value".to_string(), "100".to_string());
+            result.insert("initial_value".to_string(), GraphData::string("100"));
             result
         },
         Some("Source"),
@@ -42,10 +42,10 @@ fn demo_simple_output_access() {
     
     // Node 2: Process the data
     graph.add(
-        |inputs: &HashMap<String, String>, _| {
-            let value = inputs.get("input").unwrap().parse::<i32>().unwrap();
+        |inputs: &HashMap<String, GraphData>, _| {
+            let value = inputs.get("input").and_then(|d| d.as_string()).unwrap().parse::<i32>().unwrap();
             let mut result = HashMap::new();
-            result.insert("processed".to_string(), (value * 2).to_string());
+            result.insert("processed".to_string(), GraphData::string(&(value * 2).to_string()));
             result
         },
         Some("Process"),
@@ -59,18 +59,18 @@ fn demo_simple_output_access() {
     
     println!("📦 Execution Context (all variables):");
     for (key, value) in &context {
-        println!("  {} = {}", key, value);
+        println!("  {} = {}", key, value.to_string_repr());
     }
     
     println!("\n🎯 Accessing specific outputs:");
     
     // Access by broadcast variable name (what's in the graph context)
     if let Some(raw_data) = context.get("raw_data") {
-        println!("  raw_data: {}", raw_data);
+        println!("  raw_data: {}", raw_data.to_string_repr());
     }
     
     if let Some(final_result) = context.get("final_result") {
-        println!("  final_result: {}", final_result);
+        println!("  final_result: {}", final_result.to_string_repr());
     }
     
     // Check if a variable exists
@@ -90,9 +90,9 @@ fn demo_branch_output_access() {
     
     // Source node
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), "50".to_string());
+            result.insert("value".to_string(), GraphData::string("50"));
             result
         },
         Some("Source"),
@@ -103,10 +103,10 @@ fn demo_branch_output_access() {
     // Branch A: Statistics computation
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, String>, _| {
-            let val = inputs.get("data").unwrap();
+        |inputs: &HashMap<String, GraphData>, _| {
+            let val = inputs.get("data").and_then(|d| d.as_string()).unwrap_or("unknown");
             let mut result = HashMap::new();
-            result.insert("stats_output".to_string(), format!("Stats of {}", val));
+            result.insert("stats_output".to_string(), GraphData::string(&format!("Stats of {}", val)));
             result
         },
         Some("Stats"),
@@ -117,10 +117,10 @@ fn demo_branch_output_access() {
     // Branch B: Model training
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, String>, _| {
-            let val = inputs.get("data").unwrap();
+        |inputs: &HashMap<String, GraphData>, _| {
+            let val = inputs.get("data").and_then(|d| d.as_string()).unwrap_or("unknown");
             let mut result = HashMap::new();
-            result.insert("model_output".to_string(), format!("Model trained on {}", val));
+            result.insert("model_output".to_string(), GraphData::string(&format!("Model trained on {}", val)));
             result
         },
         Some("Train"),
@@ -131,10 +131,10 @@ fn demo_branch_output_access() {
     // Branch C: Visualization
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, String>, _| {
-            let val = inputs.get("data").unwrap();
+        |inputs: &HashMap<String, GraphData>, _| {
+            let val = inputs.get("data").and_then(|d| d.as_string()).unwrap_or("unknown");
             let mut result = HashMap::new();
-            result.insert("viz_output".to_string(), format!("Plot of {}", val));
+            result.insert("viz_output".to_string(), GraphData::string(&format!("Plot of {}", val)));
             result
         },
         Some("Visualize"),
@@ -155,20 +155,20 @@ fn demo_branch_output_access() {
     
     // Access each branch's output
     if let Some(stats) = context.get("statistics") {
-        println!("  Branch A (Statistics): {}", stats);
+        println!("  Branch A (Statistics): {}", stats.to_string_repr());
     }
     
     if let Some(model) = context.get("model") {
-        println!("  Branch B (Model): {}", model);
+        println!("  Branch B (Model): {}", model.to_string_repr());
     }
     
     if let Some(viz) = context.get("visualization") {
-        println!("  Branch C (Visualization): {}", viz);
+        println!("  Branch C (Visualization): {}", viz.to_string_repr());
     }
     
     println!("\n🔍 All variables in context:");
     for (key, value) in &context {
-        println!("  {} = {}", key, value);
+        println!("  {} = {}", key, value.to_string_repr());
     }
     
     println!();
@@ -183,9 +183,9 @@ fn demo_variant_output_access() {
     
     // Source node
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), "10.0".to_string());
+            result.insert("value".to_string(), GraphData::string("10.0"));
             result
         },
         Some("DataSource"),
@@ -195,11 +195,11 @@ fn demo_variant_output_access() {
     
     // Variant nodes: scale by different factors
     // Factory function that creates a scaler for each factor
-    fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> {
-        move |inputs: &HashMap<String, String>, _| {
-            let value = inputs.get("data").unwrap().parse::<f64>().unwrap();
+    fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+        move |inputs: &HashMap<String, GraphData>, _| {
+            let value = inputs.get("data").and_then(|d| d.as_string()).unwrap_or("0.0").parse::<f64>().unwrap();
             let mut result = HashMap::new();
-            result.insert("scaled".to_string(), (value * factor).to_string());
+            result.insert("scaled".to_string(), GraphData::string(&(value * factor).to_string()));
             result
         }
     }
@@ -222,7 +222,7 @@ fn demo_variant_output_access() {
     
     // Access the result (will be from the last variant)
     if let Some(result) = context.get("result") {
-        println!("  result = {} (from last variant: 10.0 * 5.0)", result);
+        println!("  result = {} (from last variant: 10.0 * 5.0)", result.to_string_repr());
     }
     
     println!("\n💡 Tip: To preserve all variant outputs, use unique output names:");
@@ -234,9 +234,9 @@ fn demo_variant_output_access() {
     let mut graph2 = Graph::new();
     
     graph2.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), "10.0".to_string());
+            result.insert("value".to_string(), GraphData::string("10.0"));
             result
         },
         Some("DataSource"),
@@ -245,11 +245,11 @@ fn demo_variant_output_access() {
     );
     
     // Variant 1: 2x
-    fn make_scaler_unique(label: &str, factor: f64) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> + '_ {
-        move |inputs: &HashMap<String, String>, _| {
-            let value = inputs.get("data").unwrap().parse::<f64>().unwrap();
+    fn make_scaler_unique(label: &str, factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> + '_ {
+        move |inputs: &HashMap<String, GraphData>, _| {
+            let value = inputs.get("data").and_then(|d| d.as_string()).unwrap_or("0.0").parse::<f64>().unwrap();
             let mut result = HashMap::new();
-            result.insert(label.to_string(), (value * factor).to_string());
+            result.insert(label.to_string(), GraphData::string(&(value * factor).to_string()));
             result
         }
     }
@@ -275,10 +275,10 @@ fn demo_variant_output_access() {
     
     println!("\n✅ Better approach - unique output names:");
     if let Some(result_2x) = context2.get("result_2x") {
-        println!("  result_2x = {}", result_2x);
+        println!("  result_2x = {}", result_2x.to_string_repr());
     }
     if let Some(result_3x) = context2.get("result_3x") {
-        println!("  result_3x = {}", result_3x);
+        println!("  result_3x = {}", result_3x.to_string_repr());
     }
     
     println!();
@@ -293,12 +293,12 @@ fn demo_multiple_outputs() {
     
     // Node that produces multiple outputs
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("mean".to_string(), "50.5".to_string());
-            result.insert("median".to_string(), "48.0".to_string());
-            result.insert("stddev".to_string(), "12.3".to_string());
-            result.insert("count".to_string(), "100".to_string());
+            result.insert("mean".to_string(), GraphData::string("50.5"));
+            result.insert("median".to_string(), GraphData::string("48.0"));
+            result.insert("stddev".to_string(), GraphData::string("12.3"));
+            result.insert("count".to_string(), GraphData::string("100"));
             result
         },
         Some("Statistics"),
@@ -318,18 +318,18 @@ fn demo_multiple_outputs() {
     println!("📊 Multiple outputs from single node:");
     
     // Access each output individually
-    println!("  Mean:   {}", context.get("stat_mean").unwrap());
-    println!("  Median: {}", context.get("stat_median").unwrap());
-    println!("  StdDev: {}", context.get("stat_stddev").unwrap());
-    println!("  Count:  {}", context.get("sample_count").unwrap());
+    println!("  Mean:   {}", context.get("stat_mean").unwrap().to_string_repr());
+    println!("  Median: {}", context.get("stat_median").unwrap().to_string_repr());
+    println!("  StdDev: {}", context.get("stat_stddev").unwrap().to_string_repr());
+    println!("  Count:  {}", context.get("sample_count").unwrap().to_string_repr());
     
     println!("\n📋 Complete execution context:");
     for (key, value) in &context {
-        println!("  {} = {}", key, value);
+        println!("  {} = {}", key, value.to_string_repr());
     }
     
     println!("\n💡 Summary:");
-    println!("  ✓ dag.execute(false, None) returns HashMap<String, String>");
+    println!("  ✓ dag.execute(false, None) returns HashMap<String, GraphData>");
     println!("  ✓ Keys are broadcast variable names (from output mappings)");
     println!("  ✓ Use context.get(\"variable_name\") to access specific outputs");
     println!("  ✓ All outputs accumulate in the context throughout execution");

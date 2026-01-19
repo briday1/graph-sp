@@ -6,7 +6,7 @@
 //! - Track execution history through per-node outputs
 //! - Debug data flow by inspecting individual node results
 
-use graph_sp::Graph;
+use graph_sp::{Graph, GraphData};
 use std::collections::HashMap;
 
 fn main() {
@@ -30,9 +30,9 @@ fn demo_per_node_access() {
     
     // Node 0: Source
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), "10".to_string());
+            result.insert("value".to_string(), GraphData::string("10"));
             result
         },
         Some("Source"),
@@ -42,10 +42,10 @@ fn demo_per_node_access() {
     
     // Node 1: Double
     graph.add(
-        |inputs: &HashMap<String, String>, _| {
-            let value = inputs.get("in").unwrap().parse::<i32>().unwrap();
+        |inputs: &HashMap<String, GraphData>, _| {
+            let value = inputs.get("in").and_then(|d| d.as_string()).unwrap().parse::<i32>().unwrap();
             let mut result = HashMap::new();
-            result.insert("doubled".to_string(), (value * 2).to_string());
+            result.insert("doubled".to_string(), GraphData::string(&(value * 2).to_string()));
             result
         },
         Some("Double"),
@@ -55,10 +55,10 @@ fn demo_per_node_access() {
     
     // Node 2: Add Ten
     graph.add(
-        |inputs: &HashMap<String, String>, _| {
-            let value = inputs.get("in").unwrap().parse::<i32>().unwrap();
+        |inputs: &HashMap<String, GraphData>, _| {
+            let value = inputs.get("in").and_then(|d| d.as_string()).unwrap().parse::<i32>().unwrap();
             let mut result = HashMap::new();
-            result.insert("added".to_string(), (value + 10).to_string());
+            result.insert("added".to_string(), GraphData::string(&(value + 10).to_string()));
             result
         },
         Some("AddTen"),
@@ -72,40 +72,40 @@ fn demo_per_node_access() {
     
     println!("🌍 Global Context (all variables):");
     for (key, value) in &result.context {
-        println!("  {} = {}", key, value);
+        println!("  {} = {}", key, value.to_string_repr());
     }
     
     println!("\n📦 Per-Node Outputs:");
     println!("\nNode 0 (Source) outputs:");
     if let Some(outputs) = result.get_node_outputs(0) {
         for (key, value) in outputs {
-            println!("  {} = {}", key, value);
+            println!("  {} = {}", key, value.to_string_repr());
         }
     }
     
     println!("\nNode 1 (Double) outputs:");
     if let Some(outputs) = result.get_node_outputs(1) {
         for (key, value) in outputs {
-            println!("  {} = {}", key, value);
+            println!("  {} = {}", key, value.to_string_repr());
         }
     }
     
     println!("\nNode 2 (AddTen) outputs:");
     if let Some(outputs) = result.get_node_outputs(2) {
         for (key, value) in outputs {
-            println!("  {} = {}", key, value);
+            println!("  {} = {}", key, value.to_string_repr());
         }
     }
     
     println!("\n🎯 Accessing specific node outputs:");
     if let Some(value) = result.get_from_node(0, "initial_data") {
-        println!("  Node 0 'initial_data': {}", value);
+        println!("  Node 0 'initial_data': {}", value.to_string_repr());
     }
     if let Some(value) = result.get_from_node(1, "doubled_data") {
-        println!("  Node 1 'doubled_data': {}", value);
+        println!("  Node 1 'doubled_data': {}", value.to_string_repr());
     }
     if let Some(value) = result.get_from_node(2, "final_result") {
-        println!("  Node 2 'final_result': {}", value);
+        println!("  Node 2 'final_result': {}", value.to_string_repr());
     }
     
     println!();
@@ -120,9 +120,9 @@ fn demo_per_branch_access() {
     
     // Main graph: Source node
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("dataset".to_string(), "100".to_string());
+            result.insert("dataset".to_string(), GraphData::string("100"));
             result
         },
         Some("Source"),
@@ -133,10 +133,10 @@ fn demo_per_branch_access() {
     // Branch A: Statistics
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, String>, _| {
-            let value = inputs.get("input").unwrap();
+        |inputs: &HashMap<String, GraphData>, _| {
+            let value = inputs.get("input").and_then(|d| d.as_string()).unwrap();
             let mut result = HashMap::new();
-            result.insert("stat_result".to_string(), format!("Mean of {}", value));
+            result.insert("stat_result".to_string(), GraphData::string(&format!("Mean of {}", value)));
             result
         },
         Some("Statistics"),
@@ -147,10 +147,10 @@ fn demo_per_branch_access() {
     // Branch B: Model Training
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, String>, _| {
-            let value = inputs.get("input").unwrap();
+        |inputs: &HashMap<String, GraphData>, _| {
+            let value = inputs.get("input").and_then(|d| d.as_string()).unwrap();
             let mut result = HashMap::new();
-            result.insert("model_result".to_string(), format!("Model trained on {}", value));
+            result.insert("model_result".to_string(), GraphData::string(&format!("Model trained on {}", value)));
             result
         },
         Some("ModelTraining"),
@@ -161,10 +161,10 @@ fn demo_per_branch_access() {
     // Branch C: Visualization
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, String>, _| {
-            let value = inputs.get("input").unwrap();
+        |inputs: &HashMap<String, GraphData>, _| {
+            let value = inputs.get("input").and_then(|d| d.as_string()).unwrap();
             let mut result = HashMap::new();
-            result.insert("viz_result".to_string(), format!("Plot of {}", value));
+            result.insert("viz_result".to_string(), GraphData::string(&format!("Plot of {}", value)));
             result
         },
         Some("Visualization"),
@@ -182,7 +182,7 @@ fn demo_per_branch_access() {
     
     println!("🌍 Global Context:");
     for (key, value) in &result.context {
-        println!("  {} = {}", key, value);
+        println!("  {} = {}", key, value.to_string_repr());
     }
     
     println!("\n🌿 Per-Branch Outputs:");
@@ -190,33 +190,33 @@ fn demo_per_branch_access() {
     println!("\nBranch {} (Statistics) outputs:", branch_a_id);
     if let Some(outputs) = result.get_branch_outputs(branch_a_id) {
         for (key, value) in outputs {
-            println!("  {} = {}", key, value);
+            println!("  {} = {}", key, value.to_string_repr());
         }
     }
     
     println!("\nBranch {} (Model Training) outputs:", branch_b_id);
     if let Some(outputs) = result.get_branch_outputs(branch_b_id) {
         for (key, value) in outputs {
-            println!("  {} = {}", key, value);
+            println!("  {} = {}", key, value.to_string_repr());
         }
     }
     
     println!("\nBranch {} (Visualization) outputs:", branch_c_id);
     if let Some(outputs) = result.get_branch_outputs(branch_c_id) {
         for (key, value) in outputs {
-            println!("  {} = {}", key, value);
+            println!("  {} = {}", key, value.to_string_repr());
         }
     }
     
     println!("\n🎯 Accessing specific branch outputs:");
     if let Some(value) = result.get_from_branch(branch_a_id, "statistics") {
-        println!("  Branch {} 'statistics': {}", branch_a_id, value);
+        println!("  Branch {} 'statistics': {}", branch_a_id, value.to_string_repr());
     }
     if let Some(value) = result.get_from_branch(branch_b_id, "trained_model") {
-        println!("  Branch {} 'trained_model': {}", branch_b_id, value);
+        println!("  Branch {} 'trained_model': {}", branch_b_id, value.to_string_repr());
     }
     if let Some(value) = result.get_from_branch(branch_c_id, "plot") {
-        println!("  Branch {} 'plot': {}", branch_c_id, value);
+        println!("  Branch {} 'plot': {}", branch_c_id, value.to_string_repr());
     }
     
     println!();
@@ -231,9 +231,9 @@ fn demo_variant_per_node_access() {
     
     // Source node
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("base_value".to_string(), "10".to_string());
+            result.insert("base_value".to_string(), GraphData::string("10"));
             result
         },
         Some("Source"),
@@ -242,11 +242,11 @@ fn demo_variant_per_node_access() {
     );
     
     // Variant factory for scaling
-    fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> {
-        move |inputs: &HashMap<String, String>, _| {
-            let value = inputs.get("input_data").unwrap().parse::<f64>().unwrap();
+    fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+        move |inputs: &HashMap<String, GraphData>, _| {
+            let value = inputs.get("input_data").and_then(|d| d.as_string()).unwrap().parse::<f64>().unwrap();
             let mut result = HashMap::new();
-            result.insert("scaled_value".to_string(), (value * factor).to_string());
+            result.insert("scaled_value".to_string(), GraphData::string(&(value * factor).to_string()));
             result
         }
     }
@@ -265,7 +265,7 @@ fn demo_variant_per_node_access() {
     
     println!("🌍 Global Context (note: 'result' contains last variant's output):");
     for (key, value) in &result.context {
-        println!("  {} = {}", key, value);
+        println!("  {} = {}", key, value.to_string_repr());
     }
     
     println!("\n📦 Per-Node Outputs (each variant tracked separately):");
@@ -276,17 +276,17 @@ fn demo_variant_per_node_access() {
         println!("\nNode {} (Variant Scaler) outputs:", node_id);
         if let Some(outputs) = result.get_node_outputs(node_id) {
             for (key, value) in outputs {
-                println!("  {} = {}", key, value);
+                println!("  {} = {}", key, value.to_string_repr());
             }
         }
     }
     
     println!("\n💡 Key Insight:");
-    println!("  - Global context has 'result' = {} (last variant overwrites)", result.get("result").unwrap());
+    println!("  - Global context has 'result' = {} (last variant overwrites)", result.get("result").unwrap().to_string_repr());
     println!("  - But per-node outputs preserve ALL variant results:");
-    println!("    Node 1 (2x): result = {}", result.get_from_node(1, "result").unwrap());
-    println!("    Node 2 (3x): result = {}", result.get_from_node(2, "result").unwrap());
-    println!("    Node 3 (5x): result = {}", result.get_from_node(3, "result").unwrap());
+    println!("    Node 1 (2x): result = {}", result.get_from_node(1, "result").unwrap().to_string_repr());
+    println!("    Node 2 (3x): result = {}", result.get_from_node(2, "result").unwrap().to_string_repr());
+    println!("    Node 3 (5x): result = {}", result.get_from_node(3, "result").unwrap().to_string_repr());
     
     println!();
 }
@@ -300,9 +300,9 @@ fn demo_execution_history_tracking() {
     
     // Multi-stage pipeline
     graph.add(
-        |_: &HashMap<String, String>, _| {
+        |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("raw".to_string(), "5".to_string());
+            result.insert("raw".to_string(), GraphData::string("5"));
             result
         },
         Some("Load"),
@@ -311,10 +311,10 @@ fn demo_execution_history_tracking() {
     );
     
     graph.add(
-        |inputs: &HashMap<String, String>, _| {
-            let value = inputs.get("x").unwrap().parse::<i32>().unwrap();
+        |inputs: &HashMap<String, GraphData>, _| {
+            let value = inputs.get("x").and_then(|d| d.as_string()).unwrap().parse::<i32>().unwrap();
             let mut result = HashMap::new();
-            result.insert("cleaned".to_string(), (value + 1).to_string());
+            result.insert("cleaned".to_string(), GraphData::string(&(value + 1).to_string()));
             result
         },
         Some("Clean"),
@@ -323,10 +323,10 @@ fn demo_execution_history_tracking() {
     );
     
     graph.add(
-        |inputs: &HashMap<String, String>, _| {
-            let value = inputs.get("x").unwrap().parse::<i32>().unwrap();
+        |inputs: &HashMap<String, GraphData>, _| {
+            let value = inputs.get("x").and_then(|d| d.as_string()).unwrap().parse::<i32>().unwrap();
             let mut result = HashMap::new();
-            result.insert("normalized".to_string(), (value * 10).to_string());
+            result.insert("normalized".to_string(), GraphData::string(&(value * 10).to_string()));
             result
         },
         Some("Normalize"),
@@ -335,10 +335,10 @@ fn demo_execution_history_tracking() {
     );
     
     graph.add(
-        |inputs: &HashMap<String, String>, _| {
-            let value = inputs.get("x").unwrap().parse::<i32>().unwrap();
+        |inputs: &HashMap<String, GraphData>, _| {
+            let value = inputs.get("x").and_then(|d| d.as_string()).unwrap().parse::<i32>().unwrap();
             let mut result = HashMap::new();
-            result.insert("transformed".to_string(), format!("FINAL_{}", value));
+            result.insert("transformed".to_string(), GraphData::string(&format!("FINAL_{}", value)));
             result
         },
         Some("Transform"),
@@ -352,14 +352,14 @@ fn demo_execution_history_tracking() {
     println!("📊 Execution History (Data Flow Tracking):");
     println!();
     println!("Step-by-step transformation:");
-    println!("  1. Load:      input = {}", result.get_from_node(0, "input").unwrap());
-    println!("  2. Clean:     clean_data = {}", result.get_from_node(1, "clean_data").unwrap());
-    println!("  3. Normalize: norm_data = {}", result.get_from_node(2, "norm_data").unwrap());
-    println!("  4. Transform: output = {}", result.get_from_node(3, "output").unwrap());
+    println!("  1. Load:      input = {}", result.get_from_node(0, "input").unwrap().to_string_repr());
+    println!("  2. Clean:     clean_data = {}", result.get_from_node(1, "clean_data").unwrap().to_string_repr());
+    println!("  3. Normalize: norm_data = {}", result.get_from_node(2, "norm_data").unwrap().to_string_repr());
+    println!("  4. Transform: output = {}", result.get_from_node(3, "output").unwrap().to_string_repr());
     
     println!("\n🔍 Debugging: Inspect any intermediate result:");
     println!("  Need to debug the normalization step?");
-    println!("  Just check Node 2: {}", result.get_from_node(2, "norm_data").unwrap());
+    println!("  Just check Node 2: {}", result.get_from_node(2, "norm_data").unwrap().to_string_repr());
     
     println!("\n✅ Benefits of Per-Node Access:");
     println!("  ✓ Track data transformations step-by-step");
