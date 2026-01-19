@@ -36,7 +36,7 @@ fn demo_simple_pipeline() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), GraphData::string("42"));
+            result.insert("value".to_string(), GraphData::int(42));
             result
         },
         Some("DataSource"),
@@ -48,8 +48,8 @@ fn demo_simple_pipeline() {
     graph.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("x").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()) {
-                result.insert("doubled".to_string(), GraphData::string((val * 2).to_string()));
+            if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
+                result.insert("doubled".to_string(), GraphData::int(val * 2));
             }
             result
         },
@@ -62,8 +62,8 @@ fn demo_simple_pipeline() {
     graph.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("num").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()) {
-                result.insert("sum".to_string(), GraphData::string((val + 10).to_string()));
+            if let Some(val) = inputs.get("num").and_then(|d| d.as_int()) {
+                result.insert("sum".to_string(), GraphData::int(val + 10));
             }
             result
         },
@@ -100,7 +100,7 @@ fn demo_branching() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("dataset".to_string(), GraphData::string("100"));
+            result.insert("dataset".to_string(), GraphData::int(100));
             result
         },
         Some("Source"),
@@ -113,7 +113,7 @@ fn demo_branching() {
     branch_a.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("input").and_then(|d| d.as_string()) {
+            if let Some(val) = inputs.get("input").and_then(|d| d.as_int()) {
                 result.insert("stats".to_string(), GraphData::string(format!("Mean: {}", val)));
             }
             result
@@ -128,7 +128,7 @@ fn demo_branching() {
     branch_b.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("input").and_then(|d| d.as_string()) {
+            if let Some(val) = inputs.get("input").and_then(|d| d.as_int()) {
                 result.insert("model".to_string(), GraphData::string(format!("Model trained on {}", val)));
             }
             result
@@ -143,7 +143,7 @@ fn demo_branching() {
     branch_c.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("input").and_then(|d| d.as_string()) {
+            if let Some(val) = inputs.get("input").and_then(|d| d.as_int()) {
                 result.insert("plot".to_string(), GraphData::string(format!("Plot of {}", val)));
             }
             result
@@ -187,7 +187,7 @@ fn demo_merging() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("value".to_string(), GraphData::string("50"));
+            result.insert("value".to_string(), GraphData::int(50));
             result
         },
         Some("Source"),
@@ -200,8 +200,8 @@ fn demo_merging() {
     branch_a.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("x").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()) {
-                result.insert("output".to_string(), GraphData::string((val + 10).to_string()));
+            if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
+                result.insert("output".to_string(), GraphData::int(val + 10));
             }
             result
         },
@@ -215,8 +215,8 @@ fn demo_merging() {
     branch_b.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("x").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()) {
-                result.insert("output".to_string(), GraphData::string((val + 20).to_string()));
+            if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
+                result.insert("output".to_string(), GraphData::int(val + 20));
             }
             result
         },
@@ -232,8 +232,8 @@ fn demo_merging() {
     graph.merge(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            let a = inputs.get("from_a").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
-            let b = inputs.get("from_b").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()).unwrap_or(0);
+            let a = inputs.get("from_a").and_then(|d| d.as_int()).unwrap_or(0);
+            let b = inputs.get("from_b").and_then(|d| d.as_int()).unwrap_or(0);
             result.insert("combined".to_string(), GraphData::string(format!("{} + {} = {}", a, b, a + b)));
             result
         },
@@ -274,7 +274,7 @@ fn demo_variants() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("base_value".to_string(), GraphData::string("10.0"));
+            result.insert("base_value".to_string(), GraphData::float(10.0));
             result
         },
         Some("DataSource"),
@@ -286,9 +286,9 @@ fn demo_variants() {
     fn make_scaler(learning_rate: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
         move |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("input").and_then(|d| d.as_string()).and_then(|s| s.parse::<f64>().ok()) {
+            if let Some(val) = inputs.get("input").and_then(|d| d.as_float()) {
                 let scaled = val * learning_rate;
-                result.insert("scaled_value".to_string(), GraphData::string(format!("{:.2}", scaled)));
+                result.insert("scaled_value".to_string(), GraphData::float(scaled));
             }
             result
         }
@@ -332,7 +332,7 @@ fn demo_complex_graph() {
     graph.add(
         |_: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            result.insert("raw_data".to_string(), GraphData::string("1000"));
+            result.insert("raw_data".to_string(), GraphData::int(1000));
             result
         },
         Some("Ingest"),
@@ -344,8 +344,8 @@ fn demo_complex_graph() {
     graph.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("raw").and_then(|d| d.as_string()).and_then(|s| s.parse::<i32>().ok()) {
-                result.insert("cleaned".to_string(), GraphData::string((val / 10).to_string()));
+            if let Some(val) = inputs.get("raw").and_then(|d| d.as_int()) {
+                result.insert("cleaned".to_string(), GraphData::int(val / 10));
             }
             result
         },
@@ -359,7 +359,7 @@ fn demo_complex_graph() {
     stats_branch.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("data").and_then(|d| d.as_string()) {
+            if let Some(val) = inputs.get("data").and_then(|d| d.as_int()) {
                 result.insert("stats".to_string(), GraphData::string(format!("Stats({})", val)));
             }
             result
@@ -373,7 +373,7 @@ fn demo_complex_graph() {
     ml_branch.add(
         |inputs: &HashMap<String, GraphData>, _| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("data").and_then(|d| d.as_string()) {
+            if let Some(val) = inputs.get("data").and_then(|d| d.as_int()) {
                 result.insert("prediction".to_string(), GraphData::string(format!("Pred({})", val)));
             }
             result
