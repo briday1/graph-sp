@@ -2,8 +2,6 @@ name: Publish to crates.io and PyPI
 
 on:
   push:
-    branches:
-      - 'copilot/fix-publish-workflow-issues-again'
     tags:
       - 'v*'
   workflow_dispatch:
@@ -107,8 +105,7 @@ jobs:
       - name: Install twine
         run: pip install twine
       
-      - name: Publish to PyPI (if token exists)
-        if: secrets.PYPI_API_TOKEN != ''
+      - name: Publish to PyPI
         env:
           PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
@@ -127,8 +124,7 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
       
-      - name: Publish to crates.io (if token exists)
-        if: secrets.CRATES_IO_TOKEN != ''
+      - name: Publish to crates.io
         env:
           CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
         run: |
