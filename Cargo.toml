@@ -1,6 +1,6 @@
 [package]
 name = "graph-sp"
-version = "0.1.0"
+version = "2026.1.19"
 edition = "2021"
 authors = ["briday1 <your-email@example.com>"]
 description = "A pure Rust graph executor supporting implicit node connections, branching, and config sweeps"

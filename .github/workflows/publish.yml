@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (leave empty to use version from files)'
+        required: false
+        type: string
 
 jobs:
   update-version:
@@ -203,6 +208,8 @@ jobs:
           echo "Contents of dist directory:"
           ls -lah dist/
           echo "Number of wheels: $(ls -1 dist/*.whl 2>/dev/null | wc -l)"
+          echo "Wheel files:"
+          ls -1 dist/*.whl 2>/dev/null || echo "No wheels found!"
       
       - name: Set up Python
         uses: actions/setup-python@v5
