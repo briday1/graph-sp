@@ -1,14 +1,15 @@
 //! Node representation and execution
 
+use crate::graph_data::GraphData;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Unique identifier for a node
 pub type NodeId = usize;
 
-/// Type alias for node execution functions
-/// Takes broadcast variables and variant parameters as input, returns output variables
-pub type NodeFunction = Arc<dyn Fn(&HashMap<String, String>, &HashMap<String, String>) -> HashMap<String, String> + Send + Sync>;
+/// Type alias for node execution functions using GraphData
+/// Takes GraphData ports and variant parameters as input, returns output ports
+pub type NodeFunction = Arc<dyn Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> + Send + Sync>;
 
 /// Represents a node in the graph
 #[derive(Clone)]
@@ -32,7 +33,7 @@ pub struct Node {
     /// Variant index if this is part of a variant sweep
     pub variant_index: Option<usize>,
     /// Variant parameters for this node (param_name -> value)
-    pub variant_params: HashMap<String, String>,
+    pub variant_params: HashMap<String, GraphData>,
 }
 
 impl Node {
@@ -59,10 +60,10 @@ impl Node {
     }
 
     /// Execute this node with the given context
-    pub fn execute(&self, context: &HashMap<String, String>) -> HashMap<String, String> {
+    pub fn execute(&self, context: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
         // Map broadcast context vars to impl vars using input_mapping
         // input_mapping: broadcast_var -> impl_var
-        let inputs: HashMap<String, String> = self
+        let inputs: HashMap<String, GraphData> = self
             .input_mapping
             .iter()
             .filter_map(|(broadcast_var, impl_var)| {
