@@ -12,12 +12,12 @@ use std::collections::HashMap;
 /// This is the key pattern: factory takes a parameter, returns a closure
 fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     move |inputs, _variant_params| {
-        let value = inputs.get("input_data").and_then(|d| d.as_string()).unwrap_or("0").parse::<f64>().unwrap();
+        let value = inputs.get("input_data").and_then(|d| d.as_float()).unwrap_or(0.0);
         let scaled = value * factor;
         
         let mut outputs = HashMap::new();
-        outputs.insert("scaled_value".to_string(), GraphData::string(scaled.to_string()));
-        outputs.insert("factor_used".to_string(), GraphData::string(factor.to_string()));
+        outputs.insert("scaled_value".to_string(), GraphData::float(scaled));
+        outputs.insert("factor_used".to_string(), GraphData::float(factor));
         outputs
     }
 }
@@ -40,7 +40,7 @@ impl std::fmt::Display for FilterConfig {
 
 fn make_filter(config: FilterConfig) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     move |inputs, _variant_params| {
-        let value = inputs.get("data").and_then(|d| d.as_string()).unwrap_or("0").parse::<f64>().unwrap();
+        let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
         
         // Apply filtering based on config
         let filtered = match config.mode.as_str() {
@@ -50,7 +50,7 @@ fn make_filter(config: FilterConfig) -> impl Fn(&HashMap<String, GraphData>, &Ha
         };
         
         let mut outputs = HashMap::new();
-        outputs.insert("filtered".to_string(), GraphData::string(filtered.to_string()));
+        outputs.insert("filtered".to_string(), GraphData::float(filtered));
         outputs.insert("filter_mode".to_string(), GraphData::string(config.mode.clone()));
         outputs
     }
@@ -62,11 +62,11 @@ fn make_filter(config: FilterConfig) -> impl Fn(&HashMap<String, GraphData>, &Ha
 
 fn make_offsetter(offset: i32) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     move |inputs, _variant_params| {
-        let value = inputs.get("number").and_then(|d| d.as_string()).unwrap_or("0").parse::<i32>().unwrap();
+        let value = inputs.get("number").and_then(|d| d.as_int()).unwrap_or(0) as i32;
         let result = value + offset;
         
         let mut outputs = HashMap::new();
-        outputs.insert("offset_result".to_string(), GraphData::string(result.to_string()));
+        outputs.insert("offset_result".to_string(), GraphData::int(result as i64));
         outputs
     }
 }
@@ -92,13 +92,13 @@ fn make_processor(prefix: &'static str) -> impl Fn(&HashMap<String, GraphData>, 
 
 fn data_source(_inputs: &HashMap<String, GraphData>, _variant_params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let mut outputs = HashMap::new();
-    outputs.insert("value".to_string(), GraphData::string("10.0".to_string()));
+    outputs.insert("value".to_string(), GraphData::float(10.0));
     outputs
 }
 
 fn number_source(_inputs: &HashMap<String, GraphData>, _variant_params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let mut outputs = HashMap::new();
-    outputs.insert("num".to_string(), GraphData::string("42".to_string()));
+    outputs.insert("num".to_string(), GraphData::int(42));
     outputs
 }
 
@@ -109,9 +109,17 @@ fn text_source(_inputs: &HashMap<String, GraphData>, _variant_params: &HashMap<S
 }
 
 fn stats_node(inputs: &HashMap<String, GraphData>, _variant_params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
-    let scaled = inputs.get("result").and_then(|d| d.as_string()).unwrap_or("");
+    let result_str = if let Some(value) = inputs.get("result") {
+        match value {
+            GraphData::Float(f) => format!("{}", f),
+            GraphData::Int(i) => format!("{}", i),
+            _ => value.to_string_repr(),
+        }
+    } else {
+        "N/A".to_string()
+    };
     let mut outputs = HashMap::new();
-    outputs.insert("summary".to_string(), GraphData::string(format!("Result: {}", scaled)));
+    outputs.insert("summary".to_string(), GraphData::string(format!("Result: {}", result_str)));
     outputs
 }
 
