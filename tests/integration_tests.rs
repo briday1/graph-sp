@@ -50,7 +50,7 @@ fn test_simple_pipeline() {
     );
     
     let dag = graph.build();
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     
     assert_eq!(context.get("data"), Some(&"100".to_string()));
     assert_eq!(context.get("result"), Some(&"200".to_string()));
@@ -102,7 +102,7 @@ fn test_branching() {
     let _branch_b_id = graph.branch(branch_b);
     
     let dag = graph.build();
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     
     assert_eq!(context.get("data"), Some(&"100".to_string()));
     assert_eq!(context.get("result_a"), Some(&"200".to_string()));
@@ -172,7 +172,7 @@ fn test_merge() {
     );
     
     let dag = graph.build();
-    let context = dag.execute();
+    let context = dag.execute(false, None);
     
     // Branch A: 100 + 10 = 110
     // Branch B: 100 + 20 = 120
