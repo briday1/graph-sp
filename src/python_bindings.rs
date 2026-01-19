@@ -299,7 +299,7 @@ fn graph_data_to_python(py: Python, data: &GraphData) -> PyObject {
             }
             
             // Convert complex array structure back to list of tuples
-            if is_complex_array && m.len() > 0 && m.len() == max_idx + 1 {
+            if is_complex_array && !m.is_empty() && m.len() == max_idx + 1 {
                 let list = PyList::empty(py);
                 for i in 0..m.len() {
                     if let Some(v) = m.get(&i.to_string()) {
@@ -328,7 +328,7 @@ fn graph_data_to_python(py: Python, data: &GraphData) -> PyObject {
             }
             
             // If it looks like a list (sequential numeric keys), convert to list
-            if is_list && m.len() > 0 && m.len() == max_idx + 1 {
+            if is_list && !m.is_empty() && m.len() == max_idx + 1 {
                 let list = PyList::empty(py);
                 for i in 0..m.len() {
                     if let Some(v) = m.get(&i.to_string()) {
@@ -406,7 +406,7 @@ fn python_to_graph_data(obj: &PyAny) -> GraphData {
             return GraphData::Map(map);
         }
         // Try nested list - convert to Map with indices
-        if list.len() > 0 {
+        if !list.is_empty() {
             // Check if it's a nested structure
             let mut map = HashMap::new();
             for (idx, item) in list.iter().enumerate() {
