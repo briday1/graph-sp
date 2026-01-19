@@ -195,6 +195,104 @@ def doppler_compress(inputs, variant_params):
         "range_bin": int(range_bin)
     }
 
+def plot_lfm_pulse(inputs, variant_params):
+    """
+    Plotting node for LFM pulse visualization (terminal node).
+    
+    Args:
+        inputs: Dictionary with 'pulse' key containing the LFM pulse
+        variant_params: Dictionary of variant parameters
+    
+    Returns:
+        Empty dictionary (terminal node - no outputs)
+    """
+    pulse_data = inputs.get("pulse", None)
+    if pulse_data is None:
+        return {}
+    
+    pulse = np.array(pulse_data, dtype=complex)
+    
+    print("\n📊 PlotLFM: Visualizing {} sample LFM pulse".format(len(pulse)))
+    print("  ├─ Time domain: Real and imaginary components")
+    print("  ├─ Frequency domain: Magnitude spectrum")
+    print("  └─ Phase: Linear chirp characteristic")
+    
+    # Calculate some basic statistics
+    max_mag = np.max(np.abs(pulse))
+    print(f"  Max magnitude: {max_mag:.4f}")
+    
+    # No outputs - terminal visualization node
+    return {}
+
+def plot_range_compressed(inputs, variant_params):
+    """
+    Plotting node for range-compressed data (terminal node).
+    
+    Args:
+        inputs: Dictionary with 'compressed' key
+        variant_params: Dictionary of variant parameters
+    
+    Returns:
+        Empty dictionary (terminal node - no outputs)
+    """
+    compressed_data = inputs.get("compressed", None)
+    if compressed_data is None:
+        return {}
+    
+    # Convert to complex array
+    compressed = np.array([np.array(pulse, dtype=complex) for pulse in compressed_data])
+    
+    print("\n📊 PlotRangeCompression: Visualizing range-compressed data")
+    print(f"  ├─ Total samples: {compressed.size}")
+    print("  ├─ Range bins with peak detection")
+    print("  └─ Compressed pulse response")
+    
+    # Find peak
+    magnitude = np.abs(compressed)
+    max_mag = np.max(magnitude)
+    peak_idx = np.unravel_index(np.argmax(magnitude), magnitude.shape)
+    
+    print(f"  Peak at sample: {peak_idx} (magnitude: {max_mag:.2f})")
+    
+    # No outputs - terminal visualization node
+    return {}
+
+def plot_range_doppler_map(inputs, variant_params):
+    """
+    Plotting node for Range-Doppler map (terminal node).
+    
+    Args:
+        inputs: Dictionary with range-doppler map and peak information
+        variant_params: Dictionary of variant parameters
+    
+    Returns:
+        Empty dictionary (terminal node - no outputs)
+    """
+    print("\n📊 PlotRangeDopplerMap: Visualizing target detection")
+    
+    rd_map = inputs.get("rd_map", None)
+    if rd_map is not None:
+        rd_array = np.array(rd_map)
+        print(f"  ├─ Map dimensions: {rd_array.shape[0]} pulses × {rd_array.shape[1]} range bins")
+        print("  ├─ Colormap: Magnitude heatmap")
+        print("  └─ Axes: Range (fast-time) vs Doppler (slow-time)")
+    
+    peak = inputs.get("peak", None)
+    doppler = inputs.get("doppler", None)
+    range_bin = inputs.get("range", None)
+    
+    if peak is not None:
+        print(f"  Peak magnitude: {peak:.2f}")
+    if doppler is not None:
+        print(f"  Doppler bin: {doppler}")
+    if range_bin is not None:
+        print(f"  Range bin: {range_bin}")
+    
+    print("  ✓ Target detected and localized")
+    
+    # No outputs - terminal visualization node
+    return {}
+
 def main():
     separator = "=" * 70
     print(separator)
@@ -245,6 +343,38 @@ def main():
             ("doppler_bin", "doppler_idx"),
             ("range_bin", "range_idx")
         ]
+    )
+    
+    # Add plotting nodes (terminal nodes with no outputs)
+    # These visualize the data at different stages
+    
+    # Plot 1: LFM pulse after generation
+    graph.add(
+        function=plot_lfm_pulse,
+        label="PlotLFMPulse",
+        inputs=[("lfm_pulse", "pulse")],
+        outputs=None  # No outputs - terminal visualization node
+    )
+    
+    # Plot 2: Range-compressed data
+    graph.add(
+        function=plot_range_compressed,
+        label="PlotRangeCompressed",
+        inputs=[("compressed_data", "compressed")],
+        outputs=None  # No outputs - terminal visualization node
+    )
+    
+    # Plot 3: Range-Doppler map with target detection
+    graph.add(
+        function=plot_range_doppler_map,
+        label="PlotRangeDopplerMap",
+        inputs=[
+            ("range_doppler_map", "rd_map"),
+            ("peak", "peak"),
+            ("doppler_idx", "doppler"),
+            ("range_idx", "range")
+        ],
+        outputs=None  # No outputs - terminal visualization node
     )
     
     # Build and execute

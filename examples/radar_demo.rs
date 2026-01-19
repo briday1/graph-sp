@@ -267,6 +267,81 @@ fn doppler_compress(inputs: &HashMap<String, GraphData>, _params: &HashMap<Strin
 }
 
 #[cfg(feature = "radar_examples")]
+fn plot_lfm_pulse(inputs: &HashMap<String, GraphData>, _params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+    // Plotting node for LFM pulse visualization (terminal node)
+    
+    if let Some(pulse) = inputs.get("pulse").and_then(|d| d.as_complex_array()) {
+        println!("\n📊 PlotLFM: Visualizing {} sample LFM pulse", pulse.len());
+        println!("  ├─ Time domain: Real and imaginary components");
+        println!("  ├─ Frequency domain: Magnitude spectrum");
+        println!("  └─ Phase: Linear chirp characteristic");
+        
+        // Calculate some basic statistics for display
+        let max_mag = pulse.iter().map(|c| c.norm()).fold(0.0, f64::max);
+        println!("  Max magnitude: {:.4}", max_mag);
+    }
+    
+    // No outputs - terminal visualization node
+    HashMap::new()
+}
+
+#[cfg(feature = "radar_examples")]
+fn plot_range_compressed(inputs: &HashMap<String, GraphData>, _params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+    // Plotting node for range-compressed data (terminal node)
+    
+    if let Some(compressed) = inputs.get("compressed").and_then(|d| d.as_complex_array()) {
+        println!("\n📊 PlotRangeCompression: Visualizing range-compressed data");
+        println!("  ├─ Total samples: {}", compressed.len());
+        println!("  ├─ Range bins with peak detection");
+        println!("  └─ Compressed pulse response");
+        
+        // Find peak for visualization context
+        let max_mag = compressed.iter().map(|c| c.norm()).fold(0.0, f64::max);
+        let peak_idx = compressed.iter()
+            .enumerate()
+            .max_by(|(_, a), (_, b)| a.norm().partial_cmp(&b.norm()).unwrap())
+            .map(|(i, _)| i)
+            .unwrap_or(0);
+        
+        println!("  Peak at sample: {} (magnitude: {:.2})", peak_idx, max_mag);
+    }
+    
+    // No outputs - terminal visualization node
+    HashMap::new()
+}
+
+#[cfg(feature = "radar_examples")]
+fn plot_range_doppler_map(inputs: &HashMap<String, GraphData>, _params: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+    // Plotting node for Range-Doppler map (terminal node)
+    
+    println!("\n📊 PlotRangeDopplerMap: Visualizing target detection");
+    
+    if let Some(_rd_map) = inputs.get("range_doppler").and_then(|d| d.as_complex_array()) {
+        let num_pulses = inputs.get("num_pulses").and_then(|d| d.as_int()).unwrap_or(0) as usize;
+        let num_samples = inputs.get("num_samples").and_then(|d| d.as_int()).unwrap_or(0) as usize;
+        
+        println!("  ├─ Map dimensions: {} pulses × {} range bins", num_pulses, num_samples);
+        println!("  ├─ Colormap: Magnitude heatmap");
+        println!("  └─ Axes: Range (fast-time) vs Doppler (slow-time)");
+    }
+    
+    if let Some(peak) = inputs.get("peak").and_then(|d| d.as_float()) {
+        println!("  Peak magnitude: {:.2}", peak);
+    }
+    if let Some(doppler) = inputs.get("peak_doppler").and_then(|d| d.as_int()) {
+        println!("  Doppler bin: {}", doppler);
+    }
+    if let Some(range) = inputs.get("peak_range").and_then(|d| d.as_int()) {
+        println!("  Range bin: {}", range);
+    }
+    
+    println!("  ✓ Target detected and localized");
+    
+    // No outputs - terminal visualization node
+    HashMap::new()
+}
+
+#[cfg(feature = "radar_examples")]
 fn main() {
     let separator = "=".repeat(70);
     println!("{}", separator);
@@ -321,6 +396,40 @@ fn main() {
             ("peak_doppler_bin", "peak_doppler"),
             ("peak_range_bin", "peak_range")
         ])
+    );
+    
+    // Add plotting nodes (terminal nodes with no outputs)
+    // These visualize the data at different stages
+    
+    // Plot 1: LFM pulse after generation
+    graph.add(
+        plot_lfm_pulse,
+        Some("PlotLFMPulse"),
+        Some(vec![("lfm_pulse", "pulse")]),
+        None  // No outputs - terminal visualization node
+    );
+    
+    // Plot 2: Range-compressed data
+    graph.add(
+        plot_range_compressed,
+        Some("PlotRangeCompressed"),
+        Some(vec![("compressed_data", "compressed")]),
+        None  // No outputs - terminal visualization node
+    );
+    
+    // Plot 3: Range-Doppler map with target detection
+    graph.add(
+        plot_range_doppler_map,
+        Some("PlotRangeDopplerMap"),
+        Some(vec![
+            ("range_doppler_map", "range_doppler"),
+            ("peak", "peak"),
+            ("peak_doppler", "peak_doppler"),
+            ("peak_range", "peak_range"),
+            ("num_pulses", "num_pulses"),
+            ("num_samples", "num_samples")
+        ]),
+        None  // No outputs - terminal visualization node
     );
     
     // Build and execute
