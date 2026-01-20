@@ -84,7 +84,14 @@ jobs:
       - name: Update Cargo.toml
         run: |
           VERSION="${{ steps.set-version.outputs.version }}"
-          sed -i "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
+          # Cargo requires SemVer with three parts (MAJOR.MINOR.PATCH)
+          # Append .0 if version only has two parts
+          if [[ $VERSION =~ ^[0-9]+\.[0-9]+$ ]]; then
+            CARGO_VERSION="${VERSION}.0"
+          else
+            CARGO_VERSION="$VERSION"
+          fi
+          sed -i "s/^version = .*/version = \"$CARGO_VERSION\"/" Cargo.toml
           echo "Updated Cargo.toml:"
           grep "^version" Cargo.toml
       
