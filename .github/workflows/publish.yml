@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (leave empty to use version from files)'
+        required: false
+        type: string
 
 jobs:
   update-version:
@@ -79,7 +84,15 @@ jobs:
       - name: Update Cargo.toml
         run: |
           VERSION="${{ steps.set-version.outputs.version }}"
-          sed -i "s/^version = .*/version = \"$VERSION\"/" Cargo.toml
+          # Cargo requires SemVer with three parts (MAJOR.MINOR.PATCH)
+          # If version has two parts (e.g., 2026.2), append .0 to make it 2026.2.0
+          # If version already has three parts, use it as-is
+          if [[ $VERSION =~ ^[0-9]+\.[0-9]+$ ]]; then
+            CARGO_VERSION="${VERSION}.0"
+          else
+            CARGO_VERSION="$VERSION"
+          fi
+          sed -i "s/^version = .*/version = \"$CARGO_VERSION\"/" Cargo.toml
           echo "Updated Cargo.toml:"
           grep "^version" Cargo.toml
       
@@ -203,6 +216,8 @@ jobs:
           echo "Contents of dist directory:"
           ls -lah dist/
           echo "Number of wheels: $(ls -1 dist/*.whl 2>/dev/null | wc -l)"
+          echo "Wheel files:"
+          ls -1 dist/*.whl 2>/dev/null || echo "No wheels found!"
       
       - name: Set up Python
         uses: actions/setup-python@v5
