@@ -85,7 +85,8 @@ jobs:
         run: |
           VERSION="${{ steps.set-version.outputs.version }}"
           # Cargo requires SemVer with three parts (MAJOR.MINOR.PATCH)
-          # Append .0 if version only has two parts
+          # If version has two parts (e.g., 2026.2), append .0 to make it 2026.2.0
+          # If version already has three parts, use it as-is
           if [[ $VERSION =~ ^[0-9]+\.[0-9]+$ ]]; then
             CARGO_VERSION="${VERSION}.0"
           else
