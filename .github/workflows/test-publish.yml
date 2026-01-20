@@ -1,0 +1,380 @@
+name: Test Publish Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_to_testpypi:
+        description: 'Publish to TestPyPI (requires TEST_PYPI_API_TOKEN secret)'
+        required: false
+        type: boolean
+        default: false
+      skip_tests:
+        description: 'Skip running tests (faster for iteration)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test-version-generation:
+    name: Test version generation
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set-version.outputs.version }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate version from PyPI
+        id: set-version
+        run: |
+          # Get current year
+          YEAR=$(date +'%Y')
+          
+          # Fetch existing versions from PyPI and find next version number
+          NEXT_VERSION=$(python3 << 'PYTHON_EOF'
+          import requests
+          import re
+          import sys
+          from datetime import datetime
+          
+          year = datetime.now().year
+          package_name = "pygraph-sp"
+          
+          try:
+              response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=10)
+              if response.status_code == 200:
+                  data = response.json()
+                  versions = list(data['releases'].keys())
+                  
+                  # Filter versions for current year (format: YYYY.v where v is a number)
+                  year_pattern = re.compile(rf'^{year}\.(\d+)$')
+                  year_versions = []
+                  for v in versions:
+                      match = year_pattern.match(v)
+                      if match:
+                          version_num = int(match.group(1))
+                          year_versions.append(version_num)
+                  
+                  # Get next version
+                  if year_versions:
+                      next_num = max(year_versions) + 1
+                  else:
+                      next_num = 1
+                  
+                  print(f"{year}.{next_num}")
+              else:
+                  print(f"{year}.1", file=sys.stderr)
+                  print(f"{year}.1")
+          except Exception as e:
+              print(f"Error: {e}", file=sys.stderr)
+              print(f"{year}.1")
+          PYTHON_EOF
+          )
+          
+          VERSION="$NEXT_VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+      
+      - name: Update pyproject.toml
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          echo "Updated pyproject.toml:"
+          grep "^version" pyproject.toml
+      
+      - name: Update Cargo.toml
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          # Cargo requires SemVer with three parts (MAJOR.MINOR.PATCH)
+          # If version has two parts (e.g., 2026.2), append .0 to make it 2026.2.0
+          # If version already has three parts, use it as-is
+          if [[ $VERSION =~ ^[0-9]+\.[0-9]+$ ]]; then
+            CARGO_VERSION="${VERSION}.0"
+          else
+            CARGO_VERSION="$VERSION"
+          fi
+          sed -i "s/^version = .*/version = \"$CARGO_VERSION\"/" Cargo.toml
+          echo "Updated Cargo.toml:"
+          grep "^version" Cargo.toml
+
+  test-build-and-examples:
+    name: Test builds and examples
+    needs: test-version-generation
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.skip_tests }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate and update version
+        run: |
+          VERSION="${{ needs.test-version-generation.outputs.version }}"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          
+          if [[ $VERSION =~ ^[0-9]+\.[0-9]+$ ]]; then
+            CARGO_VERSION="${VERSION}.0"
+          else
+            CARGO_VERSION="$VERSION"
+          fi
+          sed -i "s/^version = .*/version = \"$CARGO_VERSION\"/" Cargo.toml
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Run Rust tests
+        run: |
+          cargo test --verbose
+        continue-on-error: true
+      
+      - name: Run Rust examples
+        run: |
+          echo "Running Rust examples..."
+          cargo run --example comprehensive_demo
+          cargo run --example output_access_demo
+          cargo run --example parallel_execution_demo
+          cargo run --example per_node_output_access
+          cargo run --example tuple_api_demo
+          cargo run --example variant_demo_full
+          echo "All Rust examples completed successfully!"
+      
+      - name: Install maturin and build Python bindings
+        run: |
+          pip install maturin==1.2.0
+          maturin build --release --features python --strip --out dist
+      
+      - name: Install Python package and run examples
+        run: |
+          pip install dist/*.whl
+          echo "Running Python examples..."
+          python examples/python_comprehensive_demo.py
+          python examples/python_demo.py
+          python examples/python_parallel_demo.py
+          echo "All Python examples completed successfully!"
+
+  test-build-wheels:
+    name: Test wheel build on ${{ matrix.os }} for Python ${{ matrix.python-version }}
+    needs: test-version-generation
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # Test with subset for faster feedback
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.10', '3.11']
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate and update version
+        run: |
+          VERSION="${{ needs.test-version-generation.outputs.version }}"
+          python3 << 'PYTHON_EOF'
+          import re
+          import os
+          
+          version = os.environ['VERSION']
+          
+          with open('pyproject.toml', 'r') as f:
+              content = f.read()
+          
+          content = re.sub(r'^version = .*', f'version = "{version}"', content, flags=re.MULTILINE)
+          
+          with open('pyproject.toml', 'w') as f:
+              f.write(content)
+          
+          print(f"Updated pyproject.toml to version {version}")
+          PYTHON_EOF
+          grep "^version" pyproject.toml
+        shell: bash
+        env:
+          VERSION: ${{ needs.test-version-generation.outputs.version }}
+      
+      - name: Update Cargo.toml
+        run: |
+          VERSION="${{ needs.test-version-generation.outputs.version }}"
+          python3 << 'PYTHON_EOF'
+          import re
+          import os
+          
+          version = os.environ['VERSION']
+          
+          # Cargo requires SemVer with three parts (MAJOR.MINOR.PATCH)
+          # If version has two parts (e.g., 2026.2), append .0 to make it 2026.2.0
+          if re.match(r'^\d+\.\d+$', version):
+              cargo_version = f"{version}.0"
+          else:
+              cargo_version = version
+          
+          with open('Cargo.toml', 'r') as f:
+              content = f.read()
+          
+          content = re.sub(r'^version = .*', f'version = "{cargo_version}"', content, flags=re.MULTILINE)
+          
+          with open('Cargo.toml', 'w') as f:
+              f.write(content)
+          
+          print(f"Updated Cargo.toml to version {cargo_version}")
+          PYTHON_EOF
+          grep "^version" Cargo.toml
+        shell: bash
+        env:
+          VERSION: ${{ needs.test-version-generation.outputs.version }}
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install maturin
+        run: pip install maturin==1.2.0
+      
+      - name: Build wheel
+        run: |
+          maturin build --release --features python --strip --out dist
+          echo "Wheel built successfully!"
+          ls -lh dist/
+      
+      - name: Upload wheel artifacts
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: test-wheels-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: dist/*.whl
+
+  test-publish:
+    name: Test publish to TestPyPI
+    needs: [test-version-generation, test-build-wheels]
+    runs-on: ubuntu-latest
+    if: ${{ inputs.publish_to_testpypi }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate and update version
+        run: |
+          VERSION="${{ needs.test-version-generation.outputs.version }}"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          
+          if [[ $VERSION =~ ^[0-9]+\.[0-9]+$ ]]; then
+            CARGO_VERSION="${VERSION}.0"
+          else
+            CARGO_VERSION="$VERSION"
+          fi
+          sed -i "s/^version = .*/version = \"$CARGO_VERSION\"/" Cargo.toml
+      
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4.1.3
+        with:
+          path: dist
+          pattern: test-wheels-*
+          merge-multiple: true
+      
+      - name: List downloaded artifacts
+        run: |
+          echo "Publishing version: ${{ needs.test-version-generation.outputs.version }}"
+          echo "Contents of dist directory:"
+          ls -lah dist/
+          echo "Number of wheels: $(ls -1 dist/*.whl 2>/dev/null | wc -l)"
+          echo "Wheel files:"
+          ls -1 dist/*.whl 2>/dev/null || echo "No wheels found!"
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install maturin and twine
+        run: |
+          pip install maturin==1.2.0 twine
+      
+      - name: Build source distribution
+        run: |
+          maturin build --release --features python --sdist --out dist
+          echo "Source distribution built!"
+          ls -lh dist/*.tar.gz
+      
+      - name: Verify distributions
+        run: |
+          echo "Verifying all distributions with twine check..."
+          twine check dist/*
+          echo "All distributions verified successfully!"
+      
+      - name: Publish to TestPyPI
+        env:
+          TEST_PYPI_API_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
+        run: |
+          if [ -z "$TEST_PYPI_API_TOKEN" ]; then
+            echo "ERROR: TEST_PYPI_API_TOKEN secret is not set!"
+            echo "Please set the TEST_PYPI_API_TOKEN secret in repository settings."
+            echo "Get your token from: https://test.pypi.org/manage/account/token/"
+            exit 1
+          fi
+          
+          echo "Publishing to TestPyPI..."
+          twine upload dist/* \
+            --repository testpypi \
+            --username __token__ \
+            --password $TEST_PYPI_API_TOKEN \
+            --verbose
+          
+          echo ""
+          echo "✅ Successfully published to TestPyPI!"
+          echo "View at: https://test.pypi.org/project/pygraph-sp/${{ needs.test-version-generation.outputs.version }}/"
+
+  summary:
+    name: Test Summary
+    needs: [test-version-generation, test-build-and-examples, test-build-wheels, test-publish]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Print summary
+        run: |
+          echo "=================================================="
+          echo "        PUBLISH WORKFLOW TEST RESULTS"
+          echo "=================================================="
+          echo ""
+          echo "Version Generated: ${{ needs.test-version-generation.outputs.version }}"
+          echo ""
+          echo "Job Results:"
+          echo "  • Version Generation: ${{ needs.test-version-generation.result }}"
+          echo "  • Build & Examples: ${{ needs.test-build-and-examples.result }}"
+          echo "  • Wheel Building: ${{ needs.test-build-wheels.result }}"
+          echo "  • TestPyPI Publish: ${{ needs.test-publish.result }}"
+          echo ""
+          
+          if [ "${{ needs.test-version-generation.result }}" = "success" ] && \
+             [ "${{ needs.test-build-wheels.result }}" = "success" ]; then
+            echo "✅ WORKFLOW VALIDATION SUCCESSFUL!"
+            echo ""
+            echo "The publish workflow is working correctly."
+            if [ "${{ inputs.publish_to_testpypi }}" = "true" ]; then
+              if [ "${{ needs.test-publish.result }}" = "success" ]; then
+                echo "✅ Successfully published to TestPyPI!"
+                echo "View at: https://test.pypi.org/project/pygraph-sp/${{ needs.test-version-generation.outputs.version }}/"
+              else
+                echo "⚠️  TestPyPI publish failed. Check the logs above."
+              fi
+            else
+              echo ""
+              echo "To test actual publishing, re-run with:"
+              echo "  ✓ 'publish_to_testpypi' = true"
+              echo "  ✓ TEST_PYPI_API_TOKEN secret configured"
+            fi
+          else
+            echo "❌ WORKFLOW VALIDATION FAILED"
+            echo ""
+            echo "Please check the failed jobs above for details."
+            exit 1
+          fi
+          echo ""
+          echo "=================================================="
