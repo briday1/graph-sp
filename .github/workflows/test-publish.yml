@@ -14,10 +14,15 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
 jobs:
   test-version-generation:
     name: Test version generation
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.set-version.outputs.version }}
     
@@ -101,6 +106,8 @@ jobs:
     name: Test builds and examples
     needs: test-version-generation
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: ${{ !inputs.skip_tests }}
     
     steps:
@@ -160,6 +167,8 @@ jobs:
     name: Test wheel build on ${{ matrix.os }} for Python ${{ matrix.python-version }}
     needs: test-version-generation
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         # Test with subset for faster feedback
@@ -251,6 +260,8 @@ jobs:
     name: Test publish to TestPyPI
     needs: [test-version-generation, test-build-wheels]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: ${{ inputs.publish_to_testpypi }}
     
     steps:
@@ -334,6 +345,8 @@ jobs:
     name: Test Summary
     needs: [test-version-generation, test-build-and-examples, test-build-wheels, test-publish]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: always()
     
     steps:
