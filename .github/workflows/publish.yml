@@ -223,6 +223,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install requests module
+        run: pip install requests
+      
       - name: Generate version from PyPI
         id: set-version
         run: |
@@ -338,8 +346,8 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
       
-      - name: Install maturin
-        run: pip install maturin==1.2.0
+      - name: Install maturin and requests
+        run: pip install maturin==1.2.0 requests
       
       - name: Build wheel
         run: |
