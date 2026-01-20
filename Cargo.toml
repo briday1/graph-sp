@@ -13,7 +13,7 @@ categories = ["data-structures", "algorithms"]
 readme = "README.md"
 
 [dependencies]
-pyo3 = { version = "=0.18.3", optional = true, default-features = false, features = ["extension-module", "auto-initialize", "macros"] }
+pyo3 = { version = "=0.18.3", optional = true, default-features = false, features = ["extension-module", "macros"] }
 ndarray = { version = "0.15", optional = true }
 num-complex = { version = "0.4", optional = true }
 rustfft = { version = "6.1", optional = true }
@@ -23,5 +23,5 @@ python = ["pyo3"]
 radar_examples = ["ndarray", "num-complex", "rustfft"]
 
 [lib]
-name = "graph_sp"
+name = "pygraphsp"
 crate-type = ["cdylib", "rlib"]

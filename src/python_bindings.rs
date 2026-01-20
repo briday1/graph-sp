@@ -16,7 +16,7 @@ use crate::dag::Dag;
 use crate::graph_data::GraphData;
 
 /// Python wrapper for Graph builder
-#[pyclass]
+#[pyclass(name = "Graph")]
 struct PyGraph {
     graph: Option<Graph>,
 }
@@ -156,7 +156,7 @@ impl PyGraph {
 }
 
 /// Python wrapper for DAG executor
-#[pyclass]
+#[pyclass(name = "Dag")]
 struct PyDag {
     dag: Dag,
 }
@@ -436,7 +436,7 @@ fn python_to_graph_data(obj: &PyAny) -> GraphData {
 
 /// Initialize the Python module
 #[pymodule]
-fn graph_sp(_py: Python, m: &PyModule) -> PyResult<()> {
+fn pygraphsp(_py: Python, m: &PyModule) -> PyResult<()> {
     // PyO3 0.18.3 with auto-initialize feature handles multi-threading initialization automatically
     m.add_class::<PyGraph>()?;
     m.add_class::<PyDag>()?;
