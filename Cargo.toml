@@ -25,3 +25,40 @@ radar_examples = ["ndarray", "num-complex", "rustfft"]
 [lib]
 name = "dagex"
 crate-type = ["cdylib", "rlib"]
+
+[[example]]
+name = "comprehensive_demo"
+path = "examples/rs/comprehensive_demo.rs"
+
+[[example]]
+name = "data_types_demo"
+path = "examples/rs/data_types_demo.rs"
+
+[[example]]
+name = "output_access_demo"
+path = "examples/rs/output_access_demo.rs"
+
+[[example]]
+name = "parallel_execution_demo"
+path = "examples/rs/parallel_execution_demo.rs"
+
+[[example]]
+name = "per_node_output_access"
+path = "examples/rs/per_node_output_access.rs"
+
+[[example]]
+name = "radar_demo"
+path = "examples/rs/radar_demo.rs"
+
+[[example]]
+name = "radar_demo_with_plots"
+path = "examples/rs/radar_demo_with_plots.rs"
+required-features = ["radar_examples"]
+
+[[example]]
+name = "tuple_api_demo"
+path = "examples/rs/tuple_api_demo.rs"
+
+[[example]]
+name = "variant_demo_full"
+path = "examples/rs/variant_demo_full.rs"
