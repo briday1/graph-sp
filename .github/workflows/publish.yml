@@ -592,4 +592,4 @@ jobs:
         env:
           CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
         run: |
-          cargo publish --token $CRATES_IO_TOKEN
+          cargo publish --allow-dirty --token $CRATES_IO_TOKEN
