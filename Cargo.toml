@@ -79,3 +79,23 @@ path = "examples/rs/parallel_timing_demo.rs"
 [[example]]
 name = "dynamic_variants_demo"
 path = "examples/rs/dynamic_variants_demo.rs"
+
+[[example]]
+name = "pointer_tracking_demo"
+path = "examples/rs/pointer_tracking_demo.rs"
+
+[[example]]
+name = "memory_tracking_demo"
+path = "examples/rs/memory_tracking_demo.rs"
+
+[[example]]
+name = "selective_data_demo"
+path = "examples/rs/selective_data_demo.rs"
+
+[[example]]
+name = "arc_graphdata_demo"
+path = "examples/rs/arc_graphdata_demo.rs"
+
+[[example]]
+name = "arc_benchmark_demo"
+path = "examples/rs/arc_benchmark_demo.rs"

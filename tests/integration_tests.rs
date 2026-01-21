@@ -205,7 +205,7 @@ fn test_variants() {
     );
 
     // Variant sweep: multiply by different factors using closures
-    let factors = vec![2.0, 3.0, 5.0];
+    let _factors = vec![2.0, 3.0, 5.0];
     let multipliers: Vec<dagex::NodeFunction> = vec![
         Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
@@ -311,7 +311,7 @@ fn test_mermaid_visualization() {
 #[test]
 fn test_linspace_helper() {
     use dagex::IntoVariantValues;
-use std::sync::Arc;
+    // Arc is now used internally in GraphData
     let values = Linspace::new(0.0, 1.0, 5).into_variant_values();
     assert_eq!(values.len(), 5);
     assert_eq!(values[0].parse::<f64>().unwrap(), 0.0);

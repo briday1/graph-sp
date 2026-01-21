@@ -2,8 +2,11 @@
 //!
 //! This module provides a generic container that can hold various data types
 //! (numbers, arrays, complex arrays, strings, etc.) and be passed through graph nodes.
+//!
+//! Large data types (Vec, Array) are wrapped in Arc for efficient cloning across nodes.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 #[cfg(feature = "radar_examples")]
 use ndarray::Array1;
@@ -14,27 +17,30 @@ use num_complex::Complex;
 use pyo3::PyObject;
 
 /// GraphData enum supporting multiple data types
+/// 
+/// Large data types (Vec, Array) are wrapped in Arc for efficient sharing between nodes.
+/// Small types (Int, Float, String) remain unwrapped as they're cheap to clone.
 #[derive(Clone, Debug)]
 pub enum GraphData {
-    /// 64-bit integer
+    /// 64-bit integer (small, no Arc needed)
     Int(i64),
-    /// 64-bit floating point
+    /// 64-bit floating point (small, no Arc needed)
     Float(f64),
-    /// UTF-8 string
+    /// UTF-8 string (already uses internal Arc-like optimization)
     String(String),
-    /// Vector of floats
-    FloatVec(Vec<f64>),
-    /// Vector of integers
-    IntVec(Vec<i64>),
-    /// Complex number
+    /// Vector of floats (Arc-wrapped for efficient cloning)
+    FloatVec(Arc<Vec<f64>>),
+    /// Vector of integers (Arc-wrapped for efficient cloning)
+    IntVec(Arc<Vec<i64>>),
+    /// Complex number (small, no Arc needed)
     #[cfg(feature = "radar_examples")]
     Complex(Complex<f64>),
-    /// 1D array of floats (ndarray)
+    /// 1D array of floats (Arc-wrapped for efficient cloning)
     #[cfg(feature = "radar_examples")]
-    FloatArray(Array1<f64>),
-    /// 1D array of complex numbers (ndarray)
+    FloatArray(Arc<Array1<f64>>),
+    /// 1D array of complex numbers (Arc-wrapped for efficient cloning)
     #[cfg(feature = "radar_examples")]
-    ComplexArray(Array1<Complex<f64>>),
+    ComplexArray(Arc<Array1<Complex<f64>>>),
     /// Nested map of GraphData (for structured data)
     Map(HashMap<String, GraphData>),
     /// Python object (opaque, no conversion)
@@ -60,14 +66,14 @@ impl GraphData {
         GraphData::String(value.into())
     }
 
-    /// Create a FloatVec variant
+    /// Create a FloatVec variant (wraps in Arc)
     pub fn float_vec(value: Vec<f64>) -> Self {
-        GraphData::FloatVec(value)
+        GraphData::FloatVec(Arc::new(value))
     }
 
-    /// Create an IntVec variant
+    /// Create an IntVec variant (wraps in Arc)
     pub fn int_vec(value: Vec<i64>) -> Self {
-        GraphData::IntVec(value)
+        GraphData::IntVec(Arc::new(value))
     }
 
     /// Create a Map variant
@@ -87,15 +93,15 @@ impl GraphData {
     }
 
     #[cfg(feature = "radar_examples")]
-    /// Create a FloatArray variant
+    /// Create a FloatArray variant (wraps in Arc)
     pub fn float_array(value: Array1<f64>) -> Self {
-        GraphData::FloatArray(value)
+        GraphData::FloatArray(Arc::new(value))
     }
 
     #[cfg(feature = "radar_examples")]
-    /// Create a ComplexArray variant
+    /// Create a ComplexArray variant (wraps in Arc)
     pub fn complex_array(value: Array1<Complex<f64>>) -> Self {
-        GraphData::ComplexArray(value)
+        GraphData::ComplexArray(Arc::new(value))
     }
 
     #[cfg(feature = "python")]
@@ -129,18 +135,18 @@ impl GraphData {
         }
     }
 
-    /// Try to extract as Vec<f64> reference
+    /// Try to extract as Vec<f64> reference (dereferences Arc)
     pub fn as_float_vec(&self) -> Option<&Vec<f64>> {
         match self {
-            GraphData::FloatVec(v) => Some(v),
+            GraphData::FloatVec(v) => Some(v.as_ref()),
             _ => None,
         }
     }
 
-    /// Try to extract as Vec<i64> reference
+    /// Try to extract as Vec<i64> reference (dereferences Arc)
     pub fn as_int_vec(&self) -> Option<&Vec<i64>> {
         match self {
-            GraphData::IntVec(v) => Some(v),
+            GraphData::IntVec(v) => Some(v.as_ref()),
             _ => None,
         }
     }
@@ -163,19 +169,19 @@ impl GraphData {
     }
 
     #[cfg(feature = "radar_examples")]
-    /// Try to extract as Array1<f64> reference
+    /// Try to extract as Array1<f64> reference (dereferences Arc)
     pub fn as_float_array(&self) -> Option<&Array1<f64>> {
         match self {
-            GraphData::FloatArray(a) => Some(a),
+            GraphData::FloatArray(a) => Some(a.as_ref()),
             _ => None,
         }
     }
 
     #[cfg(feature = "radar_examples")]
-    /// Try to extract as Array1<Complex<f64>> reference
+    /// Try to extract as Array1<Complex<f64>> reference (dereferences Arc)
     pub fn as_complex_array(&self) -> Option<&Array1<Complex<f64>>> {
         match self {
-            GraphData::ComplexArray(a) => Some(a),
+            GraphData::ComplexArray(a) => Some(a.as_ref()),
             _ => None,
         }
     }
@@ -262,13 +268,13 @@ impl From<&str> for GraphData {
 
 impl From<Vec<f64>> for GraphData {
     fn from(v: Vec<f64>) -> Self {
-        GraphData::FloatVec(v)
+        GraphData::FloatVec(Arc::new(v))
     }
 }
 
 impl From<Vec<i64>> for GraphData {
     fn from(v: Vec<i64>) -> Self {
-        GraphData::IntVec(v)
+        GraphData::IntVec(Arc::new(v))
     }
 }
 
@@ -282,14 +288,14 @@ impl From<Complex<f64>> for GraphData {
 #[cfg(feature = "radar_examples")]
 impl From<Array1<f64>> for GraphData {
     fn from(v: Array1<f64>) -> Self {
-        GraphData::FloatArray(v)
+        GraphData::FloatArray(Arc::new(v))
     }
 }
 
 #[cfg(feature = "radar_examples")]
 impl From<Array1<Complex<f64>>> for GraphData {
     fn from(v: Array1<Complex<f64>>) -> Self {
-        GraphData::ComplexArray(v)
+        GraphData::ComplexArray(Arc::new(v))
     }
 }
 

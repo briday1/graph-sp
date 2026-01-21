@@ -318,7 +318,7 @@ impl Graph {
     /// # Returns
     ///
     /// Returns the branch ID for use in merge operations
-    pub fn branch(&mut self, mut subgraph: Graph) -> usize {
+    pub fn branch(&mut self, subgraph: Graph) -> usize {
         // Assign a branch ID to this subgraph (shared for all replicates)
         let branch_id = self.get_branch_id();
 
@@ -616,7 +616,7 @@ impl Graph {
     /// Merge a branch builder's nodes into this builder
     fn merge_branch(&mut self, branch: Graph) -> Vec<NodeId> {
         // Determine terminal nodes in the branch (nodes that are not dependencies of any other node within the branch)
-        let branch_node_ids: HashSet<NodeId> = branch.nodes.iter().map(|n| n.id).collect();
+        let _branch_node_ids: HashSet<NodeId> = branch.nodes.iter().map(|n| n.id).collect();
         let branch_deps: HashSet<NodeId> = branch
             .nodes
             .iter()

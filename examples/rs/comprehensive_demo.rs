@@ -8,7 +8,7 @@
 //! - Variant parameter sweeps
 //! - DAG statistics and visualization
 
-use dagex::{NodeFunction, Graph, GraphData};
+use dagex::{Graph, GraphData};
 use std::collections::HashMap;
 use std::sync::Arc;
 

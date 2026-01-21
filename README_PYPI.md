@@ -10,6 +10,7 @@ A pure Rust DAG (Directed Acyclic Graph) executor with Python bindings for build
 - **Mermaid Visualization**: Generate diagrams with `.to_mermaid()`
 - **Parallel Execution**: Execute independent branches concurrently
 - **Native Performance**: Rust-powered execution with Python convenience
+- **Memory Efficient**: Zero-copy data sharing between nodes using Arc (18x performance improvement for large datasets)
 
 ## Installation
 

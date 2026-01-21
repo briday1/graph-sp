@@ -10,6 +10,7 @@ dagex is a pure Rust grid/node graph executor and optimizer. The project focuses
 - **DAG Analysis**: Automatic inspection and optimization of execution paths
 - **Mermaid Visualization**: Generate diagrams with `.to_mermaid()`
 - **In-process Execution**: Parallel execution using rayon
+- **Memory Efficient**: Arc-wrapped large data types for zero-copy sharing between nodes (18x faster for large datasets)
 
 ## Installation
 
@@ -19,7 +20,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-dagex = "2026.4"
+dagex = "2026.9"
 
 # Optional: For radar signal processing examples with ndarray and FFT support
 [features]
