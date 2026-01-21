@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo-banner.png" alt="dagex" width="600"/>
+  <img src="https://raw.githubusercontent.com/briday1/graph-sp/main/assets/logo-banner.png" alt="dagex" width="600"/>
   <p><em>A pure Rust DAG executor with memory-efficient zero-copy data sharing</em></p>
 </div>
 
