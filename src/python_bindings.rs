@@ -145,6 +145,7 @@ impl PyGraph {
     ///
     /// Args:
     ///     factory: Python callable that takes a parameter value and returns a node function
+    ///              The factory should return a function with signature (inputs, variant_params) -> dict
     ///     param_values: List of parameter values to sweep over
     ///     label: Optional string label for the variant nodes
     ///     inputs: Optional list of (broadcast_var, impl_var) tuples or dict
@@ -154,13 +155,13 @@ impl PyGraph {
     ///     Self for method chaining
     ///
     /// Example:
-    ///     def make_scaler(factor):
-    ///         def scaler(inputs, variant_params):
-    ///             val = inputs.get("x", 0)
-    ///             return {"scaled": val * factor}
-    ///         return scaler
-    ///     
-    ///     graph.variant(make_scaler, [2.0, 3.0, 5.0], "Scale", [("data", "x")], [("scaled", "result")])
+    ///     graph.variant(
+    ///         lambda factor: lambda inputs, params: {"scaled": inputs["x"] * factor},
+    ///         [2.0, 3.0, 5.0],
+    ///         "Scale",
+    ///         [("data", "x")],
+    ///         [("scaled", "result")]
+    ///     )
     #[pyo3(signature = (factory, param_values, label=None, inputs=None, outputs=None))]
     fn variant(
         &mut self,
@@ -202,7 +203,7 @@ impl PyGraph {
         // Create a Rust factory that wraps the Python factory
         graph.variant(
             |param_value: PyObject| {
-                // Create a closure that will call the Python factory with this param_value
+                // Call the Python factory to get the node function for this param
                 let factory_clone = factory.clone();
                 let param_clone = param_value.clone();
                 

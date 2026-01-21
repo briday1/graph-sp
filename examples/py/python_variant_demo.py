@@ -1,184 +1,114 @@
 #!/usr/bin/env python3
 """
-Python Variant Demo - Parameter Sweep
+Python Variant Demo - Parameter Sweeps with Lambdas
 
-Demonstrates the variant() method for creating parameter sweeps
-where multiple node variants execute in parallel with different parameters.
+Demonstrates using graph.variant() with lambda functions for clean parameter sweeps.
 """
 
 import dagex
 
 print("=" * 70)
 print("Python Variant Demo - dagex")
-print("Parameter Sweep and Variant Execution")
 print("=" * 70)
 
-# Demo 1: Simple parameter sweep
+# Demo 1: Simple parameter sweep with lambda
 print("\n" + "─" * 70)
-print("Demo 1: Simple Parameter Sweep")
+print("Demo 1: Lambda-based Variant Sweep")
 print("─" * 70)
-
-def data_source(inputs, variant_params):
-    """Source node that produces initial data"""
-    return {"value": 100}
-
-def make_multiplier(factor):
-    """Factory function that creates a multiplier node with given factor"""
-    def multiplier(inputs, variant_params):
-        val = inputs.get("x", 0)
-        # Access the parameter from variant_params
-        param_val = variant_params.get("param_value", factor)
-        result = val * factor
-        print(f"  Variant with factor {factor}: {val} * {factor} = {result}")
-        return {"result": result}
-    return multiplier
 
 graph = dagex.Graph()
 
-# Add source
+# Source node
 graph.add(
-    function=data_source,
-    label="DataSource",
-    inputs=None,
-    outputs=[("value", "data")]
+    lambda inputs, params: {"value": 10},
+    "Source",
+    None,
+    [("value", "data")]
 )
 
-# Create variants with different multiplier factors
+# Variant sweep: multiply by different factors
 graph.variant(
-    factory=make_multiplier,
-    param_values=[0.5, 1.0, 2.0, 3.0, 5.0],
-    label="Multiply",
-    inputs=[("data", "x")],
-    outputs=[("result", "result")]
+    lambda factor: lambda inputs, params: {"result": inputs["x"] * factor},
+    [2, 3, 5, 10],
+    "Scale",
+    [("data", "x")],
+    [("result", "scaled")]
 )
 
 dag = graph.build()
-
-print("\nMermaid Diagram:")
-print(dag.to_mermaid())
-
-print("\nExecuting variants...")
 context = dag.execute()
 
-print(f"\nFinal context (last variant overwrites 'result'):")
-print(f"  result = {context.get('result', 'N/A')}")
+print(f"\nResults:")
+print(f"  Input: {context['data']}")
+print(f"  Output (last variant): {context['scaled']}")
+print(f"\nMermaid:\n{dag.to_mermaid()}")
 
-# Demo 2: Scaling with different factors
+# Demo 2: More complex variant with numpy
 print("\n" + "─" * 70)
-print("Demo 2: Data Processing with Multiple Scalers")
+print("Demo 2: Numpy Linspace Parameter Sweep")
 print("─" * 70)
 
-def source_data(inputs, variant_params):
-    """Generate initial dataset"""
-    return {"dataset": [10, 20, 30, 40, 50]}
+try:
+    import numpy as np
+    
+    graph2 = dagex.Graph()
+    
+    graph2.add(
+        lambda inputs, params: {"base": 100},
+        "Source",
+        None,
+        [("base", "value")]
+    )
+    
+    # Sweep over a range of scaling factors
+    factors = np.linspace(0.5, 2.0, 5)
+    graph2.variant(
+        lambda f: lambda inputs, params: {"scaled": int(inputs["v"] * f)},
+        factors.tolist(),
+        "LinearScale",
+        [("value", "v")],
+        [("scaled", "result")]
+    )
+    
+    dag2 = graph2.build()
+    context2 = dag2.execute()
+    
+    print(f"\nUsed {len(factors)} factors from {factors[0]:.2f} to {factors[-1]:.2f}")
+    print(f"Base value: {context2['value']}")
+    print(f"Final result: {context2['result']}")
+    
+except ImportError:
+    print("NumPy not available, skipping this demo")
 
-def make_scaler(scale_factor):
-    """Factory that creates a scaler node"""
-    def scaler(inputs, variant_params):
-        data = inputs.get("data", [])
-        scaled = [x * scale_factor for x in data]
-        avg = sum(scaled) / len(scaled) if scaled else 0
-        return {
-            "scaled_data": scaled,
-            "average": avg,
-            "scale_factor": scale_factor
-        }
-    return scaler
-
-graph2 = dagex.Graph()
-
-graph2.add(
-    function=source_data,
-    label="Source",
-    inputs=None,
-    outputs=[("dataset", "raw_data")]
-)
-
-# Create variants with different scale factors
-graph2.variant(
-    factory=make_scaler,
-    param_values=[0.1, 0.5, 1.0, 2.0, 10.0],
-    label="Scale",
-    inputs=[("raw_data", "data")],
-    outputs=[
-        ("scaled_data", "scaled"),
-        ("average", "avg"),
-        ("scale_factor", "factor")
-    ]
-)
-
-dag2 = graph2.build()
-
-print("\nMermaid Diagram:")
-print(dag2.to_mermaid())
-
-print("\nExecuting scalers...")
-context2 = dag2.execute()
-
-print(f"\nResults (last variant):")
-print(f"  scaled = {context2.get('scaled', 'N/A')}")
-print(f"  average = {context2.get('avg', 'N/A')}")
-print(f"  factor = {context2.get('factor', 'N/A')}")
-
-# Demo 3: String parameter variants
+# Demo 3: Variant with computation
 print("\n" + "─" * 70)
-print("Demo 3: String Parameter Variants")
+print("Demo 3: Power Function Variants")
 print("─" * 70)
-
-def text_source(inputs, variant_params):
-    """Source text"""
-    return {"text": "hello world"}
-
-def make_transformer(operation):
-    """Factory that creates text transformation nodes"""
-    def transformer(inputs, variant_params):
-        text = inputs.get("input", "")
-        
-        if operation == "upper":
-            result = text.upper()
-        elif operation == "lower":
-            result = text.lower()
-        elif operation == "title":
-            result = text.title()
-        elif operation == "reverse":
-            result = text[::-1]
-        elif operation == "capitalize":
-            result = text.capitalize()
-        else:
-            result = text
-            
-        print(f"  {operation}: '{text}' -> '{result}'")
-        return {"transformed": result}
-    return transformer
 
 graph3 = dagex.Graph()
 
 graph3.add(
-    function=text_source,
-    label="TextSource",
-    inputs=None,
-    outputs=[("text", "original")]
+    lambda inputs, params: {"x": 2},
+    "Source",
+    None,
+    [("x", "number")]
 )
 
-# Create variants with different string operations
+# Variant: different power functions
 graph3.variant(
-    factory=make_transformer,
-    param_values=["upper", "lower", "title", "reverse", "capitalize"],
-    label="Transform",
-    inputs=[("original", "input")],
-    outputs=[("transformed", "output")]
+    lambda exp: lambda inputs, params: {"powered": inputs["n"] ** exp},
+    [2, 3, 4, 5],
+    "Power",
+    [("number", "n")],
+    [("powered", "result")]
 )
 
 dag3 = graph3.build()
-
-print("\nMermaid Diagram:")
-print(dag3.to_mermaid())
-
-print("\nExecuting transformers...")
 context3 = dag3.execute()
 
-print(f"\nFinal output: '{context3.get('output', 'N/A')}'")
+print(f"\nBase: {context3['number']}")
+print(f"Result (last variant, power of 5): {context3['result']}")
 
 print("\n" + "=" * 70)
-print("Python Variant Demo Complete!")
+print("Demo Complete!")
 print("=" * 70)
