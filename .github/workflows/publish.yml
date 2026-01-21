@@ -233,9 +233,9 @@ jobs:
       - name: Install Python package and run examples
         run: |
           pip install dist/*.whl
-          python examples/python_comprehensive_demo.py
-          python examples/python_demo.py
-          python examples/python_parallel_demo.py
+          python examples/py/python_comprehensive_demo.py
+          python examples/py/python_demo.py
+          python examples/py/python_parallel_demo.py
 
   build-wheels:
     name: Build wheels on ${{ matrix.os }} for Python ${{ matrix.python-version }}
