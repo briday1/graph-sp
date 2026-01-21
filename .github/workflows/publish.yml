@@ -144,7 +144,7 @@ jobs:
           from datetime import datetime
           
           year = datetime.now().year
-          package_name = "pygraph-sp"
+          package_name = "dagex"
           
           try:
               response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=10)
@@ -271,7 +271,7 @@ jobs:
           from datetime import datetime
           
           year = datetime.now().year
-          package_name = "pygraph-sp"
+          package_name = "dagex"
           
           try:
               response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=10)
@@ -407,7 +407,7 @@ jobs:
           from datetime import datetime
           
           year = datetime.now().year
-          package_name = "pygraph-sp"
+          package_name = "dagex"
           
           try:
               response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=10)
@@ -526,7 +526,7 @@ jobs:
           from datetime import datetime
           
           year = datetime.now().year
-          package_name = "pygraph-sp"
+          package_name = "dagex"
           
           try:
               response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=10)
