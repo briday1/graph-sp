@@ -11,6 +11,7 @@ documentation = "https://docs.rs/dagex"
 keywords = ["dag", "graph", "execution", "pipeline", "workflow"]
 categories = ["data-structures", "algorithms"]
 readme = "README.md"
+exclude = [".venv*", "venv", ".github", "examples/py"]
 
 [dependencies]
 pyo3 = { version = "=0.18.3", optional = true, default-features = false, features = ["extension-module", "macros"] }
