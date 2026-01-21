@@ -1,6 +1,6 @@
 [package]
 name = "dagex"
-version = "2026.6.0"
+version = "2026.7.0"
 edition = "2021"
 authors = ["briday1 <your-email@example.com>"]
 description = "A pure Rust DAG executor supporting implicit node connections, branching, and config sweeps"
