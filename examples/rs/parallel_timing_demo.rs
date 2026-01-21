@@ -8,7 +8,6 @@
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -165,7 +164,7 @@ fn demo_many_parallel_nodes() {
     for i in 0..10 {
         let mut branch = Graph::new();
         branch.add(
-            move |inputs: &HashMap<String, GraphData>, _| {
+            move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
                 let mut result = HashMap::new();
                 if let Some(val) = inputs.get("input").and_then(|d| d.as_int()) {
                     thread::sleep(Duration::from_millis(50));

@@ -352,15 +352,14 @@ impl Graph {
         branch_id
     }
 
-    /// Create configuration sweep variants using a factory function (sigexec-style)
+    /// Create variant nodes from a vector of closures
     ///
-    /// Takes a factory function and an array of parameter values. The factory is called
-    /// with each parameter value to create a node function for that variant.
+    /// Takes a vector of closures, each representing a variant of the computation.
+    /// This is the simpler API that matches the Python bindings.
     ///
     /// # Arguments
     ///
-    /// * `factory` - Function that takes a parameter value and returns a node function
-    /// * `param_values` - Array of parameter values to sweep over
+    /// * `functions` - Vector of node functions (closures)
     /// * `label` - Optional label for visualization (default: None)
     /// * `inputs` - Optional list of (broadcast_var, impl_var) tuples for inputs
     /// * `outputs` - Optional list of (impl_var, broadcast_var) tuples for outputs
@@ -368,43 +367,31 @@ impl Graph {
     /// # Example
     ///
     /// ```ignore
-    /// fn make_scaler(factor: f64) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
-    ///     move |inputs, _variant_params| {
-    ///         let mut outputs = HashMap::new();
-    ///         if let Some(val) = inputs.get("x").and_then(|d| d.as_float()) {
-    ///             outputs.insert("scaled_x".to_string(), GraphData::float(val * factor));
-    ///         }
-    ///         outputs
-    ///     }
-    /// }
-    ///
+    /// let factors = vec![2.0, 3.0, 5.0];
     /// graph.variant(
-    ///     make_scaler,
-    ///     vec![2.0, 3.0, 5.0],
+    ///     factors.iter().map(|&factor| {
+    ///         move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+    ///             let mut outputs = HashMap::new();
+    ///             if let Some(val) = inputs.get("x").and_then(|d| d.as_float()) {
+    ///                 outputs.insert("scaled".to_string(), GraphData::float(val * factor));
+    ///             }
+    ///             outputs
+    ///         }
+    ///     }).collect(),
     ///     Some("Scale"),
-    ///     Some(vec![("data", "x")]),          // (broadcast, impl)
-    ///     Some(vec![("scaled_x", "result")])  // (impl, broadcast)
+    ///     Some(vec![("data", "x")]),
+    ///     Some(vec![("scaled", "result")])
     /// );
     /// ```
-    ///
-    /// # Behavior
-    ///
-    /// - Creates one node per parameter value
-    /// - Each node is created by calling factory(param_value)
-    /// - Nodes still receive both regular inputs and variant_params
-    /// - All variants branch from the same point and can execute in parallel
-    pub fn variant<F, P, NF>(
+    pub fn variant<F>(
         &mut self,
-        factory: F,
-        param_values: Vec<P>,
+        functions: Vec<F>,
         label: Option<&str>,
         inputs: Option<Vec<(&str, &str)>>,
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
-        F: Fn(P) -> NF,
-        P: ToString + Clone,
-        NF: Fn(
+        F: Fn(
                 &HashMap<String, GraphData>,
                 &HashMap<String, GraphData>,
             ) -> HashMap<String, GraphData>
@@ -412,18 +399,12 @@ impl Graph {
             + Sync
             + 'static,
     {
-        // Remember the branch point before adding variants
         let branch_point = self.last_node_id;
 
-        // Create a variant node for each parameter value
-        for (idx, param_value) in param_values.iter().enumerate() {
-            // Create the node function using the factory
-            let node_fn = factory(param_value.clone());
-
+        for (idx, node_fn) in functions.into_iter().enumerate() {
             let id = self.next_id;
             self.next_id += 1;
 
-            // Build input_mapping: broadcast_var -> impl_var
             let input_mapping: HashMap<String, String> = inputs
                 .as_ref()
                 .unwrap_or(&vec![])
@@ -431,7 +412,6 @@ impl Graph {
                 .map(|(broadcast, impl_var)| (broadcast.to_string(), impl_var.to_string()))
                 .collect();
 
-            // Build output_mapping: impl_var -> broadcast_var
             let output_mapping: HashMap<String, String> = outputs
                 .as_ref()
                 .unwrap_or(&vec![])
@@ -447,14 +427,8 @@ impl Graph {
                 output_mapping,
             );
 
-            // Set variant index and param value
             node.variant_index = Some(idx);
-            node.variant_params.insert(
-                "param_value".to_string(),
-                GraphData::from_string(&param_value.to_string()),
-            );
-
-            // Connect to branch point (all variants branch from same node)
+            
             if let Some(bp_id) = branch_point {
                 node.dependencies.push(bp_id);
                 node.is_branch = true;
@@ -463,10 +437,7 @@ impl Graph {
             self.nodes.push(node);
         }
 
-        // Don't update last_node_id - variants don't create sequential flow
-        // Set last_branch_point for potential merge
         self.last_branch_point = branch_point;
-
         self
     }
 

@@ -262,23 +262,17 @@ fn demo_variant_per_node_access() {
         Some(vec![("base_value", "data")]),
     );
 
-    // Variant factory for scaling
-    fn make_scaler(
-        factor: f64,
-    ) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
-    {
-        move |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("input_data").and_then(|d| d.as_int()).unwrap() as f64;
-            let mut result = HashMap::new();
-            result.insert("scaled_value".to_string(), GraphData::float(value * factor));
-            result
-        }
-    }
-
-    // Create variants with unique output names to preserve all results
+    // Create variants using closure syntax
+    let factors = vec![2.0, 3.0, 5.0];
     graph.variant(
-        make_scaler,
-        vec![2.0, 3.0, 5.0],
+        factors.iter().map(|&factor| {
+            move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+                let value = inputs.get("input_data").and_then(|d| d.as_int()).unwrap() as f64;
+                let mut result = HashMap::new();
+                result.insert("scaled_value".to_string(), GraphData::float(value * factor));
+                result
+            }
+        }).collect(),
         Some("Scale"),
         Some(vec![("data", "input_data")]),
         Some(vec![("scaled_value", "result")]), // Note: will overwrite in global context

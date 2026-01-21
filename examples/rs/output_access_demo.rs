@@ -42,7 +42,7 @@ fn demo_simple_output_access() {
 
     // Node 2: Process the data
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
             let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("processed".to_string(), GraphData::int(value * 2));
@@ -103,7 +103,7 @@ fn demo_branch_output_access() {
     // Branch A: Statistics computation
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
             let val = inputs
                 .get("data")
                 .map(|d| d.to_string_repr())
@@ -123,7 +123,7 @@ fn demo_branch_output_access() {
     // Branch B: Model training
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
             let val = inputs
                 .get("data")
                 .map(|d| d.to_string_repr())
@@ -143,7 +143,7 @@ fn demo_branch_output_access() {
     // Branch C: Visualization
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
             let val = inputs
                 .get("data")
                 .map(|d| d.to_string_repr())
@@ -211,23 +211,17 @@ fn demo_variant_output_access() {
         Some(vec![("value", "input_data")]),
     );
 
-    // Variant nodes: scale by different factors
-    // Factory function that creates a scaler for each factor
-    fn make_scaler(
-        factor: f64,
-    ) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
-    {
-        move |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
-            let mut result = HashMap::new();
-            result.insert("scaled".to_string(), GraphData::float(value * factor));
-            result
-        }
-    }
-
+    // Variant nodes: scale by different factors using closure syntax
+    let factors = vec![2.0, 3.0, 5.0];
     graph.variant(
-        make_scaler,
-        vec![2.0, 3.0, 5.0],
+        factors.iter().map(|&factor| {
+            move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+                let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
+                let mut result = HashMap::new();
+                result.insert("scaled".to_string(), GraphData::float(value * factor));
+                result
+            }
+        }).collect(),
         Some("Scale"),
         Some(vec![("input_data", "data")]),
         Some(vec![("scaled", "result")]), // Each variant produces "result"
@@ -268,38 +262,35 @@ fn demo_variant_output_access() {
         Some(vec![("value", "input_data")]),
     );
 
-    // Variant 1: 2x
-    fn make_scaler_unique(
-        label: &str,
-        factor: f64,
-    ) -> impl Fn(
-        &HashMap<String, GraphData>,
-        &HashMap<String, GraphData>,
-    ) -> HashMap<String, GraphData>
-           + '_ {
-        move |inputs: &HashMap<String, GraphData>, _| {
-            let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
-            let mut result = HashMap::new();
-            result.insert(label.to_string(), GraphData::float(value * factor));
-            result
-        }
-    }
-
+    // Variants with unique output names using closure syntax
     graph2.variant(
-        |_x: &str| make_scaler_unique("scaled_2x", 2.0),
-        vec!["2x"],
+        vec![
+            |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+                let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
+                let mut result = HashMap::new();
+                result.insert("scaled_2x".to_string(), GraphData::float(value * 2.0));
+                result
+            }
+        ],
         Some("Scale2x"),
         Some(vec![("input_data", "data")]),
         Some(vec![("scaled_2x", "result_2x")]),
     );
 
     graph2.variant(
-        |_x: &str| make_scaler_unique("scaled_3x", 3.0),
-        vec!["3x"],
+        vec![
+            |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+                let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
+                let mut result = HashMap::new();
+                result.insert("scaled_3x".to_string(), GraphData::float(value * 3.0));
+                result
+            }
+        ],
         Some("Scale3x"),
         Some(vec![("input_data", "data")]),
         Some(vec![("scaled_3x", "result_3x")]),
     );
+
 
     let dag2 = graph2.build();
     let context2 = dag2.execute(false, None);

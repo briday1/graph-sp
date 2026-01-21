@@ -157,25 +157,20 @@ fn main() {
     );
     println!("  Output mapping: merge function's 'merged' → context's 'final_result'\n");
 
-    // Variant example with factory pattern
-    fn make_multiplier(
-        factor: f64,
-    ) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
-    {
-        move |inputs, _variant| {
-            let val = inputs
-                .get("value")
-                .and_then(|d| d.as_float())
-                .unwrap_or(1.0);
-            let mut outputs = HashMap::new();
-            outputs.insert("scaled".to_string(), GraphData::float(val * factor));
-            outputs
-        }
-    }
-
+    // Variant example using closures
+    let factors = vec![2.0, 3.0, 5.0];
     graph.variant(
-        make_multiplier,
-        vec![2.0, 3.0, 5.0],
+        factors.iter().map(|&factor| {
+            move |inputs: &HashMap<String, GraphData>, _variant: &HashMap<String, GraphData>| {
+                let val = inputs
+                    .get("value")
+                    .and_then(|d| d.as_float())
+                    .unwrap_or(1.0);
+                let mut outputs = HashMap::new();
+                outputs.insert("scaled".to_string(), GraphData::float(val * factor));
+                outputs
+            }
+        }).collect(),
         Some("Multiply"),
         Some(vec![("final_result", "value")]), // Context's "final_result" → function's "value"
         Some(vec![("scaled", "multiplied")]),  // Function's "scaled" → context's "multiplied"

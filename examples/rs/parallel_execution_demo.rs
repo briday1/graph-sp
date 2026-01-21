@@ -299,32 +299,26 @@ fn demo_variant_parallelism() {
         Some(vec![("value", "data")]),
     );
 
-    // Variant factory with different multipliers
-    fn make_multiplier(
-        factor: f64,
-    ) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
-    {
-        move |inputs: &HashMap<String, GraphData>, _| {
-            let start = Instant::now();
-            let mut result = HashMap::new();
-            if let Some(val) = inputs.get("input").and_then(|d| d.as_float()) {
-                // Simulate 100ms of work
-                thread::sleep(Duration::from_millis(100));
-                result.insert("result".to_string(), GraphData::float(val * factor));
-            }
-            println!(
-                "    [{}ms] Variant (factor={}) completed",
-                start.elapsed().as_millis(),
-                factor
-            );
-            result
-        }
-    }
-
-    // Create 5 variants
+    // Create 5 variants using closure syntax
+    let factors = vec![0.5, 1.0, 1.5, 2.0, 2.5];
     graph.variant(
-        make_multiplier,
-        vec![0.5, 1.0, 1.5, 2.0, 2.5],
+        factors.iter().map(|&factor| {
+            move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+                let start = Instant::now();
+                let mut result = HashMap::new();
+                if let Some(val) = inputs.get("input").and_then(|d| d.as_float()) {
+                    // Simulate 100ms of work
+                    thread::sleep(Duration::from_millis(100));
+                    result.insert("result".to_string(), GraphData::float(val * factor));
+                }
+                println!(
+                    "    [{}ms] Variant (factor={}) completed",
+                    start.elapsed().as_millis(),
+                    factor
+                );
+                result
+            }
+        }).collect(),
         Some("Multiply[100ms]"),
         Some(vec![("data", "input")]),
         Some(vec![("result", "result")]),

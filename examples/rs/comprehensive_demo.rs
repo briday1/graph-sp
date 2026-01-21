@@ -321,25 +321,19 @@ fn demo_variants() {
         Some(vec![("base_value", "data")]),
     );
 
-    // Variant factory: Scale by different learning rates
-    fn make_scaler(
-        learning_rate: f64,
-    ) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
-    {
-        move |inputs: &HashMap<String, GraphData>, _| {
-            let mut result = HashMap::new();
-            if let Some(val) = inputs.get("input").and_then(|d| d.as_float()) {
-                let scaled = val * learning_rate;
-                result.insert("scaled_value".to_string(), GraphData::float(scaled));
-            }
-            result
-        }
-    }
-
-    // Create variants using Linspace for learning rate sweep
+    // Create variants using closure syntax for learning rate sweep
+    let learning_rates = vec![0.001, 0.01, 0.1, 1.0];
     graph.variant(
-        make_scaler,
-        vec![0.001, 0.01, 0.1, 1.0],
+        learning_rates.iter().map(|&learning_rate| {
+            move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+                let mut result = HashMap::new();
+                if let Some(val) = inputs.get("input").and_then(|d| d.as_float()) {
+                    let scaled = val * learning_rate;
+                    result.insert("scaled_value".to_string(), GraphData::float(scaled));
+                }
+                result
+            }
+        }).collect(),
         Some("ScaleLR"),
         Some(vec![("data", "input")]),
         Some(vec![("scaled_value", "result")]),
