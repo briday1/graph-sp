@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 512" role="img" aria-label="dagex logo">
+  <!-- Background tightly fit to content -->
+  <rect width="1100" height="512" rx="96" fill="#0f0f0f"/>
+
+  <!-- EXACT icon (unchanged) -->
+  <path
+    d="
+      M 156 128
+      L 156 384
+      L 300 384
+      C 360 384, 400 340, 400 256
+      C 400 172, 360 128, 300 128
+      Z
+    "
+    fill="none"
+    stroke="#00AEEF"
+    stroke-width="36"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
+  <path d="M 208 192 L 344 320" stroke="#EC008C" stroke-width="28" stroke-linecap="round"/>
+  <path d="M 344 192 L 208 320" stroke="#FFF200" stroke-width="28" stroke-linecap="round"/>
+
+  <!-- Text continues after the D -->
+  <!-- Baseline aligned to bottom of D (y = 384), tuned kerning -->
+  <text x="420" y="384"
+        font-size="232"
+        font-weight="500"
+        font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        letter-spacing="-10">
+    <tspan fill="#00AEEF">ag</tspan><tspan fill="#EC008C">e</tspan><tspan fill="#FFF200">x</tspan>
+  </text>
+</svg>

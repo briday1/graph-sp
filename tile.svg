@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="dagex icon">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#0f0f0f"/>
+
+  <!-- D-shaped outer shell (cyan) -->
+  <path
+    d="
+      M 156 128
+      L 156 384
+      L 300 384
+      C 360 384, 400 340, 400 256
+      C 400 172, 360 128, 300 128
+      Z
+    "
+    fill="none"
+    stroke="#00AEEF"
+    stroke-width="36"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
+
+  <!-- Inner crossing paths -->
+  <path d="M 208 192 L 344 320" stroke="#EC008C" stroke-width="28" stroke-linecap="round"/>
+  <path d="M 344 192 L 208 320" stroke="#FFF200" stroke-width="28" stroke-linecap="round"/>
+</svg>

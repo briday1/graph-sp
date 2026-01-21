@@ -1,0 +1,6 @@
+# Git LFS tracking for large assets (optional, but good practice)
+*.png binary
+*.svg binary
+*.jpg binary
+*.jpeg binary
+*.gif binary

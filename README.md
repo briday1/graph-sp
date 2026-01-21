@@ -1,3 +1,8 @@
+<div align="center">
+  <img src="assets/logo-banner.png" alt="dagex" width="600"/>
+  <p><em>A pure Rust DAG executor with memory-efficient zero-copy data sharing</em></p>
+</div>
+
 # dagex
 
 dagex is a pure Rust grid/node graph executor and optimizer. The project focuses on representing directed dataflow graphs, computing port mappings by graph inspection, and executing nodes efficiently in-process with parallel CPU execution.

@@ -1,3 +1,8 @@
+<div align="center">
+  <img src="https://raw.githubusercontent.com/briday1/graph-sp/main/assets/logo-banner.png" alt="dagex" width="600"/>
+  <p><em>A pure Rust DAG executor with Python bindings</em></p>
+</div>
+
 # dagex
 
 A pure Rust DAG (Directed Acyclic Graph) executor with Python bindings for building and executing computational pipelines.
