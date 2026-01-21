@@ -170,10 +170,10 @@ pub struct Graph {
     nodes: Vec<Node>,
     /// Counter for generating unique node IDs
     next_id: NodeId,
-    /// The last added node ID (for implicit connections)
-    last_node_id: Option<NodeId>,
-    /// Track the last branch point for sequential .branch() calls
-    last_branch_point: Option<NodeId>,
+    /// Current frontier node IDs (active attach points)
+    frontier: Vec<NodeId>,
+    /// Track the last branch points for sequential `.branch()` calls (copies of `frontier`)
+    last_branch_point: Option<Vec<NodeId>>,
     /// Subgraph builders for branches with their IDs
     branches: Vec<(usize, Graph)>,
     /// Next branch ID counter
@@ -188,7 +188,7 @@ impl Graph {
         Self {
             nodes: Vec::new(),
             next_id: 0,
-            last_node_id: None,
+            frontier: Vec::new(),
             last_branch_point: None,
             branches: Vec::new(),
             next_branch_id: 1,
@@ -220,9 +220,8 @@ impl Graph {
     ///
     /// # Function Signature
     ///
-    /// Functions receive two parameters:
+    /// Functions receive a single parameter:
     /// - `inputs: &HashMap<String, GraphData>` - Mapped input variables (impl_var names)
-    /// - `variant_params: &HashMap<String, GraphData>` - Variant parameter values
     ///
     /// Functions return outputs using impl_var names, which get mapped to broadcast_var names.
     ///
@@ -238,22 +237,14 @@ impl Graph {
     ///     Some(vec![("output_value", "result")])  // (impl, broadcast)
     /// );
     /// ```
-    pub fn add<F>(
+    pub fn add(
         &mut self,
-        function_handle: F,
+        function_handle: crate::node::NodeFunction,
         label: Option<&str>,
         inputs: Option<Vec<(&str, &str)>>,
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
-    where
-        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
-            + Send
-            + Sync
-            + 'static,
-    {
-        let id = self.next_id;
-        self.next_id += 1;
-
+    {   
         // Build input_mapping: broadcast_var -> impl_var
         let input_mapping: HashMap<String, String> = inputs
             .unwrap_or_default()
@@ -268,25 +259,43 @@ impl Graph {
             .map(|(impl_var, broadcast)| (impl_var.to_string(), broadcast.to_string()))
             .collect();
 
-        let mut node = Node::new(
-            id,
-            Arc::new(function_handle),
-            label.map(|s| s.to_string()),
-            input_mapping,
-            output_mapping,
-        );
+        // Determine parents for replication: if frontier is empty, we create a single node
+        let parents: Vec<Option<NodeId>> = if self.frontier.is_empty() {
+            vec![None]
+        } else {
+            self.frontier.iter().map(|&id| Some(id)).collect()
+        };
 
-        // Implicit connection: connect to the last added node or merge targets
-        if !self.merge_targets.is_empty() {
-            // Connect to all merge targets
-            node.dependencies.extend(self.merge_targets.iter().copied());
-            self.merge_targets.clear();
-        } else if let Some(prev_id) = self.last_node_id {
-            node.dependencies.push(prev_id);
+        let mut created_ids: Vec<NodeId> = Vec::new();
+
+        // function_handle is already Arc<dyn Fn>, so we can clone it directly
+        let func_arc: crate::node::NodeFunction = function_handle;
+        for parent in parents {
+            let id = self.next_id;
+            self.next_id += 1;
+
+            let mut node = Node::new(
+                id,
+                Arc::clone(&func_arc),
+                label.map(|s| s.to_string()),
+                input_mapping.clone(),
+                output_mapping.clone(),
+            );
+
+            // Connect to merge targets if present, otherwise to the parent (if any)
+            if !self.merge_targets.is_empty() {
+                node.dependencies.extend(self.merge_targets.iter().copied());
+                self.merge_targets.clear();
+            } else if let Some(pid) = parent {
+                node.dependencies.push(pid);
+            }
+
+            self.nodes.push(node);
+            created_ids.push(id);
         }
 
-        self.nodes.push(node);
-        self.last_node_id = Some(id);
+        // Update frontier to the newly created node(s)
+        self.frontier = created_ids;
 
         // Reset branch point after adding a regular node
         self.last_branch_point = None;
@@ -310,40 +319,65 @@ impl Graph {
     ///
     /// Returns the branch ID for use in merge operations
     pub fn branch(&mut self, mut subgraph: Graph) -> usize {
-        // Assign a branch ID to this subgraph
+        // Assign a branch ID to this subgraph (shared for all replicates)
         let branch_id = self.get_branch_id();
 
-        // Determine the branch point
-        let branch_point = if let Some(bp) = self.last_branch_point {
-            // Sequential .branch() calls - use the same branch point
-            bp
+        // Determine the branch points (could be multiple - frontier / last_branch_point)
+        let branch_points: Vec<NodeId> = if let Some(bp_vec) = self.last_branch_point.clone() {
+            // Sequential .branch() calls - use the same branch point(s)
+            bp_vec
+        } else if !self.frontier.is_empty() {
+            // Branch from current frontier nodes
+            let v = self.frontier.clone();
+            self.last_branch_point = Some(v.clone());
+            v
         } else {
-            // First branch after .add() - branch from last node
-            if let Some(last_id) = self.last_node_id {
-                self.last_branch_point = Some(last_id);
-                last_id
-            } else {
-                // No previous node, subgraph starts independently
-                self.branches.push((branch_id, subgraph));
-                return branch_id;
-            }
+            // No previous node, subgraph starts independently
+            self.branches.push((branch_id, subgraph));
+            return branch_id;
         };
 
-        // Connect the first node of the subgraph to the branch point
-        if let Some(first_node) = subgraph.nodes.first_mut() {
-            if !first_node.dependencies.contains(&branch_point) {
-                first_node.dependencies.push(branch_point);
+        // For each branch point, append a cloned copy of the subgraph and attach to the branch point
+        for bp in branch_points.iter() {
+            // Map old node ids to new ids
+            let mut id_map: HashMap<NodeId, NodeId> = HashMap::new();
+            for node in &subgraph.nodes {
+                let new_id = self.next_id;
+                self.next_id += 1;
+                id_map.insert(node.id, new_id);
             }
-            first_node.is_branch = true;
-            first_node.branch_id = Some(branch_id);
+
+            // Clone nodes with remapped ids and dependencies
+            for node in &subgraph.nodes {
+                let new_id = *id_map.get(&node.id).unwrap();
+                let mut new_node = Node::new(
+                    new_id,
+                    node.function.clone(),
+                    node.label.clone(),
+                    node.input_mapping.clone(),
+                    node.output_mapping.clone(),
+                );
+
+                // Remap dependencies: if dependency is internal to subgraph, map it; otherwise, attach to branch point
+                for &dep in &node.dependencies {
+                    if let Some(&mapped) = id_map.get(&dep) {
+                        new_node.dependencies.push(mapped);
+                    }
+                }
+
+                // Ensure first node attaches to the branch point
+                if node.dependencies.is_empty() {
+                    new_node.dependencies.push(*bp);
+                }
+
+                new_node.is_branch = true;
+                new_node.branch_id = Some(branch_id);
+
+                self.nodes.push(new_node);
+            }
         }
 
-        // Mark all nodes in this branch with the branch ID
-        for node in &mut subgraph.nodes {
-            node.branch_id = Some(branch_id);
-        }
-
-        // Store subgraph with its branch ID
+        // Store original subgraph as metadata under the branch ID for reference
         self.branches.push((branch_id, subgraph));
 
         branch_id
@@ -380,58 +414,79 @@ impl Graph {
     ///     Some(vec![("scaled", "result")])
     /// );
     /// ```
-    pub fn variants<F>(
+    pub fn variants(
         &mut self,
-        functions: Vec<F>,
+        functions: Vec<crate::node::NodeFunction>,
         label: Option<&str>,
         inputs: Option<Vec<(&str, &str)>>,
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
-    where
-        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
-            + Send
-            + Sync
-            + 'static,
     {
-        let branch_point = self.last_node_id;
+        // Determine parent attach points (frontier). If frontier is empty, treat as a single None parent
+        let parents: Vec<Option<NodeId>> = if self.frontier.is_empty() {
+            vec![None]
+        } else {
+            self.frontier.iter().map(|&id| Some(id)).collect()
+        };
+
+        // Remember previous frontier as branch point for sequential .branch() calls
+        let previous_frontier = if self.frontier.is_empty() {
+            None
+        } else {
+            Some(self.frontier.clone())
+        };
+
+        // Prepare mappings
+        let input_mapping: HashMap<String, String> = inputs
+            .as_ref()
+            .unwrap_or(&vec![])
+            .iter()
+            .map(|(broadcast, impl_var)| (broadcast.to_string(), impl_var.to_string()))
+            .collect();
+
+        let output_mapping: HashMap<String, String> = outputs
+            .as_ref()
+            .unwrap_or(&vec![])
+            .iter()
+            .map(|(impl_var, broadcast)| (impl_var.to_string(), broadcast.to_string()))
+            .collect();
+
+        let mut created_ids: Vec<NodeId> = Vec::new();
 
         for (idx, node_fn) in functions.into_iter().enumerate() {
-            let id = self.next_id;
-            self.next_id += 1;
+            for parent in &parents {
+                let id = self.next_id;
+                self.next_id += 1;
 
-            let input_mapping: HashMap<String, String> = inputs
-                .as_ref()
-                .unwrap_or(&vec![])
-                .iter()
-                .map(|(broadcast, impl_var)| (broadcast.to_string(), impl_var.to_string()))
-                .collect();
+                let mut node = Node::new(
+                    id,
+                    Arc::clone(&node_fn),
+                    label.map(|s| format!("{} (v{})", s, idx)),
+                    input_mapping.clone(),
+                    output_mapping.clone(),
+                );
 
-            let output_mapping: HashMap<String, String> = outputs
-                .as_ref()
-                .unwrap_or(&vec![])
-                .iter()
-                .map(|(impl_var, broadcast)| (impl_var.to_string(), broadcast.to_string()))
-                .collect();
+                node.variant_index = Some(idx);
 
-            let mut node = Node::new(
-                id,
-                Arc::new(node_fn),
-                label.map(|s| format!("{} (v{})", s, idx)),
-                input_mapping,
-                output_mapping,
-            );
+                if !self.merge_targets.is_empty() {
+                    node.dependencies.extend(self.merge_targets.iter().copied());
+                    self.merge_targets.clear();
+                } else if let Some(pid) = parent.map(|v| v) {
+                    node.dependencies.push(pid);
+                    node.is_branch = true;
+                }
 
-            node.variant_index = Some(idx);
-            
-            if let Some(bp_id) = branch_point {
-                node.dependencies.push(bp_id);
-                node.is_branch = true;
+                self.nodes.push(node);
+                created_ids.push(id);
             }
-
-            self.nodes.push(node);
         }
 
-        self.last_branch_point = branch_point;
+        // New frontier is the set of created nodes
+        self.frontier = created_ids;
+
+        // Set last_branch_point to previous frontier (if any) for sequential .branch() calls
+        self.last_branch_point = previous_frontier;
+
         self
     }
 
@@ -491,10 +546,8 @@ impl Graph {
         let mut branch_terminals = Vec::new();
 
         for (_branch_id, branch) in branches {
-            if let Some(last_id) = branch.last_node_id {
-                branch_terminals.push(last_id);
-            }
-            self.merge_branch(branch);
+            let terminals = self.merge_branch(branch);
+            branch_terminals.extend(terminals);
         }
 
         // Create the merge node
@@ -534,7 +587,8 @@ impl Graph {
         node.dependencies.extend(branch_terminals);
 
         self.nodes.push(node);
-        self.last_node_id = Some(id);
+        // Update frontier to the merge node
+        self.frontier = vec![id];
 
         // Reset branch point
         self.last_branch_point = None;
@@ -560,7 +614,21 @@ impl Graph {
     }
 
     /// Merge a branch builder's nodes into this builder
-    fn merge_branch(&mut self, branch: Graph) {
+    fn merge_branch(&mut self, branch: Graph) -> Vec<NodeId> {
+        // Determine terminal nodes in the branch (nodes that are not dependencies of any other node within the branch)
+        let branch_node_ids: HashSet<NodeId> = branch.nodes.iter().map(|n| n.id).collect();
+        let branch_deps: HashSet<NodeId> = branch
+            .nodes
+            .iter()
+            .flat_map(|n| n.dependencies.iter().copied())
+            .collect();
+        let terminal_old_ids: Vec<NodeId> = branch
+            .nodes
+            .iter()
+            .filter(|n| !branch_deps.contains(&n.id))
+            .map(|n| n.id)
+            .collect();
+
         // Create a mapping from old branch IDs to new IDs
         let mut id_mapping: HashMap<NodeId, NodeId> = HashMap::new();
 
@@ -595,10 +663,18 @@ impl Graph {
             self.nodes.push(node);
         }
 
-        // Recursively merge nested branches
+        // Recursively merge nested branches and collect their terminals as well
+        let mut terminals: Vec<NodeId> = terminal_old_ids
+            .iter()
+            .filter_map(|old| id_mapping.get(old).copied())
+            .collect();
+
         for (_branch_id, nested_branch) in branch.branches {
-            self.merge_branch(nested_branch);
+            let nested_terminals = self.merge_branch(nested_branch);
+            terminals.extend(nested_terminals);
         }
+
+        terminals
     }
 }
 

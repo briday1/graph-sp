@@ -1,5 +1,6 @@
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 fn main() {
     println!("=== Variant Closures Demo ===\n");
@@ -14,11 +15,11 @@ fn main() {
 
     // Source node
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(10));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("value", "data")]),

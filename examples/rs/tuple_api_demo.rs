@@ -7,6 +7,7 @@
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 fn main() {
     println!("=== Tuple-Based API Demo ===\n");
@@ -23,7 +24,7 @@ fn main() {
     }
 
     graph.add(
-        data_source,
+        Arc::new(data_source),
         Some("Source"),
         None,                           // No inputs
         Some(vec![("raw", "dataset")]), // Function returns "raw", stored as "dataset" in context
@@ -49,7 +50,7 @@ fn main() {
     }
 
     graph.add(
-        processor,
+        Arc::new(processor),
         Some("Process"),
         Some(vec![("dataset", "input_data")]), // Context's "dataset" → function's "input_data"
         Some(vec![("processed_data", "result")]), // Function's "processed_data" → context's "result"

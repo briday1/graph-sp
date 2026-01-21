@@ -22,6 +22,8 @@ use rustfft::{num_complex::Complex64, FftPlanner};
 use std::collections::HashMap;
 #[cfg(feature = "radar_examples")]
 use std::f64::consts::PI;
+#[cfg(feature = "radar_examples")]
+use std::sync::Arc;
 
 #[cfg(feature = "radar_examples")]
 fn lfm_generator(
@@ -426,7 +428,7 @@ fn main() {
     // Add LFM generator
     println!("Building radar processing pipeline...");
     graph.add(
-        lfm_generator,
+        Arc::new(lfm_generator),
         Some("LFMGenerator"),
         None,
         Some(vec![("pulse", "lfm_pulse"), ("num_samples", "num_samples")]),
@@ -434,7 +436,7 @@ fn main() {
 
     // Add pulse stacker
     graph.add(
-        stack_pulses,
+        Arc::new(stack_pulses),
         Some("StackPulses"),
         Some(vec![("lfm_pulse", "pulse")]),
         Some(vec![
@@ -446,7 +448,7 @@ fn main() {
 
     // Add range compression (needs both stacked data and reference pulse)
     graph.add(
-        range_compress,
+        Arc::new(range_compress),
         Some("RangeCompress"),
         Some(vec![("stacked_data", "data"), ("lfm_pulse", "reference")]),
         Some(vec![("compressed", "compressed_data")]),

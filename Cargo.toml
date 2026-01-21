@@ -63,6 +63,15 @@ path = "examples/rs/tuple_api_demo.rs"
 [[example]]
 name = "variant_demo"
 path = "examples/rs/variant_demo.rs"
+
+[[example]]
+name = "variant_behavior_test"
+path = "examples/rs/variant_behavior_test.rs"
+
+[[example]]
+name = "simple_frontier_test"
+path = "examples/rs/simple_frontier_test.rs"
+
 [[example]]
 name = "parallel_timing_demo"
 path = "examples/rs/parallel_timing_demo.rs"

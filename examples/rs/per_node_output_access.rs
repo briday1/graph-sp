@@ -8,6 +8,7 @@
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 fn main() {
     println!("═══════════════════════════════════════════════════════════");
@@ -30,11 +31,11 @@ fn demo_per_node_access() {
 
     // Node 0: Source
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(10));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("value", "initial_data")]),
@@ -42,12 +43,12 @@ fn demo_per_node_access() {
 
     // Node 1: Double
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("in").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("doubled".to_string(), GraphData::int(value * 2));
             result
-        },
+        }),
         Some("Double"),
         Some(vec![("initial_data", "in")]),
         Some(vec![("doubled", "doubled_data")]),
@@ -55,12 +56,12 @@ fn demo_per_node_access() {
 
     // Node 2: Add Ten
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("in").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("added".to_string(), GraphData::int(value + 10));
             result
-        },
+        }),
         Some("AddTen"),
         Some(vec![("doubled_data", "in")]),
         Some(vec![("added", "final_result")]),
@@ -120,11 +121,11 @@ fn demo_per_branch_access() {
 
     // Main graph: Source node
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("dataset".to_string(), GraphData::int(100));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("dataset", "data")]),
@@ -252,11 +253,11 @@ fn demo_variant_per_node_access() {
 
     // Source node
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("base_value".to_string(), GraphData::int(10));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("base_value", "data")]),
@@ -330,42 +331,42 @@ fn demo_execution_history_tracking() {
 
     // Multi-stage pipeline
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("raw".to_string(), GraphData::int(5));
             result
-        },
+        }),
         Some("Load"),
         None,
         Some(vec![("raw", "input")]),
     );
 
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("x").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("cleaned".to_string(), GraphData::int(value + 1));
             result
-        },
+        }),
         Some("Clean"),
         Some(vec![("input", "x")]),
         Some(vec![("cleaned", "clean_data")]),
     );
 
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("x").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("normalized".to_string(), GraphData::int(value * 10));
             result
-        },
+        }),
         Some("Normalize"),
         Some(vec![("clean_data", "x")]),
         Some(vec![("normalized", "norm_data")]),
     );
 
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("x").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert(
@@ -373,7 +374,7 @@ fn demo_execution_history_tracking() {
                 GraphData::string(&format!("FINAL_{}", value)),
             );
             result
-        },
+        }),
         Some("Transform"),
         Some(vec![("norm_data", "x")]),
         Some(vec![("transformed", "output")]),

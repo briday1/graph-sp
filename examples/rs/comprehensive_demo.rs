@@ -10,6 +10,7 @@
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 fn main() {
     println!("═══════════════════════════════════════════════════════════");
@@ -34,11 +35,11 @@ fn demo_simple_pipeline() {
 
     // Data source node
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(42));
             result
-        },
+        }),
         Some("DataSource"),
         None,                          // No inputs (source node)
         Some(vec![("value", "data")]), // (impl_var, broadcast_var)
@@ -46,13 +47,13 @@ fn demo_simple_pipeline() {
 
     // Processing node: multiply by 2
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
                 result.insert("doubled".to_string(), GraphData::int(val * 2));
             }
             result
-        },
+        }),
         Some("Multiply"),
         Some(vec![("data", "x")]),         // (broadcast_var, impl_var)
         Some(vec![("doubled", "result")]), // (impl_var, broadcast_var)
@@ -60,13 +61,13 @@ fn demo_simple_pipeline() {
 
     // Final processing: add 10
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("num").and_then(|d| d.as_int()) {
                 result.insert("sum".to_string(), GraphData::int(val + 10));
             }
             result
-        },
+        }),
         Some("AddTen"),
         Some(vec![("result", "num")]),
         Some(vec![("sum", "final")]),
@@ -107,11 +108,11 @@ fn demo_branching() {
 
     // Source node
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("dataset".to_string(), GraphData::int(100));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("dataset", "data")]),
@@ -215,11 +216,11 @@ fn demo_merging() {
 
     // Source
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(50));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("value", "data")]),
@@ -311,11 +312,11 @@ fn demo_variants() {
 
     // Source node
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("base_value".to_string(), GraphData::float(10.0));
             result
-        },
+        }),
         Some("DataSource"),
         None,
         Some(vec![("base_value", "data")]),
@@ -372,11 +373,11 @@ fn demo_complex_graph() {
 
     // 1. Data ingestion
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("raw_data".to_string(), GraphData::int(1000));
             result
-        },
+        }),
         Some("Ingest"),
         None,
         Some(vec![("raw_data", "data")]),
@@ -384,13 +385,13 @@ fn demo_complex_graph() {
 
     // 2. Preprocessing
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("raw").and_then(|d| d.as_int()) {
                 result.insert("cleaned".to_string(), GraphData::int(val / 10));
             }
             result
-        },
+        }),
         Some("Preprocess"),
         Some(vec![("data", "raw")]),
         Some(vec![("cleaned", "clean_data")]),
@@ -462,7 +463,7 @@ fn demo_complex_graph() {
 
     // 5. Final output formatting
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(report) = inputs.get("report").and_then(|d| d.as_string()) {
                 result.insert(
@@ -471,7 +472,7 @@ fn demo_complex_graph() {
                 );
             }
             result
-        },
+        }),
         Some("Format"),
         Some(vec![("final_report", "report")]),
         Some(vec![("formatted", "output")]),

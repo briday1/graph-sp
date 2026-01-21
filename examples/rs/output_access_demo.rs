@@ -8,6 +8,7 @@
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 fn main() {
     println!("═══════════════════════════════════════════════════════════");
@@ -30,11 +31,11 @@ fn demo_simple_output_access() {
 
     // Node 1: Generate initial data
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("initial_value".to_string(), GraphData::int(100));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("initial_value", "raw_data")]), // Maps initial_value → raw_data
@@ -42,12 +43,12 @@ fn demo_simple_output_access() {
 
     // Node 2: Process the data
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("processed".to_string(), GraphData::int(value * 2));
             result
-        },
+        }),
         Some("Process"),
         Some(vec![("raw_data", "input")]), // Maps raw_data → input
         Some(vec![("processed", "final_result")]), // Maps processed → final_result
@@ -90,11 +91,11 @@ fn demo_branch_output_access() {
 
     // Source node
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(50));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("value", "shared_data")]),
@@ -201,11 +202,11 @@ fn demo_variant_output_access() {
 
     // Source node
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::float(10.0));
             result
-        },
+        }),
         Some("DataSource"),
         None,
         Some(vec![("value", "input_data")]),
@@ -315,14 +316,14 @@ fn demo_multiple_outputs() {
 
     // Node that produces multiple outputs
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("mean".to_string(), GraphData::float(50.5));
             result.insert("median".to_string(), GraphData::float(48.0));
             result.insert("stddev".to_string(), GraphData::float(12.3));
             result.insert("count".to_string(), GraphData::int(100));
             result
-        },
+        }),
         Some("Statistics"),
         None,
         Some(vec![

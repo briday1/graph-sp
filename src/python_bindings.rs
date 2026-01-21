@@ -80,11 +80,12 @@ impl PyGraph {
 
         // Create the node function
         if let Some(py_func) = function {
-            // Wrap Python callable in a Rust closure
+            // Wrap Python callable in a Rust closure and then into a NodeFunction (Arc)
             let rust_function = create_python_node_function(py_func);
+            let node_fn: crate::node::NodeFunction = Arc::new(rust_function);
 
             graph.add(
-                rust_function,
+                node_fn,
                 label.as_deref(),
                 if input_refs.is_empty() {
                     None
@@ -100,8 +101,9 @@ impl PyGraph {
         } else {
             // No-op function if None provided
             let noop = |_: &HashMap<String, GraphData>| HashMap::new();
+            let node_fn: crate::node::NodeFunction = Arc::new(noop);
             graph.add(
-                noop,
+                node_fn,
                 label.as_deref(),
                 if input_refs.is_empty() {
                     None
@@ -196,13 +198,13 @@ impl PyGraph {
             .map(|(a, b)| (a.as_str(), b.as_str()))
             .collect();
 
-        // Convert Python functions to a vector of Rust node functions
-        let rust_functions: Vec<_> = functions
+        // Convert Python functions to a vector of Rust node functions (NodeFunction Arc wrappers)
+        let rust_functions: Vec<crate::node::NodeFunction> = functions
             .iter()
-            .map(|func| create_python_node_function(func.clone()))
+            .map(|func| Arc::new(create_python_node_function(func.clone())) as crate::node::NodeFunction)
             .collect();
-        
-        // Call variants with the vector of functions
+
+        // Call variants with the vector of NodeFunction
         graph.variants(
             rust_functions,
             label.as_deref(),
@@ -275,6 +277,14 @@ impl PyDag {
     ///     String containing the Mermaid diagram
     fn to_mermaid(&self) -> String {
         self.dag.to_mermaid()
+    }
+
+    /// Get the number of nodes in the DAG
+    ///
+    /// Returns:
+    ///     Number of nodes
+    fn node_count(&self) -> usize {
+        self.dag.nodes().len()
     }
 }
 

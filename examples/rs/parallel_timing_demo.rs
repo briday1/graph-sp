@@ -8,6 +8,7 @@
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -37,11 +38,11 @@ fn demo_sequential_vs_parallel() {
 
     // Source node
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("data".to_string(), GraphData::string("source"));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("data", "data")]),
@@ -150,11 +151,11 @@ fn demo_many_parallel_nodes() {
 
     // Source
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("data".to_string(), GraphData::int(0));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("data", "data")]),

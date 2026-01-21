@@ -8,6 +8,7 @@
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -38,13 +39,13 @@ fn demo_sequential_vs_parallel() {
 
     // Source node
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let start = Instant::now();
             let mut result = HashMap::new();
             result.insert("data".to_string(), GraphData::string("source_data"));
             println!("    [{}ms] Source completed", start.elapsed().as_millis());
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("data", "data")]),
@@ -154,22 +155,22 @@ fn demo_complex_dependencies() {
 
     // Two independent sources
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("source1_data".to_string(), GraphData::int(100));
             result
-        },
+        }),
         Some("Source1"),
         None,
         Some(vec![("source1_data", "data1")]),
     );
 
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("source2_data".to_string(), GraphData::int(200));
             result
-        },
+        }),
         Some("Source2"),
         None,
         Some(vec![("source2_data", "data2")]),
@@ -177,28 +178,28 @@ fn demo_complex_dependencies() {
 
     // Process each source independently (can run in parallel)
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("in").and_then(|d| d.as_int()) {
                 thread::sleep(Duration::from_millis(50));
                 result.insert("processed".to_string(), GraphData::int(val * 2));
             }
             result
-        },
+        }),
         Some("Process1[50ms]"),
         Some(vec![("data1", "in")]),
         Some(vec![("processed", "proc1")]),
     );
 
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("in").and_then(|d| d.as_int()) {
                 thread::sleep(Duration::from_millis(50));
                 result.insert("processed".to_string(), GraphData::int(val * 3));
             }
             result
-        },
+        }),
         Some("Process2[50ms]"),
         Some(vec![("data2", "in")]),
         Some(vec![("processed", "proc2")]),
@@ -206,14 +207,14 @@ fn demo_complex_dependencies() {
 
     // Combine results (depends on both processors)
     graph.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             let v1 = inputs.get("p1").and_then(|d| d.as_int()).unwrap_or(0);
             let v2 = inputs.get("p2").and_then(|d| d.as_int()).unwrap_or(0);
             thread::sleep(Duration::from_millis(30));
             result.insert("combined".to_string(), GraphData::int(v1 + v2));
             result
-        },
+        }),
         Some("Combine[30ms]"),
         Some(vec![("proc1", "p1"), ("proc2", "p2")]),
         Some(vec![("combined", "final")]),
@@ -289,11 +290,11 @@ fn demo_variant_parallelism() {
 
     // Source
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::float(1000.0));
             result
-        },
+        }),
         Some("DataSource"),
         None,
         Some(vec![("value", "data")]),
@@ -364,11 +365,11 @@ fn demo_diamond_pattern() {
 
     // Top of diamond: Single source
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("raw".to_string(), GraphData::string("input_data"));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("raw", "data")]),

@@ -12,6 +12,7 @@
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 fn data_generator(
     _inputs: &HashMap<String, GraphData>,
@@ -238,7 +239,7 @@ fn main() {
 
     // Node 1: Generate diverse data types
     graph.add(
-        data_generator,
+        Arc::new(data_generator),
         Some("DataGenerator"),
         None,
         Some(vec![
@@ -254,7 +255,7 @@ fn main() {
 
     // Node 2: Inspect types
     graph.add(
-        type_inspector,
+        Arc::new(type_inspector),
         Some("TypeInspector"),
         Some(vec![
             ("int_val", "integer"),
@@ -277,7 +278,7 @@ fn main() {
 
     // Node 3: Process the data
     graph.add(
-        data_processor,
+        Arc::new(data_processor),
         Some("DataProcessor"),
         Some(vec![
             ("inspected_int", "integer"),
@@ -300,7 +301,7 @@ fn main() {
 
     // Node 4: Aggregate results
     graph.add(
-        result_aggregator,
+        Arc::new(result_aggregator),
         Some("ResultAggregator"),
         Some(vec![
             ("result_int", "integer_doubled"),

@@ -1,5 +1,6 @@
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 fn main() {
     println!("=== Simple Variant Parameter Sweep ===\n");
@@ -13,11 +14,11 @@ fn main() {
     let mut graph = Graph::new();
 
     graph.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(10));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("value", "data")]),
