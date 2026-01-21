@@ -17,6 +17,8 @@ jobs:
   update-version:
     name: Update version number
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.set-version.outputs.version }}
     
