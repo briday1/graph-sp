@@ -144,9 +144,7 @@ impl PyGraph {
     /// Create variant nodes (parameter sweep)
     ///
     /// Args:
-    ///     factory: Python callable that takes a parameter value and returns a node function
-    ///              The factory should return a function with signature (inputs, variant_params) -> dict
-    ///     param_values: List of parameter values to sweep over
+    ///     functions: List of Python callables, each with signature (inputs, variant_params) -> dict
     ///     label: Optional string label for the variant nodes
     ///     inputs: Optional list of (broadcast_var, impl_var) tuples or dict
     ///     outputs: Optional list of (impl_var, broadcast_var) tuples or dict
@@ -155,18 +153,17 @@ impl PyGraph {
     ///     Self for method chaining
     ///
     /// Example:
+    ///     factors = np.linspace(0.5, 2.0, 5)
     ///     graph.variant(
-    ///         lambda factor: lambda inputs, params: {"scaled": inputs["x"] * factor},
-    ///         [2.0, 3.0, 5.0],
+    ///         [lambda inputs, params, f=f: {"scaled": inputs["x"] * f} for f in factors],
     ///         "Scale",
     ///         [("data", "x")],
     ///         [("scaled", "result")]
     ///     )
-    #[pyo3(signature = (factory, param_values, label=None, inputs=None, outputs=None))]
+    #[pyo3(signature = (functions, label=None, inputs=None, outputs=None))]
     fn variant(
         &mut self,
-        factory: PyObject,
-        param_values: Vec<PyObject>,
+        functions: Vec<PyObject>,
         label: Option<String>,
         inputs: Option<&PyAny>,
         outputs: Option<&PyAny>,
@@ -200,20 +197,17 @@ impl PyGraph {
             .map(|(a, b)| (a.as_str(), b.as_str()))
             .collect();
 
-        // Create a Rust factory that wraps the Python factory
+        // Convert the list of Python functions into param values that can be used with variant
+        // We'll use indices as the param values
+        let indices: Vec<usize> = (0..functions.len()).collect();
+        
+        // Create a Rust factory that returns the appropriate function for each index
         graph.variant(
-            |param_value: PyObject| {
-                // Call the Python factory to get the node function for this param
-                let factory_clone = factory.clone();
-                let param_clone = param_value.clone();
-                
-                create_python_node_function(Python::with_gil(|py| {
-                    factory_clone
-                        .call1(py, (param_clone,))
-                        .expect("Failed to call factory function")
-                }))
+            |idx: usize| {
+                let func = functions[idx].clone();
+                create_python_node_function(func)
             },
-            param_values,
+            indices,
             label.as_deref(),
             if input_refs.is_empty() {
                 None

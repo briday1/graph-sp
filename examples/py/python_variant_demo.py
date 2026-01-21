@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Python Variant Demo - Parameter Sweeps with Lambdas
+Python Variant Demo - Parameter Sweeps with List Comprehensions
 
-Demonstrates using graph.variant() with lambda functions for clean parameter sweeps.
+Demonstrates using graph.variant() with list comprehensions for clean parameter sweeps.
 """
 
 import dagex
@@ -11,9 +11,9 @@ print("=" * 70)
 print("Python Variant Demo - dagex")
 print("=" * 70)
 
-# Demo 1: Simple parameter sweep with lambda
+# Demo 1: Simple parameter sweep with list comprehension
 print("\n" + "─" * 70)
-print("Demo 1: Lambda-based Variant Sweep")
+print("Demo 1: List Comprehension Variant Sweep")
 print("─" * 70)
 
 graph = dagex.Graph()
@@ -27,9 +27,9 @@ graph.add(
 )
 
 # Variant sweep: multiply by different factors
+factors = [2, 3, 5, 10]
 graph.variant(
-    lambda factor: lambda inputs, params: {"result": inputs["x"] * factor},
-    [2, 3, 5, 10],
+    [lambda inputs, params, f=f: {"result": inputs["x"] * f} for f in factors],
     "Scale",
     [("data", "x")],
     [("result", "scaled")]
@@ -40,10 +40,11 @@ context = dag.execute()
 
 print(f"\nResults:")
 print(f"  Input: {context['data']}")
+print(f"  Factors: {factors}")
 print(f"  Output (last variant): {context['scaled']}")
 print(f"\nMermaid:\n{dag.to_mermaid()}")
 
-# Demo 2: More complex variant with numpy
+# Demo 2: Numpy linspace parameter sweep
 print("\n" + "─" * 70)
 print("Demo 2: Numpy Linspace Parameter Sweep")
 print("─" * 70)
@@ -63,8 +64,7 @@ try:
     # Sweep over a range of scaling factors
     factors = np.linspace(0.5, 2.0, 5)
     graph2.variant(
-        lambda f: lambda inputs, params: {"scaled": int(inputs["v"] * f)},
-        factors.tolist(),
+        [lambda inputs, params, f=f: {"scaled": int(inputs["v"] * f)} for f in factors],
         "LinearScale",
         [("value", "v")],
         [("scaled", "result")]
@@ -80,7 +80,7 @@ try:
 except ImportError:
     print("NumPy not available, skipping this demo")
 
-# Demo 3: Variant with computation
+# Demo 3: Power function variants
 print("\n" + "─" * 70)
 print("Demo 3: Power Function Variants")
 print("─" * 70)
@@ -95,9 +95,9 @@ graph3.add(
 )
 
 # Variant: different power functions
+exponents = [2, 3, 4, 5]
 graph3.variant(
-    lambda exp: lambda inputs, params: {"powered": inputs["n"] ** exp},
-    [2, 3, 4, 5],
+    [lambda inputs, params, exp=exp: {"powered": inputs["n"] ** exp} for exp in exponents],
     "Power",
     [("number", "n")],
     [("powered", "result")]
@@ -107,7 +107,8 @@ dag3 = graph3.build()
 context3 = dag3.execute()
 
 print(f"\nBase: {context3['number']}")
-print(f"Result (last variant, power of 5): {context3['result']}")
+print(f"Exponents: {exponents}")
+print(f"Result (last variant, 2^5): {context3['result']}")
 
 print("\n" + "=" * 70)
 print("Demo Complete!")
