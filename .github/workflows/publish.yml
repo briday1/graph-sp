@@ -2,6 +2,8 @@ name: Publish to crates.io and PyPI
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -37,7 +39,7 @@ jobs:
           from datetime import datetime
           
           year = datetime.now().year
-          package_name = "pygraph-sp"
+          package_name = "dagex"
           
           try:
               response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=10)
@@ -95,6 +97,16 @@ jobs:
           sed -i "s/^version = .*/version = \"$CARGO_VERSION\"/" Cargo.toml
           echo "Updated Cargo.toml:"
           grep "^version" Cargo.toml
+      
+      - name: Commit version changes and create tag
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml Cargo.toml
+          git commit -m "chore: bump version to $VERSION [skip ci]" || echo "No changes to commit"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin main --tags
 
   test:
     name: Run tests and examples

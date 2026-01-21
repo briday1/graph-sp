@@ -1,6 +1,6 @@
 //! Integration tests for graph-sp
 
-use graph_sp::{Graph, GraphData, Linspace};
+use dagex::{Graph, GraphData, Linspace};
 use std::collections::HashMap;
 
 // Helper functions for tests
@@ -301,7 +301,7 @@ fn test_mermaid_visualization() {
 
 #[test]
 fn test_linspace_helper() {
-    use graph_sp::IntoVariantValues;
+    use dagex::IntoVariantValues;
     let values = Linspace::new(0.0, 1.0, 5).into_variant_values();
     assert_eq!(values.len(), 5);
     assert_eq!(values[0].parse::<f64>().unwrap(), 0.0);

@@ -436,7 +436,7 @@ fn python_to_graph_data(obj: &PyAny) -> GraphData {
 
 /// Initialize the Python module
 #[pymodule]
-fn pygraphsp(_py: Python, m: &PyModule) -> PyResult<()> {
+fn dagex(_py: Python, m: &PyModule) -> PyResult<()> {
     // PyO3 0.18.3 with auto-initialize feature handles multi-threading initialization automatically
     m.add_class::<PyGraph>()?;
     m.add_class::<PyDag>()?;

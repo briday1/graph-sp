@@ -21,8 +21,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "graph-sp"
-version = "2026.2.0"
+name = "dagex"
+version = "2026.4.0"
 dependencies = [
  "ndarray",
  "num-complex",

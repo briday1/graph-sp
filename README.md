@@ -1,6 +1,6 @@
-# graph-sp
+# dagex
 
-graph-sp is a pure Rust grid/node graph executor and optimizer. The project focuses on representing directed dataflow graphs, computing port mappings by graph inspection, and executing nodes efficiently in-process with parallel CPU execution.
+dagex is a pure Rust grid/node graph executor and optimizer. The project focuses on representing directed dataflow graphs, computing port mappings by graph inspection, and executing nodes efficiently in-process with parallel CPU execution.
 
 ## Core Features
 
@@ -19,11 +19,11 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-graph-sp = "0.1.0"
+dagex = "2026.4"
 
 # Optional: For radar signal processing examples with ndarray and FFT support
 [features]
-radar_examples = ["graph-sp/radar_examples"]
+radar_examples = ["dagex/radar_examples"]
 ```
 
 For radar signal processing with ndarray and complex number support, enable the `radar_examples` feature.
@@ -33,7 +33,7 @@ For radar signal processing with ndarray and complex number support, enable the 
 The library can also be used from Python via PyO3 bindings:
 
 ```bash
-pip install pygraph-sp
+pip install dagex
 ```
 
 Or build from source:
@@ -41,7 +41,7 @@ Or build from source:
 ```bash
 pip install maturin
 maturin build --release --features python
-pip install target/wheels/pygraph_sp-*.whl
+pip install target/wheels/dagex-*.whl
 ```
 
 ## Quick Start
@@ -51,7 +51,7 @@ pip install target/wheels/pygraph_sp-*.whl
 #### Basic Sequential Pipeline
 
 ```rust
-use graph_sp::{Graph, GraphData};
+use dagex::{Graph, GraphData};
 use std::collections::HashMap;
 
 fn data_source(_: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
@@ -72,10 +72,20 @@ fn main() {
     let mut graph = Graph::new();
     
     // Add source node
-    graph.add(data_source, Some("DataSource"), None, Some(vec![("value", "data")]));
+    graph.add(
+        data_source,
+        Some("DataSource"),
+        None,
+        Some(vec![("value", "data")])
+    );
     
     // Add processing node
-    graph.add(multiply, Some("Multiply"), Some(vec![("data", "x")]), Some(vec![("doubled", "result")]));
+    graph.add(
+        multiply,
+        Some("Multiply"),
+        Some(vec![("data", "x")]),
+        Some(vec![("doubled", "result")])
+    );
     
     let dag = graph.build();
     let context = dag.execute(false, None);
@@ -89,7 +99,7 @@ fn main() {
 #### Basic Sequential Pipeline
 
 ```python
-import graph_sp
+import dagex
 
 def data_source(inputs, variant_params):
     return {"value": "42"}
@@ -99,7 +109,7 @@ def multiply(inputs, variant_params):
     return {"doubled": str(val * 2)}
 
 # Create graph
-graph = graph_sp.PyGraph()
+graph = dagex.Graph()
 
 # Add source node
 graph.add(
@@ -139,17 +149,37 @@ graph TD
 let mut graph = Graph::new();
 
 // Source node
-graph.add(source_fn, Some("Source"), None, Some(vec![("data", "data")]));
+graph.add(
+    source_fn,
+    Some("Source"),
+    None,
+    Some(vec![("data", "data")])
+);
 
 // Create parallel branches
 graph.branch();
-graph.add(stats_fn, Some("Statistics"), Some(vec![("data", "input")]), Some(vec![("mean", "stats")]));
+graph.add(
+    stats_fn,
+    Some("Statistics"),
+    Some(vec![("data", "input")]),
+    Some(vec![("mean", "stats")])
+);
 
 graph.branch();
-graph.add(model_fn, Some("MLModel"), Some(vec![("data", "input")]), Some(vec![("prediction", "model")]));
+graph.add(
+    model_fn,
+    Some("MLModel"),
+    Some(vec![("data", "input")]),
+    Some(vec![("prediction", "model")])
+);
 
 graph.branch();
-graph.add(viz_fn, Some("Visualization"), Some(vec![("data", "input")]), Some(vec![("plot", "viz")]));
+graph.add(
+    viz_fn,
+    Some("Visualization"),
+    Some(vec![("data", "input")]),
+    Some(vec![("plot", "viz")])
+);
 
 let dag = graph.build();
 ```
@@ -178,17 +208,27 @@ graph TD
 ### Parameter Sweep with Variants
 
 ```rust
-use graph_sp::{Graph, Linspace};
+use dagex::{Graph, Linspace};
 
 let mut graph = Graph::new();
 
 // Source node
-graph.add(source_fn, Some("DataSource"), None, Some(vec![("value", "data")]));
+graph.add(
+    source_fn,
+    Some("DataSource"),
+    None,
+    Some(vec![("value", "data")])
+);
 
 // Create variants for different learning rates
 let learning_rates = vec![0.001, 0.01, 0.1, 1.0];
 graph.variant("learning_rate", learning_rates);
-graph.add(scale_fn, Some("ScaleLR"), Some(vec![("data", "input")]), Some(vec![("scaled", "output")]));
+graph.add(
+    scale_fn,
+    Some("ScaleLR"),
+    Some(vec![("data", "input")]),
+    Some(vec![("scaled", "output")])
+);
 
 let dag = graph.build();
 ```
@@ -234,7 +274,7 @@ This example demonstrates a complete radar signal processing pipeline using Grap
 ### Rust Implementation
 
 ```rust
-use graph_sp::{Graph, GraphData};
+use dagex::{Graph, GraphData};
 use ndarray::Array1;
 use num_complex::Complex;
 use std::collections::HashMap;
@@ -390,7 +430,7 @@ Peak Range bin: 255
 ### Python Implementation
 
 ```python
-import graph_sp
+import dagex
 import numpy as np
 
 def lfm_generator(inputs, variant_params):
@@ -430,7 +470,7 @@ def stack_pulses(inputs, variant_params):
     }
 
 # Create graph
-graph = graph_sp.PyGraph()
+graph = dagex.Graph()
 
 # Add nodes
 graph.add(
@@ -664,7 +704,7 @@ The workflow will:
 
 **Important notes:**
 
-- Installing from PyPI with `pip install pygraph-sp` will **not require Rust** on the target machine because prebuilt platform-specific wheels are published
+- Installing from PyPI with `pip install dagex` will **not require Rust** on the target machine because prebuilt platform-specific wheels are published
 - Both crates.io and PyPI will reject duplicate version numbers - update versions before tagging
 - The workflow will continue even if tokens are not set, allowing you to download artifacts for manual publishing
 - For local testing, you can build wheels with `maturin build --release --features python`

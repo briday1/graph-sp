@@ -1,6 +1,6 @@
-//! # graph-sp
+//! # dagex
 //!
-//! A pure Rust graph executor supporting implicit node connections, branching, and config sweeps.
+//! A pure Rust DAG executor supporting implicit node connections, branching, and config sweeps.
 //!
 //! ## Features
 //!
@@ -13,7 +13,7 @@
 //! ## Example
 //!
 //! ```rust
-//! use graph_sp::{Graph, GraphData};
+//! use dagex::{Graph, GraphData};
 //! use std::collections::HashMap;
 //!
 //! fn data_source(_: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
