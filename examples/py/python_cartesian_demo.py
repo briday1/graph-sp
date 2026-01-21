@@ -43,13 +43,16 @@ def main():
     print("2. Adding FIRST variants (scaling: 2x, 3x)...")
     
     scale_factors = [2, 3]
-    scale_variants = [
-        lambda inputs, f=f: {
-            "scaled": (lambda val: (
-                print(f"   Scale×{f}: {val} → {val * f}") or val * f
-            ))(inputs["input"])
-        } for f in scale_factors
-    ]
+    
+    def make_scale_variant(factor):
+        def scale_fn(inputs):
+            val = inputs["input"]
+            result = val * factor
+            print(f"   Scale×{factor}: {val} → {result}")
+            return {"scaled": result}
+        return scale_fn
+    
+    scale_variants = [make_scale_variant(f) for f in scale_factors]
     
     graph.variants(
         scale_variants,
@@ -63,13 +66,16 @@ def main():
     print("3. Adding SECOND variants (offset: +100, +200, +300)...")
     
     offset_values = [100, 200, 300]
-    offset_variants = [
-        lambda inputs, o=o: {
-            "offset": (lambda val: (
-                print(f"   Offset+{o}: {val} → {val + o}") or val + o
-            ))(inputs["input"])
-        } for o in offset_values
-    ]
+    
+    def make_offset_variant(offset):
+        def offset_fn(inputs):
+            val = inputs["input"]
+            result = val + offset
+            print(f"   Offset+{offset}: {val} → {result}")
+            return {"offset": result}
+        return offset_fn
+        
+    offset_variants = [make_offset_variant(o) for o in offset_values]
     
     graph.variants(
         offset_variants,
@@ -84,12 +90,11 @@ def main():
     # Final analysis node (should replicate to ALL combinations)
     print("4. Adding final analysis node...")
     
-    analysis_fn = lambda inputs: {
-        "analysis": (lambda val: (
-            print(f"   Analysis: {val}² = {val ** 2}") or val ** 2
-        ))(inputs["data"]),
-        "final": inputs["data"]
-    }
+    def analysis_fn(inputs):
+        val = inputs["data"]
+        squared = val ** 2
+        print(f"   Analysis: {val}² = {squared}")
+        return {"analysis": squared, "final": val}
     
     graph.add(
         analysis_fn,
