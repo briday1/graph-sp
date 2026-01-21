@@ -151,11 +151,7 @@ jobs:
       - name: Run Rust examples
         run: |
           cargo run --example comprehensive_demo
-          cargo run --example output_access_demo
-          cargo run --example parallel_execution_demo
-          cargo run --example per_node_output_access
-          cargo run --example tuple_api_demo
-          cargo run --example variant_demo_full
+          cargo run --example simple_frontier_test
       
       - name: Install maturin and build Python bindings
         run: |

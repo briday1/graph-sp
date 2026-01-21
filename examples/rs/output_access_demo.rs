@@ -6,7 +6,7 @@
 //! - Variant parameter sweeps
 //! - Complex graphs with multiple outputs
 
-use dagex::{Graph, GraphData};
+use dagex::{NodeFunction, Graph, GraphData};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -104,7 +104,7 @@ fn demo_branch_output_access() {
     // Branch A: Statistics computation
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let val = inputs
                 .get("data")
                 .map(|d| d.to_string_repr())
@@ -115,7 +115,7 @@ fn demo_branch_output_access() {
                 GraphData::string(&format!("Stats of {}", val)),
             );
             result
-        },
+        }),
         Some("Stats"),
         Some(vec![("shared_data", "data")]),
         Some(vec![("stats_output", "statistics")]), // Branch A produces "statistics"
@@ -124,7 +124,7 @@ fn demo_branch_output_access() {
     // Branch B: Model training
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let val = inputs
                 .get("data")
                 .map(|d| d.to_string_repr())
@@ -135,7 +135,7 @@ fn demo_branch_output_access() {
                 GraphData::string(&format!("Model trained on {}", val)),
             );
             result
-        },
+        }),
         Some("Train"),
         Some(vec![("shared_data", "data")]),
         Some(vec![("model_output", "model")]), // Branch B produces "model"
@@ -144,7 +144,7 @@ fn demo_branch_output_access() {
     // Branch C: Visualization
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let val = inputs
                 .get("data")
                 .map(|d| d.to_string_repr())
@@ -155,7 +155,7 @@ fn demo_branch_output_access() {
                 GraphData::string(&format!("Plot of {}", val)),
             );
             result
-        },
+        }),
         Some("Visualize"),
         Some(vec![("shared_data", "data")]),
         Some(vec![("viz_output", "visualization")]), // Branch C produces "visualization"
@@ -222,7 +222,7 @@ fn demo_variant_output_access() {
                 result.insert("scaled".to_string(), GraphData::float(value * factor));
                 result
             }
-        }).collect(),
+        }).map(|f| Arc::new(f) as dagex::NodeFunction).collect(),
         Some("Scale"),
         Some(vec![("input_data", "data")]),
         Some(vec![("scaled", "result")]), // Each variant produces "result"
@@ -253,11 +253,11 @@ fn demo_variant_output_access() {
     let mut graph2 = Graph::new();
 
     graph2.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::float(10.0));
             result
-        },
+        }),
         Some("DataSource"),
         None,
         Some(vec![("value", "input_data")]),

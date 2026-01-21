@@ -5,7 +5,7 @@
 //! - Outputs: (impl_var, broadcast_var) - function return value mapped to context variable
 //! - Merge inputs: (branch_id, broadcast_var, impl_var) - branch-specific variable resolution
 
-use dagex::{Graph, GraphData};
+use dagex::{NodeFunction, Graph, GraphData};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -74,7 +74,7 @@ fn main() {
         outputs
     }
     branch_a.add(
-        transform_a,
+        Arc::new(transform_a),
         Some("Transform A"),
         Some(vec![("result", "x")]), // Context's "result" → function's "x"
         Some(vec![("y", "output")]), // Function's "y" → context's "output"
@@ -93,7 +93,7 @@ fn main() {
         outputs
     }
     branch_b.add(
-        transform_b,
+        Arc::new(transform_b),
         Some("Transform B"),
         Some(vec![("result", "x")]), // Same variable names as branch_a
         Some(vec![("y", "output")]), // Same variable names as branch_a
@@ -166,7 +166,7 @@ fn main() {
                 outputs.insert("scaled".to_string(), GraphData::float(val * factor));
                 outputs
             }
-        }).collect(),
+        }).map(|f| Arc::new(f) as dagex::NodeFunction).collect(),
         Some("Multiply"),
         Some(vec![("final_result", "value")]), // Context's "final_result" → function's "value"
         Some(vec![("scaled", "multiplied")]),  // Function's "scaled" → context's "multiplied"

@@ -6,7 +6,7 @@
 //! - Track execution history through per-node outputs
 //! - Debug data flow by inspecting individual node results
 
-use dagex::{Graph, GraphData};
+use dagex::{NodeFunction, Graph, GraphData};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -134,7 +134,7 @@ fn demo_per_branch_access() {
     // Branch A: Statistics
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert(
@@ -142,7 +142,7 @@ fn demo_per_branch_access() {
                 GraphData::string(&format!("Mean of {}", value)),
             );
             result
-        },
+        }),
         Some("Statistics"),
         Some(vec![("data", "input")]),
         Some(vec![("stat_result", "statistics")]),
@@ -151,7 +151,7 @@ fn demo_per_branch_access() {
     // Branch B: Model Training
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert(
@@ -159,7 +159,7 @@ fn demo_per_branch_access() {
                 GraphData::string(&format!("Model trained on {}", value)),
             );
             result
-        },
+        }),
         Some("ModelTraining"),
         Some(vec![("data", "input")]),
         Some(vec![("model_result", "trained_model")]),
@@ -168,7 +168,7 @@ fn demo_per_branch_access() {
     // Branch C: Visualization
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert(
@@ -176,7 +176,7 @@ fn demo_per_branch_access() {
                 GraphData::string(&format!("Plot of {}", value)),
             );
             result
-        },
+        }),
         Some("Visualization"),
         Some(vec![("data", "input")]),
         Some(vec![("viz_result", "plot")]),
@@ -273,7 +273,7 @@ fn demo_variant_per_node_access() {
                 result.insert("scaled_value".to_string(), GraphData::float(value * factor));
                 result
             }
-        }).collect(),
+        }).map(|f| Arc::new(f) as dagex::NodeFunction).collect(),
         Some("Scale"),
         Some(vec![("data", "input_data")]),
         Some(vec![("scaled_value", "result")]), // Note: will overwrite in global context

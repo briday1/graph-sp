@@ -6,7 +6,7 @@
 //! - Maximum parallelism detection
 //! - Port mapping visualization in Mermaid diagrams
 
-use dagex::{Graph, GraphData};
+use dagex::{NodeFunction, Graph, GraphData};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::thread;
@@ -54,7 +54,7 @@ fn demo_sequential_vs_parallel() {
     // Branch A: 100ms work
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let start = Instant::now();
             let mut result = HashMap::new();
             if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
@@ -66,7 +66,7 @@ fn demo_sequential_vs_parallel() {
                 start.elapsed().as_millis()
             );
             result
-        },
+        }),
         Some("BranchA[100ms]"),
         Some(vec![("data", "input")]),
         Some(vec![("result", "result_a")]),
@@ -75,7 +75,7 @@ fn demo_sequential_vs_parallel() {
     // Branch B: 100ms work
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let start = Instant::now();
             let mut result = HashMap::new();
             if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
@@ -87,7 +87,7 @@ fn demo_sequential_vs_parallel() {
                 start.elapsed().as_millis()
             );
             result
-        },
+        }),
         Some("BranchB[100ms]"),
         Some(vec![("data", "input")]),
         Some(vec![("result", "result_b")]),
@@ -96,7 +96,7 @@ fn demo_sequential_vs_parallel() {
     // Branch C: 100ms work
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let start = Instant::now();
             let mut result = HashMap::new();
             if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
@@ -108,7 +108,7 @@ fn demo_sequential_vs_parallel() {
                 start.elapsed().as_millis()
             );
             result
-        },
+        }),
         Some("BranchC[100ms]"),
         Some(vec![("data", "input")]),
         Some(vec![("result", "result_c")]),
@@ -319,7 +319,7 @@ fn demo_variant_parallelism() {
                 );
                 result
             }
-        }).collect(),
+        }).map(|f| Arc::new(f) as dagex::NodeFunction).collect(),
         Some("Multiply[100ms]"),
         Some(vec![("data", "input")]),
         Some(vec![("result", "result")]),
@@ -378,7 +378,7 @@ fn demo_diamond_pattern() {
     // Left branch: Transform A (50ms)
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let start = Instant::now();
             thread::sleep(Duration::from_millis(50));
             let mut result = HashMap::new();
@@ -393,7 +393,7 @@ fn demo_diamond_pattern() {
                 start.elapsed().as_millis()
             );
             result
-        },
+        }),
         Some("TransformA[50ms]"),
         Some(vec![("data", "in")]),
         Some(vec![("out", "result")]),
@@ -402,7 +402,7 @@ fn demo_diamond_pattern() {
     // Right branch: Transform B (50ms)
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let start = Instant::now();
             thread::sleep(Duration::from_millis(50));
             let mut result = HashMap::new();
@@ -417,7 +417,7 @@ fn demo_diamond_pattern() {
                 start.elapsed().as_millis()
             );
             result
-        },
+        }),
         Some("TransformB[50ms]"),
         Some(vec![("data", "in")]),
         Some(vec![("out", "result")]),

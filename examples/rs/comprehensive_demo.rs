@@ -8,7 +8,7 @@
 //! - Variant parameter sweeps
 //! - DAG statistics and visualization
 
-use dagex::{Graph, GraphData};
+use dagex::{NodeFunction, Graph, GraphData};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -121,7 +121,7 @@ fn demo_branching() {
     // Branch A: Compute statistics
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("input").and_then(|d| d.as_int()) {
                 result.insert(
@@ -130,7 +130,7 @@ fn demo_branching() {
                 );
             }
             result
-        },
+        }),
         Some("Statistics"),
         Some(vec![("data", "input")]),
         Some(vec![("stats", "stats_result")]),
@@ -139,7 +139,7 @@ fn demo_branching() {
     // Branch B: Train model
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("input").and_then(|d| d.as_int()) {
                 result.insert(
@@ -148,7 +148,7 @@ fn demo_branching() {
                 );
             }
             result
-        },
+        }),
         Some("MLModel"),
         Some(vec![("data", "input")]),
         Some(vec![("model", "model_result")]),
@@ -157,7 +157,7 @@ fn demo_branching() {
     // Branch C: Generate visualization
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("input").and_then(|d| d.as_int()) {
                 result.insert(
@@ -166,7 +166,7 @@ fn demo_branching() {
                 );
             }
             result
-        },
+        }),
         Some("Visualization"),
         Some(vec![("data", "input")]),
         Some(vec![("plot", "viz_result")]),
@@ -229,13 +229,13 @@ fn demo_merging() {
     // Branch A: Add 10
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val + 10));
             }
             result
-        },
+        }),
         Some("PathA (+10)"),
         Some(vec![("data", "x")]),
         Some(vec![("output", "result")]), // Both branches use same output name!
@@ -244,13 +244,13 @@ fn demo_merging() {
     // Branch B: Add 20
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val + 20));
             }
             result
-        },
+        }),
         Some("PathB (+20)"),
         Some(vec![("data", "x")]),
         Some(vec![("output", "result")]), // Both branches use same output name!
@@ -334,7 +334,7 @@ fn demo_variants() {
                 }
                 result
             }
-        }).collect(),
+        }).map(|f| Arc::new(f) as dagex::NodeFunction).collect(),
         Some("ScaleLR"),
         Some(vec![("data", "input")]),
         Some(vec![("scaled_value", "result")]),
@@ -400,7 +400,7 @@ fn demo_complex_graph() {
     // 3. Branch for different analyses
     let mut stats_branch = Graph::new();
     stats_branch.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("data").and_then(|d| d.as_int()) {
                 result.insert(
@@ -409,7 +409,7 @@ fn demo_complex_graph() {
                 );
             }
             result
-        },
+        }),
         Some("Stats"),
         Some(vec![("clean_data", "data")]),
         Some(vec![("stats", "statistics")]),
@@ -417,7 +417,7 @@ fn demo_complex_graph() {
 
     let mut ml_branch = Graph::new();
     ml_branch.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("data").and_then(|d| d.as_int()) {
                 result.insert(
@@ -426,7 +426,7 @@ fn demo_complex_graph() {
                 );
             }
             result
-        },
+        }),
         Some("ML"),
         Some(vec![("clean_data", "data")]),
         Some(vec![("prediction", "ml_result")]),
