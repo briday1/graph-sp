@@ -389,7 +389,6 @@ jobs:
     name: Publish to PyPI
     needs: [update-version, build-wheels]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     
     steps:
       - uses: actions/checkout@v4
@@ -509,7 +508,6 @@ jobs:
     name: Publish to crates.io
     needs: [update-version, test]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
     
     steps:
       - uses: actions/checkout@v4
