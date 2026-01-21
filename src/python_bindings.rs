@@ -99,8 +99,7 @@ impl PyGraph {
             );
         } else {
             // No-op function if None provided
-            let noop =
-                |_: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| HashMap::new();
+            let noop = |_: &HashMap<String, GraphData>| HashMap::new();
             graph.add(
                 noop,
                 label.as_deref(),
@@ -154,14 +153,14 @@ impl PyGraph {
     ///
     /// Example:
     ///     factors = np.linspace(0.5, 2.0, 5)
-    ///     graph.variant(
+    ///     graph.variants(
     ///         [lambda inputs, params, f=f: {"scaled": inputs["x"] * f} for f in factors],
     ///         "Scale",
     ///         [("data", "x")],
     ///         [("scaled", "result")]
     ///     )
     #[pyo3(signature = (functions, label=None, inputs=None, outputs=None))]
-    fn variant(
+    fn variants(
         &mut self,
         functions: Vec<PyObject>,
         label: Option<String>,
@@ -197,17 +196,15 @@ impl PyGraph {
             .map(|(a, b)| (a.as_str(), b.as_str()))
             .collect();
 
-        // Convert the list of Python functions into param values that can be used with variant
-        // We'll use indices as the param values
-        let indices: Vec<usize> = (0..functions.len()).collect();
+        // Convert Python functions to a vector of Rust node functions
+        let rust_functions: Vec<_> = functions
+            .iter()
+            .map(|func| create_python_node_function(func.clone()))
+            .collect();
         
-        // Create a Rust factory that returns the appropriate function for each index
-        graph.variant(
-            |idx: usize| {
-                let func = functions[idx].clone();
-                create_python_node_function(func)
-            },
-            indices,
+        // Call variants with the vector of functions
+        graph.variants(
+            rust_functions,
             label.as_deref(),
             if input_refs.is_empty() {
                 None
@@ -313,14 +310,14 @@ fn parse_mapping(obj: &PyAny) -> PyResult<Vec<(String, String)>> {
 /// when calling the Python function.
 fn create_python_node_function(
     py_func: PyObject,
-) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
+) -> impl Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
        + Send
        + Sync
        + 'static {
     // Wrap in Arc to make it cloneable and shareable
     let py_func = Arc::new(py_func);
 
-    move |inputs: &HashMap<String, GraphData>, variant_params: &HashMap<String, GraphData>| {
+    move |inputs: &HashMap<String, GraphData>| {
         // Acquire GIL only for the duration of this call
         Python::with_gil(|py| {
             // Convert inputs to Python dict
@@ -341,25 +338,8 @@ fn create_python_node_function(
                 }
             }
 
-            // Convert variant_params to Python dict
-            let py_variant_params = PyDict::new(py);
-            for (key, value) in variant_params.iter() {
-                if let Err(e) = py_variant_params.set_item(key, graph_data_to_python(py, value)) {
-                    let _ = py
-                        .import("sys")
-                        .and_then(|sys| sys.getattr("stderr"))
-                        .and_then(|stderr| {
-                            stderr.call_method1(
-                                "write",
-                                (format!("Error setting variant param '{}': {}\n", key, e),),
-                            )
-                        });
-                    return HashMap::new();
-                }
-            }
-
-            // Call the Python function
-            let result = py_func.call1(py, (py_inputs, py_variant_params));
+            // Call the Python function with just inputs
+            let result = py_func.call1(py, (py_inputs,));
 
             match result {
                 Ok(py_result) => {

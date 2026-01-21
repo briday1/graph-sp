@@ -38,7 +38,7 @@ fn demo_sequential_vs_parallel() {
 
     // Source node
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let start = Instant::now();
             let mut result = HashMap::new();
             result.insert("data".to_string(), GraphData::string("source_data"));
@@ -53,7 +53,7 @@ fn demo_sequential_vs_parallel() {
     // Branch A: 100ms work
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let start = Instant::now();
             let mut result = HashMap::new();
             if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
@@ -74,7 +74,7 @@ fn demo_sequential_vs_parallel() {
     // Branch B: 100ms work
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let start = Instant::now();
             let mut result = HashMap::new();
             if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
@@ -95,7 +95,7 @@ fn demo_sequential_vs_parallel() {
     // Branch C: 100ms work
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let start = Instant::now();
             let mut result = HashMap::new();
             if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
@@ -154,7 +154,7 @@ fn demo_complex_dependencies() {
 
     // Two independent sources
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("source1_data".to_string(), GraphData::int(100));
             result
@@ -165,7 +165,7 @@ fn demo_complex_dependencies() {
     );
 
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("source2_data".to_string(), GraphData::int(200));
             result
@@ -177,7 +177,7 @@ fn demo_complex_dependencies() {
 
     // Process each source independently (can run in parallel)
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("in").and_then(|d| d.as_int()) {
                 thread::sleep(Duration::from_millis(50));
@@ -191,7 +191,7 @@ fn demo_complex_dependencies() {
     );
 
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("in").and_then(|d| d.as_int()) {
                 thread::sleep(Duration::from_millis(50));
@@ -206,7 +206,7 @@ fn demo_complex_dependencies() {
 
     // Combine results (depends on both processors)
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             let v1 = inputs.get("p1").and_then(|d| d.as_int()).unwrap_or(0);
             let v2 = inputs.get("p2").and_then(|d| d.as_int()).unwrap_or(0);
@@ -289,7 +289,7 @@ fn demo_variant_parallelism() {
 
     // Source
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::float(1000.0));
             result
@@ -301,9 +301,9 @@ fn demo_variant_parallelism() {
 
     // Create 5 variants using closure syntax
     let factors = vec![0.5, 1.0, 1.5, 2.0, 2.5];
-    graph.variant(
+    graph.variants(
         factors.iter().map(|&factor| {
-            move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+            move |inputs: &HashMap<String, GraphData>| {
                 let start = Instant::now();
                 let mut result = HashMap::new();
                 if let Some(val) = inputs.get("input").and_then(|d| d.as_float()) {
@@ -364,7 +364,7 @@ fn demo_diamond_pattern() {
 
     // Top of diamond: Single source
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("raw".to_string(), GraphData::string("input_data"));
             result
@@ -377,7 +377,7 @@ fn demo_diamond_pattern() {
     // Left branch: Transform A (50ms)
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let start = Instant::now();
             thread::sleep(Duration::from_millis(50));
             let mut result = HashMap::new();
@@ -401,7 +401,7 @@ fn demo_diamond_pattern() {
     // Right branch: Transform B (50ms)
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let start = Instant::now();
             thread::sleep(Duration::from_millis(50));
             let mut result = HashMap::new();
@@ -427,7 +427,7 @@ fn demo_diamond_pattern() {
 
     // Bottom of diamond: Merge (30ms)
     graph.merge(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let start = Instant::now();
             thread::sleep(Duration::from_millis(30));
             let mut result = HashMap::new();

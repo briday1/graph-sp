@@ -16,7 +16,6 @@ fn main() {
     // Source node - no inputs, produces "dataset" in context
     fn data_source(
         _inputs: &HashMap<String, GraphData>,
-        _variant: &HashMap<String, GraphData>,
     ) -> HashMap<String, GraphData> {
         let mut outputs = HashMap::new();
         outputs.insert("raw".to_string(), GraphData::string("Sample Data"));
@@ -36,7 +35,6 @@ fn main() {
     // Process node - consumes "dataset" from context as "input_data", produces "processed_data" to context as "result"
     fn processor(
         inputs: &HashMap<String, GraphData>,
-        _variant: &HashMap<String, GraphData>,
     ) -> HashMap<String, GraphData> {
         let data = inputs
             .get("input_data")
@@ -65,7 +63,6 @@ fn main() {
     let mut branch_a = Graph::new();
     fn transform_a(
         inputs: &HashMap<String, GraphData>,
-        _variant: &HashMap<String, GraphData>,
     ) -> HashMap<String, GraphData> {
         let data = inputs.get("x").and_then(|d| d.as_string()).unwrap_or("");
         let mut outputs = HashMap::new();
@@ -85,7 +82,6 @@ fn main() {
     let mut branch_b = Graph::new();
     fn transform_b(
         inputs: &HashMap<String, GraphData>,
-        _variant: &HashMap<String, GraphData>,
     ) -> HashMap<String, GraphData> {
         let data = inputs.get("x").and_then(|d| d.as_string()).unwrap_or("");
         let mut outputs = HashMap::new();
@@ -117,7 +113,6 @@ fn main() {
     // Merge branches with branch-specific variable resolution
     fn combine(
         inputs: &HashMap<String, GraphData>,
-        _variant: &HashMap<String, GraphData>,
     ) -> HashMap<String, GraphData> {
         let a = inputs
             .get("from_a")
@@ -159,9 +154,9 @@ fn main() {
 
     // Variant example using closures
     let factors = vec![2.0, 3.0, 5.0];
-    graph.variant(
+    graph.variants(
         factors.iter().map(|&factor| {
-            move |inputs: &HashMap<String, GraphData>, _variant: &HashMap<String, GraphData>| {
+            move |inputs: &HashMap<String, GraphData>| {
                 let val = inputs
                     .get("value")
                     .and_then(|d| d.as_float())

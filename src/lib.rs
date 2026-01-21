@@ -6,7 +6,7 @@
 //!
 //! - **Implicit Node Connections**: Nodes are automatically connected based on execution order
 //! - **Branching**: Create parallel execution paths with `.branch()`
-//! - **Config Sweeps**: Use `.variant()` to create configuration variations
+//! - **Config Sweeps**: Use `.variants()` to create configuration variations
 //! - **DAG Optimization**: Automatic inspection and optimization of execution paths
 //! - **Mermaid Visualization**: Generate diagrams with `to_mermaid()`
 //!
@@ -16,13 +16,13 @@
 //! use dagex::{Graph, GraphData};
 //! use std::collections::HashMap;
 //!
-//! fn data_source(_: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+//! fn data_source(_: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
 //!     let mut result = HashMap::new();
 //!     result.insert("output".to_string(), GraphData::string("Hello, World!"));
 //!     result
 //! }
 //!
-//! fn processor(inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+//! fn processor(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
 //!     let mut result = HashMap::new();
 //!     if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
 //!         result.insert("output".to_string(), GraphData::string(data.to_uppercase()));

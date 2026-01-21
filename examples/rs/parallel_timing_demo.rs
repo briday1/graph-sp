@@ -37,7 +37,7 @@ fn demo_sequential_vs_parallel() {
 
     // Source node
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("data".to_string(), GraphData::string("source"));
             result
@@ -50,7 +50,7 @@ fn demo_sequential_vs_parallel() {
     // Branch A: 100ms work
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
                 let processed = simulate_work(100, data);
@@ -66,7 +66,7 @@ fn demo_sequential_vs_parallel() {
     // Branch B: 100ms work
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
                 let processed = simulate_work(100, data);
@@ -82,7 +82,7 @@ fn demo_sequential_vs_parallel() {
     // Branch C: 100ms work
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
                 let processed = simulate_work(100, data);
@@ -150,7 +150,7 @@ fn demo_many_parallel_nodes() {
 
     // Source
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("data".to_string(), GraphData::int(0));
             result
@@ -164,7 +164,7 @@ fn demo_many_parallel_nodes() {
     for i in 0..10 {
         let mut branch = Graph::new();
         branch.add(
-            move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+            move |inputs: &HashMap<String, GraphData>| {
                 let mut result = HashMap::new();
                 if let Some(val) = inputs.get("input").and_then(|d| d.as_int()) {
                     thread::sleep(Duration::from_millis(50));

@@ -2,17 +2,16 @@ use dagex::{Graph, GraphData};
 use std::collections::HashMap;
 
 fn main() {
-    println!("=== Variant Closures Demo ===\n");
-    println!("Demonstrating the simpler variant API using closures\n");
+    println!("=== Simple Variant Parameter Sweep ===\n");
+    println!("Demonstrating the cleanest syntax for parameter sweeps\n");
 
-    // Demo 1: Simple parameter sweep
+    // Demo 1: Simple scaling sweep
     println!("─────────────────────────────────────────────────────────");
-    println!("Demo 1: Simple Parameter Sweep with Closures");
+    println!("Demo 1: Scale by Factor Sweep");
     println!("─────────────────────────────────────────────────────────\n");
 
     let mut graph = Graph::new();
 
-    // Source node
     graph.add(
         |_| {
             let mut result = HashMap::new();
@@ -24,8 +23,8 @@ fn main() {
         Some(vec![("value", "data")]),
     );
 
-    // Variant sweep: multiply by different factors
-    let factors = vec![2, 3, 5, 10];
+    // Just sweep over the parameter you care about
+    let factors = vec![2.0, 3.0, 5.0, 10.0];
     graph.variants(
         factors
             .iter()
@@ -33,7 +32,7 @@ fn main() {
                 move |inputs: &HashMap<String, GraphData>| {
                     let mut outputs = HashMap::new();
                     if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
-                        outputs.insert("result".to_string(), GraphData::int(val * factor));
+                        outputs.insert("result".to_string(), GraphData::int(val * factor as i64));
                     }
                     outputs
                 }
@@ -47,18 +46,16 @@ fn main() {
     let dag = graph.build();
     let context = dag.execute(false, None);
 
-    println!("Results:");
-    println!("  Input: {}", context.get("data").unwrap().to_string_repr());
-    println!("  Factors: {:?}", factors);
+    println!("Input: {}", context.get("data").unwrap().to_string_repr());
+    println!("Factors swept: {:?}", factors);
     println!(
-        "  Output (last variant): {}",
+        "Output (last variant): {}",
         context.get("scaled").unwrap().to_string_repr()
     );
-    println!("\nMermaid:\n{}", dag.to_mermaid());
 
-    // Demo 2: Power functions
+    // Demo 2: Threshold filtering
     println!("\n─────────────────────────────────────────────────────────");
-    println!("Demo 2: Power Function Variants");
+    println!("Demo 2: Filter by Threshold Sweep");
     println!("─────────────────────────────────────────────────────────\n");
 
     let mut graph2 = Graph::new();
@@ -66,46 +63,56 @@ fn main() {
     graph2.add(
         |_| {
             let mut result = HashMap::new();
-            result.insert("x".to_string(), GraphData::int(2));
+            result.insert("x".to_string(), GraphData::float(7.5));
             result
         },
         Some("Source"),
         None,
-        Some(vec![("x", "number")]),
+        Some(vec![("x", "input")]),
     );
 
-    let exponents = vec![2, 3, 4, 5];
+    let thresholds = vec![5.0, 7.0, 8.0, 10.0];
     graph2.variants(
-        exponents
+        thresholds
             .iter()
-            .map(|&exp| {
+            .map(|&threshold| {
                 move |inputs: &HashMap<String, GraphData>| {
                     let mut outputs = HashMap::new();
-                    if let Some(val) = inputs.get("n").and_then(|d| d.as_int()) {
-                        outputs.insert("powered".to_string(), GraphData::int(val.pow(exp as u32)));
+                    if let Some(val) = inputs.get("value").and_then(|d| d.as_float()) {
+                        if val > threshold {
+                            outputs.insert("passed".to_string(), GraphData::float(val));
+                            outputs.insert("status".to_string(), GraphData::string("pass".to_string()));
+                        } else {
+                            outputs.insert("passed".to_string(), GraphData::float(0.0));
+                            outputs.insert("status".to_string(), GraphData::string("fail".to_string()));
+                        }
                     }
                     outputs
                 }
             })
             .collect(),
-        Some("Power"),
-        Some(vec![("number", "n")]),
-        Some(vec![("powered", "result")]),
+        Some("Filter"),
+        Some(vec![("input", "value")]),
+        Some(vec![("passed", "result"), ("status", "state")]),
     );
 
     let dag2 = graph2.build();
     let context2 = dag2.execute(false, None);
 
-    println!("Base: {}", context2.get("number").unwrap().to_string_repr());
-    println!("Exponents: {:?}", exponents);
+    println!("Input value: {}", context2.get("input").unwrap().to_string_repr());
+    println!("Thresholds tested: {:?}", thresholds);
     println!(
-        "Result (last variant, 2^5): {}",
+        "Result (last variant): {}",
         context2.get("result").unwrap().to_string_repr()
     );
+    println!(
+        "Status (last variant): {}",
+        context2.get("state").unwrap().to_string_repr()
+    );
 
-    // Demo 3: Using ranges
+    // Demo 3: Power sweep
     println!("\n─────────────────────────────────────────────────────────");
-    println!("Demo 3: Using Range Iterator");
+    println!("Demo 3: Power Function Sweep");
     println!("─────────────────────────────────────────────────────────\n");
 
     let mut graph3 = Graph::new();
@@ -113,43 +120,46 @@ fn main() {
     graph3.add(
         |_| {
             let mut result = HashMap::new();
-            result.insert("base".to_string(), GraphData::float(100.0));
+            result.insert("n".to_string(), GraphData::int(2));
             result
         },
         Some("Source"),
         None,
-        Some(vec![("base", "value")]),
+        Some(vec![("n", "number")]),
     );
 
-    // Create closures for scaling factors from 0.5 to 1.5 in steps of 0.25
-    let steps = 5;
+    let exponents = vec![2, 3, 4, 5];
     graph3.variants(
-        (0..steps)
-            .map(|i| {
-                let factor = 0.5 + (i as f64) * 0.25;
+        exponents
+            .iter()
+            .map(|&exp| {
                 move |inputs: &HashMap<String, GraphData>| {
                     let mut outputs = HashMap::new();
-                    if let Some(val) = inputs.get("v").and_then(|d| d.as_float()) {
-                        outputs.insert("scaled".to_string(), GraphData::float(val * factor));
+                    if let Some(val) = inputs.get("base").and_then(|d| d.as_int()) {
+                        outputs.insert("powered".to_string(), GraphData::int(val.pow(exp)));
                     }
                     outputs
                 }
             })
             .collect(),
-        Some("LinearScale"),
-        Some(vec![("value", "v")]),
-        Some(vec![("scaled", "result")]),
+        Some("Power"),
+        Some(vec![("number", "base")]),
+        Some(vec![("powered", "result")]),
     );
 
     let dag3 = graph3.build();
     let context3 = dag3.execute(false, None);
 
-    println!("Used {} scaling factors from 0.5 to 1.5", steps);
-    println!("Base value: {}", context3.get("value").unwrap().to_string_repr());
+    println!("Base: {}", context3.get("number").unwrap().to_string_repr());
+    println!("Exponents: {:?}", exponents);
     println!(
-        "Final result: {}",
+        "Result (2^5): {}",
         context3.get("result").unwrap().to_string_repr()
     );
+
+    println!("\n🎯 Pattern:");
+    println!("  params.iter().map(|&p| move |inputs| {{ ... use p ... }}).collect()");
+    println!("\n  Clean and simple - node functions only take inputs now!");
 
     println!("\n=== Demo Complete! ===");
 }

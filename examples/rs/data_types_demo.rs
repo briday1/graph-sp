@@ -15,7 +15,6 @@ use std::collections::HashMap;
 
 fn data_generator(
     _inputs: &HashMap<String, GraphData>,
-    _params: &HashMap<String, GraphData>,
 ) -> HashMap<String, GraphData> {
     println!("{}", "=".repeat(70));
     println!("DataGenerator: Creating diverse data types");
@@ -77,7 +76,6 @@ fn data_generator(
 
 fn type_inspector(
     inputs: &HashMap<String, GraphData>,
-    _params: &HashMap<String, GraphData>,
 ) -> HashMap<String, GraphData> {
     println!("\n{}", "=".repeat(70));
     println!("TypeInspector: Analyzing received data types");
@@ -113,7 +111,6 @@ fn type_inspector(
 
 fn data_processor(
     inputs: &HashMap<String, GraphData>,
-    _params: &HashMap<String, GraphData>,
 ) -> HashMap<String, GraphData> {
     println!("\n{}", "=".repeat(70));
     println!("DataProcessor: Processing multiple data types");
@@ -182,7 +179,6 @@ fn data_processor(
 
 fn result_aggregator(
     inputs: &HashMap<String, GraphData>,
-    _params: &HashMap<String, GraphData>,
 ) -> HashMap<String, GraphData> {
     println!("\n{}", "=".repeat(70));
     println!("ResultAggregator: Creating final summary");

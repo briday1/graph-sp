@@ -7,7 +7,6 @@ use std::collections::HashMap;
 
 fn data_source(
     _: &HashMap<String, GraphData>,
-    _: &HashMap<String, GraphData>,
 ) -> HashMap<String, GraphData> {
     let mut result = HashMap::new();
     result.insert("raw_data".to_string(), GraphData::int(100));
@@ -16,7 +15,6 @@ fn data_source(
 
 fn processor(
     inputs: &HashMap<String, GraphData>,
-    _: &HashMap<String, GraphData>,
 ) -> HashMap<String, GraphData> {
     let mut result = HashMap::new();
     if let Some(data) = inputs.get("input_data") {
@@ -29,7 +27,6 @@ fn processor(
 
 fn adder(
     inputs: &HashMap<String, GraphData>,
-    _: &HashMap<String, GraphData>,
 ) -> HashMap<String, GraphData> {
     let mut result = HashMap::new();
     if let Some(val) = inputs.get("input") {
@@ -61,8 +58,8 @@ fn test_simple_pipeline() {
     let dag = graph.build();
     let context = dag.execute(false, None);
 
-    assert_eq!(context.get("data").and_then(|d| d.as_int()), Some(100));
-    assert_eq!(context.get("result").and_then(|d| d.as_int()), Some(200));
+    assert_eq!(context.get("data").and_then(|d: &GraphData| d.as_int()), Some(100));
+    assert_eq!(context.get("result").and_then(|d: &GraphData| d.as_int()), Some(200));
 }
 
 #[test]
@@ -80,9 +77,9 @@ fn test_branching() {
     // Branch A
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
+            if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val * 2));
             }
             result
@@ -95,9 +92,9 @@ fn test_branching() {
     // Branch B
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
+            if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val * 3));
             }
             result
@@ -113,9 +110,9 @@ fn test_branching() {
     let dag = graph.build();
     let context = dag.execute(false, None);
 
-    assert_eq!(context.get("data").and_then(|d| d.as_int()), Some(100));
-    assert_eq!(context.get("result_a").and_then(|d| d.as_int()), Some(200));
-    assert_eq!(context.get("result_b").and_then(|d| d.as_int()), Some(300));
+    assert_eq!(context.get("data").and_then(|d: &GraphData| d.as_int()), Some(100));
+    assert_eq!(context.get("result_a").and_then(|d: &GraphData| d.as_int()), Some(200));
+    assert_eq!(context.get("result_b").and_then(|d: &GraphData| d.as_int()), Some(300));
 }
 
 #[test]
@@ -134,9 +131,9 @@ fn test_merge() {
     // Branch A
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
+            if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val + 10));
             }
             result
@@ -149,9 +146,9 @@ fn test_merge() {
     // Branch B
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
-            if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
+            if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val + 20));
             }
             result
@@ -166,10 +163,10 @@ fn test_merge() {
 
     // Merge function combines both branches
     graph.merge(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
-            let a = inputs.get("from_a").and_then(|d| d.as_int()).unwrap_or(0);
-            let b = inputs.get("from_b").and_then(|d| d.as_int()).unwrap_or(0);
+            let a = inputs.get("from_a").and_then(|d: &GraphData| d.as_int()).unwrap_or(0);
+            let b = inputs.get("from_b").and_then(|d: &GraphData| d.as_int()).unwrap_or(0);
             result.insert("merged".to_string(), GraphData::int(a + b));
             result
         },
@@ -187,7 +184,7 @@ fn test_merge() {
     // Branch A: 100 + 10 = 110
     // Branch B: 100 + 20 = 120
     // Merge: 110 + 120 = 230
-    assert_eq!(context.get("final").and_then(|d| d.as_int()), Some(230));
+    assert_eq!(context.get("final").and_then(|d: &GraphData| d.as_int()), Some(230));
 }
 
 #[test]
@@ -196,7 +193,7 @@ fn test_variants() {
 
     // Source
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(10));
             result
@@ -206,23 +203,23 @@ fn test_variants() {
         Some(vec![("value", "data")]),
     );
 
-    // Variant factory: multiply by different factors
-    fn make_multiplier(
-        factor: f64,
-    ) -> impl Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
-    {
-        move |inputs: &HashMap<String, GraphData>, _| {
-            let mut result = HashMap::new();
-            if let Some(val) = inputs.get("x").and_then(|d| d.as_float()) {
-                result.insert("scaled".to_string(), GraphData::float(val * factor));
+    // Variant sweep: multiply by different factors using closures
+    let factors = vec![2.0, 3.0, 5.0];
+    let multipliers: Vec<_> = factors
+        .iter()
+        .map(|&factor| {
+            move |inputs: &HashMap<String, GraphData>| {
+                let mut result = HashMap::new();
+                if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_float()) {
+                    result.insert("scaled".to_string(), GraphData::float(val * factor));
+                }
+                result
             }
-            result
-        }
-    }
+        })
+        .collect();
 
-    graph.variant(
-        make_multiplier,
-        vec![2.0, 3.0, 5.0],
+    graph.variants(
+        multipliers,
         Some("Multiply"),
         Some(vec![("data", "x")]),
         Some(vec![("scaled", "result")]),

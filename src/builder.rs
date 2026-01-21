@@ -246,10 +246,7 @@ impl Graph {
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
-        F: Fn(
-                &HashMap<String, GraphData>,
-                &HashMap<String, GraphData>,
-            ) -> HashMap<String, GraphData>
+        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
             + Send
             + Sync
             + 'static,
@@ -368,7 +365,7 @@ impl Graph {
     ///
     /// ```ignore
     /// let factors = vec![2.0, 3.0, 5.0];
-    /// graph.variant(
+    /// graph.variants(
     ///     factors.iter().map(|&factor| {
     ///         move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
     ///             let mut outputs = HashMap::new();
@@ -383,7 +380,7 @@ impl Graph {
     ///     Some(vec![("scaled", "result")])
     /// );
     /// ```
-    pub fn variant<F>(
+    pub fn variants<F>(
         &mut self,
         functions: Vec<F>,
         label: Option<&str>,
@@ -391,10 +388,7 @@ impl Graph {
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
-        F: Fn(
-                &HashMap<String, GraphData>,
-                &HashMap<String, GraphData>,
-            ) -> HashMap<String, GraphData>
+        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
             + Send
             + Sync
             + 'static,
@@ -487,10 +481,7 @@ impl Graph {
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
-        F: Fn(
-                &HashMap<String, GraphData>,
-                &HashMap<String, GraphData>,
-            ) -> HashMap<String, GraphData>
+        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
             + Send
             + Sync
             + 'static,

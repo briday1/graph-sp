@@ -8,9 +8,9 @@ use std::sync::Arc;
 pub type NodeId = usize;
 
 /// Type alias for node execution functions using GraphData
-/// Takes GraphData ports and variant parameters as input, returns output ports
+/// Takes GraphData ports as input, returns output ports
 pub type NodeFunction = Arc<
-    dyn Fn(&HashMap<String, GraphData>, &HashMap<String, GraphData>) -> HashMap<String, GraphData>
+    dyn Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
         + Send
         + Sync,
 >;
@@ -77,8 +77,8 @@ impl Node {
             })
             .collect();
 
-        // Execute function with both inputs and variant parameters
-        let func_outputs = (self.function)(&inputs, &self.variant_params);
+        // Execute function with inputs
+        let func_outputs = (self.function)(&inputs);
 
         // Map function outputs to broadcast vars using output_mapping
         // output_mapping: impl_var -> broadcast_var

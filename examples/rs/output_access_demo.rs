@@ -30,7 +30,7 @@ fn demo_simple_output_access() {
 
     // Node 1: Generate initial data
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("initial_value".to_string(), GraphData::int(100));
             result
@@ -42,7 +42,7 @@ fn demo_simple_output_access() {
 
     // Node 2: Process the data
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("processed".to_string(), GraphData::int(value * 2));
@@ -90,7 +90,7 @@ fn demo_branch_output_access() {
 
     // Source node
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(50));
             result
@@ -103,7 +103,7 @@ fn demo_branch_output_access() {
     // Branch A: Statistics computation
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let val = inputs
                 .get("data")
                 .map(|d| d.to_string_repr())
@@ -123,7 +123,7 @@ fn demo_branch_output_access() {
     // Branch B: Model training
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let val = inputs
                 .get("data")
                 .map(|d| d.to_string_repr())
@@ -143,7 +143,7 @@ fn demo_branch_output_access() {
     // Branch C: Visualization
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let val = inputs
                 .get("data")
                 .map(|d| d.to_string_repr())
@@ -201,7 +201,7 @@ fn demo_variant_output_access() {
 
     // Source node
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::float(10.0));
             result
@@ -213,9 +213,9 @@ fn demo_variant_output_access() {
 
     // Variant nodes: scale by different factors using closure syntax
     let factors = vec![2.0, 3.0, 5.0];
-    graph.variant(
+    graph.variants(
         factors.iter().map(|&factor| {
-            move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+            move |inputs: &HashMap<String, GraphData>| {
                 let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
                 let mut result = HashMap::new();
                 result.insert("scaled".to_string(), GraphData::float(value * factor));
@@ -252,7 +252,7 @@ fn demo_variant_output_access() {
     let mut graph2 = Graph::new();
 
     graph2.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::float(10.0));
             result
@@ -263,9 +263,9 @@ fn demo_variant_output_access() {
     );
 
     // Variants with unique output names using closure syntax
-    graph2.variant(
+    graph2.variants(
         vec![
-            |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+            |inputs: &HashMap<String, GraphData>| {
                 let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
                 let mut result = HashMap::new();
                 result.insert("scaled_2x".to_string(), GraphData::float(value * 2.0));
@@ -277,9 +277,9 @@ fn demo_variant_output_access() {
         Some(vec![("scaled_2x", "result_2x")]),
     );
 
-    graph2.variant(
+    graph2.variants(
         vec![
-            |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+            |inputs: &HashMap<String, GraphData>| {
                 let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
                 let mut result = HashMap::new();
                 result.insert("scaled_3x".to_string(), GraphData::float(value * 3.0));
@@ -315,7 +315,7 @@ fn demo_multiple_outputs() {
 
     // Node that produces multiple outputs
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("mean".to_string(), GraphData::float(50.5));
             result.insert("median".to_string(), GraphData::float(48.0));

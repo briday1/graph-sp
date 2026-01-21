@@ -30,7 +30,7 @@ fn demo_per_node_access() {
 
     // Node 0: Source
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(10));
             result
@@ -42,7 +42,7 @@ fn demo_per_node_access() {
 
     // Node 1: Double
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("in").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("doubled".to_string(), GraphData::int(value * 2));
@@ -55,7 +55,7 @@ fn demo_per_node_access() {
 
     // Node 2: Add Ten
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("in").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("added".to_string(), GraphData::int(value + 10));
@@ -120,7 +120,7 @@ fn demo_per_branch_access() {
 
     // Main graph: Source node
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("dataset".to_string(), GraphData::int(100));
             result
@@ -133,7 +133,7 @@ fn demo_per_branch_access() {
     // Branch A: Statistics
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert(
@@ -150,7 +150,7 @@ fn demo_per_branch_access() {
     // Branch B: Model Training
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert(
@@ -167,7 +167,7 @@ fn demo_per_branch_access() {
     // Branch C: Visualization
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("input").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert(
@@ -252,7 +252,7 @@ fn demo_variant_per_node_access() {
 
     // Source node
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("base_value".to_string(), GraphData::int(10));
             result
@@ -264,9 +264,9 @@ fn demo_variant_per_node_access() {
 
     // Create variants using closure syntax
     let factors = vec![2.0, 3.0, 5.0];
-    graph.variant(
+    graph.variants(
         factors.iter().map(|&factor| {
-            move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+            move |inputs: &HashMap<String, GraphData>| {
                 let value = inputs.get("input_data").and_then(|d| d.as_int()).unwrap() as f64;
                 let mut result = HashMap::new();
                 result.insert("scaled_value".to_string(), GraphData::float(value * factor));
@@ -330,7 +330,7 @@ fn demo_execution_history_tracking() {
 
     // Multi-stage pipeline
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("raw".to_string(), GraphData::int(5));
             result
@@ -341,7 +341,7 @@ fn demo_execution_history_tracking() {
     );
 
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("x").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("cleaned".to_string(), GraphData::int(value + 1));
@@ -353,7 +353,7 @@ fn demo_execution_history_tracking() {
     );
 
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("x").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert("normalized".to_string(), GraphData::int(value * 10));
@@ -365,7 +365,7 @@ fn demo_execution_history_tracking() {
     );
 
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let value = inputs.get("x").and_then(|d| d.as_int()).unwrap();
             let mut result = HashMap::new();
             result.insert(

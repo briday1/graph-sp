@@ -2,7 +2,7 @@
 """
 Python Variant Demo - Parameter Sweeps with List Comprehensions
 
-Demonstrates using graph.variant() with list comprehensions for clean parameter sweeps.
+Demonstrates using graph.variants() with list comprehensions for clean parameter sweeps.
 """
 
 import dagex
@@ -18,9 +18,9 @@ print("─" * 70)
 
 graph = dagex.Graph()
 
-# Source node
+# Source node (single-arg node functions)
 graph.add(
-    lambda inputs, params: {"value": 10},
+    lambda inputs: {"value": 10},
     "Source",
     None,
     [("value", "data")]
@@ -28,8 +28,8 @@ graph.add(
 
 # Variant sweep: multiply by different factors
 factors = [2, 3, 5, 10]
-graph.variant(
-    [lambda inputs, params, f=f: {"result": inputs["x"] * f} for f in factors],
+graph.variants(
+    [lambda inputs, f=f: {"result": inputs["x"] * f} for f in factors],
     "Scale",
     [("data", "x")],
     [("result", "scaled")]
@@ -55,7 +55,7 @@ try:
     graph2 = dagex.Graph()
     
     graph2.add(
-        lambda inputs, params: {"base": 100},
+        lambda inputs: {"base": 100},
         "Source",
         None,
         [("base", "value")]
@@ -63,8 +63,8 @@ try:
     
     # Sweep over a range of scaling factors
     factors = np.linspace(0.5, 2.0, 5)
-    graph2.variant(
-        [lambda inputs, params, f=f: {"scaled": int(inputs["v"] * f)} for f in factors],
+    graph2.variants(
+        [lambda inputs, f=f: {"scaled": int(inputs["v"] * f)} for f in factors],
         "LinearScale",
         [("value", "v")],
         [("scaled", "result")]
@@ -88,7 +88,7 @@ print("─" * 70)
 graph3 = dagex.Graph()
 
 graph3.add(
-    lambda inputs, params: {"x": 2},
+    lambda inputs: {"x": 2},
     "Source",
     None,
     [("x", "number")]
@@ -96,8 +96,8 @@ graph3.add(
 
 # Variant: different power functions
 exponents = [2, 3, 4, 5]
-graph3.variant(
-    [lambda inputs, params, exp=exp: {"powered": inputs["n"] ** exp} for exp in exponents],
+graph3.variants(
+    [lambda inputs, exp=exp: {"powered": inputs["n"] ** exp} for exp in exponents],
     "Power",
     [("number", "n")],
     [("powered", "result")]

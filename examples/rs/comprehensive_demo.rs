@@ -34,7 +34,7 @@ fn demo_simple_pipeline() {
 
     // Data source node
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(42));
             result
@@ -46,7 +46,7 @@ fn demo_simple_pipeline() {
 
     // Processing node: multiply by 2
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
                 result.insert("doubled".to_string(), GraphData::int(val * 2));
@@ -60,7 +60,7 @@ fn demo_simple_pipeline() {
 
     // Final processing: add 10
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("num").and_then(|d| d.as_int()) {
                 result.insert("sum".to_string(), GraphData::int(val + 10));
@@ -107,7 +107,7 @@ fn demo_branching() {
 
     // Source node
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("dataset".to_string(), GraphData::int(100));
             result
@@ -120,7 +120,7 @@ fn demo_branching() {
     // Branch A: Compute statistics
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("input").and_then(|d| d.as_int()) {
                 result.insert(
@@ -138,7 +138,7 @@ fn demo_branching() {
     // Branch B: Train model
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("input").and_then(|d| d.as_int()) {
                 result.insert(
@@ -156,7 +156,7 @@ fn demo_branching() {
     // Branch C: Generate visualization
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("input").and_then(|d| d.as_int()) {
                 result.insert(
@@ -215,7 +215,7 @@ fn demo_merging() {
 
     // Source
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(50));
             result
@@ -228,7 +228,7 @@ fn demo_merging() {
     // Branch A: Add 10
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val + 10));
@@ -243,7 +243,7 @@ fn demo_merging() {
     // Branch B: Add 20
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val + 20));
@@ -260,7 +260,7 @@ fn demo_merging() {
 
     // Merge node: Combine results from both branches
     graph.merge(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             let a = inputs.get("from_a").and_then(|d| d.as_int()).unwrap_or(0);
             let b = inputs.get("from_b").and_then(|d| d.as_int()).unwrap_or(0);
@@ -311,7 +311,7 @@ fn demo_variants() {
 
     // Source node
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("base_value".to_string(), GraphData::float(10.0));
             result
@@ -323,9 +323,9 @@ fn demo_variants() {
 
     // Create variants using closure syntax for learning rate sweep
     let learning_rates = vec![0.001, 0.01, 0.1, 1.0];
-    graph.variant(
+    graph.variants(
         learning_rates.iter().map(|&learning_rate| {
-            move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+            move |inputs: &HashMap<String, GraphData>| {
                 let mut result = HashMap::new();
                 if let Some(val) = inputs.get("input").and_then(|d| d.as_float()) {
                     let scaled = val * learning_rate;
@@ -372,7 +372,7 @@ fn demo_complex_graph() {
 
     // 1. Data ingestion
     graph.add(
-        |_: &HashMap<String, GraphData>, _| {
+        |_| {
             let mut result = HashMap::new();
             result.insert("raw_data".to_string(), GraphData::int(1000));
             result
@@ -384,7 +384,7 @@ fn demo_complex_graph() {
 
     // 2. Preprocessing
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("raw").and_then(|d| d.as_int()) {
                 result.insert("cleaned".to_string(), GraphData::int(val / 10));
@@ -399,7 +399,7 @@ fn demo_complex_graph() {
     // 3. Branch for different analyses
     let mut stats_branch = Graph::new();
     stats_branch.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("data").and_then(|d| d.as_int()) {
                 result.insert(
@@ -416,7 +416,7 @@ fn demo_complex_graph() {
 
     let mut ml_branch = Graph::new();
     ml_branch.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("data").and_then(|d| d.as_int()) {
                 result.insert(
@@ -436,7 +436,7 @@ fn demo_complex_graph() {
 
     // 4. Merge branches
     graph.merge(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             let stats = inputs
                 .get("stats_in")
@@ -462,7 +462,7 @@ fn demo_complex_graph() {
 
     // 5. Final output formatting
     graph.add(
-        |inputs: &HashMap<String, GraphData>, _| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(report) = inputs.get("report").and_then(|d| d.as_string()) {
                 result.insert(
