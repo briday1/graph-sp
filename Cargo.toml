@@ -75,3 +75,7 @@ path = "examples/rs/simple_frontier_test.rs"
 [[example]]
 name = "parallel_timing_demo"
 path = "examples/rs/parallel_timing_demo.rs"
+
+[[example]]
+name = "dynamic_variants_demo"
+path = "examples/rs/dynamic_variants_demo.rs"
