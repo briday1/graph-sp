@@ -141,6 +141,94 @@ impl PyGraph {
         Ok(graph.branch(subgraph_inner))
     }
 
+    /// Create variant nodes (parameter sweep)
+    ///
+    /// Args:
+    ///     factory: Python callable that takes a parameter value and returns a node function
+    ///     param_values: List of parameter values to sweep over
+    ///     label: Optional string label for the variant nodes
+    ///     inputs: Optional list of (broadcast_var, impl_var) tuples or dict
+    ///     outputs: Optional list of (impl_var, broadcast_var) tuples or dict
+    ///
+    /// Returns:
+    ///     Self for method chaining
+    ///
+    /// Example:
+    ///     def make_scaler(factor):
+    ///         def scaler(inputs, variant_params):
+    ///             val = inputs.get("x", 0)
+    ///             return {"scaled": val * factor}
+    ///         return scaler
+    ///     
+    ///     graph.variant(make_scaler, [2.0, 3.0, 5.0], "Scale", [("data", "x")], [("scaled", "result")])
+    #[pyo3(signature = (factory, param_values, label=None, inputs=None, outputs=None))]
+    fn variant(
+        &mut self,
+        factory: PyObject,
+        param_values: Vec<PyObject>,
+        label: Option<String>,
+        inputs: Option<&PyAny>,
+        outputs: Option<&PyAny>,
+    ) -> PyResult<()> {
+        let graph = self
+            .graph
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("Graph has already been built or consumed"))?;
+
+        // Parse inputs
+        let input_vec = if let Some(inp) = inputs {
+            parse_mapping(inp)?
+        } else {
+            Vec::new()
+        };
+
+        // Parse outputs
+        let output_vec = if let Some(out) = outputs {
+            parse_mapping(out)?
+        } else {
+            Vec::new()
+        };
+
+        // Convert to references for the variant method
+        let input_refs: Vec<(&str, &str)> = input_vec
+            .iter()
+            .map(|(a, b)| (a.as_str(), b.as_str()))
+            .collect();
+        let output_refs: Vec<(&str, &str)> = output_vec
+            .iter()
+            .map(|(a, b)| (a.as_str(), b.as_str()))
+            .collect();
+
+        // Create a Rust factory that wraps the Python factory
+        graph.variant(
+            |param_value: PyObject| {
+                // Create a closure that will call the Python factory with this param_value
+                let factory_clone = factory.clone();
+                let param_clone = param_value.clone();
+                
+                create_python_node_function(Python::with_gil(|py| {
+                    factory_clone
+                        .call1(py, (param_clone,))
+                        .expect("Failed to call factory function")
+                }))
+            },
+            param_values,
+            label.as_deref(),
+            if input_refs.is_empty() {
+                None
+            } else {
+                Some(input_refs)
+            },
+            if output_refs.is_empty() {
+                None
+            } else {
+                Some(output_refs)
+            },
+        );
+
+        Ok(())
+    }
+
     /// Build the DAG from the graph
     ///
     /// Returns:

@@ -1,0 +1,595 @@
+name: Publish to crates.io and PyPI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (leave empty to use version from files)'
+        required: false
+        type: string
+
+jobs:
+  update-version:
+    name: Update version number
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.set-version.outputs.version }}
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Generate version from PyPI
+        id: set-version
+        run: |
+          # Get current year
+          YEAR=$(date +'%Y')
+          
+          # Fetch existing versions from PyPI and find next version number
+          NEXT_VERSION=$(python3 << 'PYTHON_EOF'
+          import requests
+          import re
+          import sys
+          from datetime import datetime
+          
+          year = datetime.now().year
+          package_name = "dagex"
+          
+          try:
+              response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=10)
+              if response.status_code == 200:
+                  data = response.json()
+                  versions = list(data['releases'].keys())
+                  
+                  # Filter versions for current year (format: YYYY.v where v is a number)
+                  year_pattern = re.compile(rf'^{year}\.(\d+)$')
+                  year_versions = []
+                  for v in versions:
+                      match = year_pattern.match(v)
+                      if match:
+                          version_num = int(match.group(1))
+                          year_versions.append(version_num)
+                  
+                  # Get next version
+                  if year_versions:
+                      next_num = max(year_versions) + 1
+                  else:
+                      next_num = 1
+                  
+                  print(f"{year}.{next_num}")
+              else:
+                  print(f"{year}.1", file=sys.stderr)
+                  print(f"{year}.1")
+          except Exception as e:
+              print(f"Error: {e}", file=sys.stderr)
+              print(f"{year}.1")
+          PYTHON_EOF
+          )
+          
+          VERSION="$NEXT_VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+      
+      - name: Update pyproject.toml
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          echo "Updated pyproject.toml:"
+          grep "^version" pyproject.toml
+      
+      - name: Update Cargo.toml
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          # Cargo requires SemVer with three parts (MAJOR.MINOR.PATCH)
+          # If version has two parts (e.g., 2026.2), append .0 to make it 2026.2.0
+          # If version already has three parts, use it as-is
+          if [[ $VERSION =~ ^[0-9]+\.[0-9]+$ ]]; then
+            CARGO_VERSION="${VERSION}.0"
+          else
+            CARGO_VERSION="$VERSION"
+          fi
+          sed -i "s/^version = .*/version = \"$CARGO_VERSION\"/" Cargo.toml
+          echo "Updated Cargo.toml:"
+          grep "^version" Cargo.toml
+      
+      - name: Commit version changes and create tag
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml Cargo.toml
+          git commit -m "chore: bump version to $VERSION [skip ci]" || echo "No changes to commit"
+          
+          # Fetch tags from remote to check if tag exists
+          git fetch --tags
+          
+          # Only create and push tag if it doesn't exist on remote
+          if git ls-remote --tags origin | grep -q "refs/tags/v$VERSION$"; then
+            echo "Tag v$VERSION already exists on remote, skipping tag creation"
+          else
+            git tag -a "v$VERSION" -m "Release v$VERSION"
+            git push origin "v$VERSION" || echo "Tag push failed (may already exist)"
+          fi
+          
+          # Push any commits (if there were any)
+          git push origin main || echo "Nothing to push"
+
+  test:
+    name: Run tests and examples
+    needs: update-version
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate version from PyPI
+        id: set-version
+        run: |
+          # Get current year
+          YEAR=$(date +'%Y')
+          
+          # Fetch existing versions from PyPI and find next version number
+          NEXT_VERSION=$(python3 << 'PYTHON_EOF'
+          import requests
+          import re
+          import sys
+          from datetime import datetime
+          
+          year = datetime.now().year
+          package_name = "dagex"
+          
+          try:
+              response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=10)
+              if response.status_code == 200:
+                  data = response.json()
+                  versions = list(data['releases'].keys())
+                  
+                  # Filter versions for current year (format: YYYY.v where v is a number)
+                  year_pattern = re.compile(rf'^{year}\.(\d+)$')
+                  year_versions = []
+                  for v in versions:
+                      match = year_pattern.match(v)
+                      if match:
+                          version_num = int(match.group(1))
+                          year_versions.append(version_num)
+                  
+                  # Get next version
+                  if year_versions:
+                      next_num = max(year_versions) + 1
+                  else:
+                      next_num = 1
+                  
+                  print(f"{year}.{next_num}")
+              else:
+                  print(f"{year}.1", file=sys.stderr)
+                  print(f"{year}.1")
+          except Exception as e:
+              print(f"Error: {e}", file=sys.stderr)
+              print(f"{year}.1")
+          PYTHON_EOF
+          )
+          
+          VERSION="$NEXT_VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+      
+      - name: Update pyproject.toml
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          echo "Updated pyproject.toml:"
+          grep "^version" pyproject.toml
+      
+      - name: Update Cargo.toml
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          # Cargo requires SemVer with three parts (MAJOR.MINOR.PATCH)
+          # If version has two parts (e.g., 2026.2), append .0 to make it 2026.2.0
+          # If version already has three parts, use it as-is
+          if [[ $VERSION =~ ^[0-9]+\.[0-9]+$ ]]; then
+            CARGO_VERSION="${VERSION}.0"
+          else
+            CARGO_VERSION="$VERSION"
+          fi
+          sed -i "s/^version = .*/version = \"$CARGO_VERSION\"/" Cargo.toml
+          echo "Updated Cargo.toml:"
+          grep "^version" Cargo.toml
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Run Rust tests
+        run: |
+          cargo test --verbose
+        continue-on-error: true
+      
+      - name: Run Rust examples
+        run: |
+          cargo run --example comprehensive_demo
+          cargo run --example output_access_demo
+          cargo run --example parallel_execution_demo
+          cargo run --example per_node_output_access
+          cargo run --example tuple_api_demo
+          cargo run --example variant_demo_full
+      
+      - name: Install maturin and build Python bindings
+        run: |
+          pip install maturin==1.2.0
+          maturin build --release --features python --strip --out dist
+      
+      - name: Install Python package and run examples
+        run: |
+          pip install dist/*.whl
+          python examples/py/python_comprehensive_demo.py
+          python examples/py/python_demo.py
+          python examples/py/python_parallel_demo.py
+
+  build-wheels:
+    name: Build wheels on ${{ matrix.os }} for Python ${{ matrix.python-version }}
+    needs: [update-version, test]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install requests module
+        run: pip install requests
+      
+      - name: Generate version from PyPI
+        id: set-version
+        run: |
+          # Get current year
+          YEAR=$(date +'%Y')
+          
+          # Fetch existing versions from PyPI and find next version number
+          NEXT_VERSION=$(python3 << 'PYTHON_EOF'
+          import requests
+          import re
+          import sys
+          from datetime import datetime
+          
+          year = datetime.now().year
+          package_name = "dagex"
+          
+          try:
+              response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=10)
+              if response.status_code == 200:
+                  data = response.json()
+                  versions = list(data['releases'].keys())
+                  
+                  # Filter versions for current year (format: YYYY.v where v is a number)
+                  year_pattern = re.compile(rf'^{year}\.(\d+)$')
+                  year_versions = []
+                  for v in versions:
+                      match = year_pattern.match(v)
+                      if match:
+                          version_num = int(match.group(1))
+                          year_versions.append(version_num)
+                  
+                  # Get next version
+                  if year_versions:
+                      next_num = max(year_versions) + 1
+                  else:
+                      next_num = 1
+                  
+                  print(f"{year}.{next_num}")
+              else:
+                  print(f"{year}.1", file=sys.stderr)
+                  print(f"{year}.1")
+          except Exception as e:
+              print(f"Error: {e}", file=sys.stderr)
+              print(f"{year}.1")
+          PYTHON_EOF
+          )
+          
+          VERSION="$NEXT_VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+        shell: bash
+      
+      - name: Update pyproject.toml
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          python3 << 'PYTHON_EOF'
+          import re
+          import os
+          
+          version = os.environ['VERSION']
+          
+          with open('pyproject.toml', 'r') as f:
+              content = f.read()
+          
+          content = re.sub(r'^version = .*', f'version = "{version}"', content, flags=re.MULTILINE)
+          
+          with open('pyproject.toml', 'w') as f:
+              f.write(content)
+          
+          print(f"Updated pyproject.toml to version {version}")
+          PYTHON_EOF
+          grep "^version" pyproject.toml
+        shell: bash
+        env:
+          VERSION: ${{ steps.set-version.outputs.version }}
+      
+      - name: Update Cargo.toml
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          python3 << 'PYTHON_EOF'
+          import re
+          import os
+          
+          version = os.environ['VERSION']
+          
+          # Cargo requires SemVer with three parts (MAJOR.MINOR.PATCH)
+          # If version has two parts (e.g., 2026.2), append .0 to make it 2026.2.0
+          if re.match(r'^\d+\.\d+$', version):
+              cargo_version = f"{version}.0"
+          else:
+              cargo_version = version
+          
+          with open('Cargo.toml', 'r') as f:
+              content = f.read()
+          
+          content = re.sub(r'^version = .*', f'version = "{cargo_version}"', content, flags=re.MULTILINE)
+          
+          with open('Cargo.toml', 'w') as f:
+              f.write(content)
+          
+          print(f"Updated Cargo.toml to version {cargo_version}")
+          PYTHON_EOF
+          grep "^version" Cargo.toml
+        shell: bash
+        env:
+          VERSION: ${{ steps.set-version.outputs.version }}
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install maturin and requests
+        run: pip install maturin==1.2.0 requests
+      
+      - name: Build wheel
+        run: |
+          maturin build --release --features python --strip --out dist
+      
+      - name: Upload wheel artifacts
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: wheels-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: dist/*.whl
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [update-version, build-wheels]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate version from PyPI
+        id: set-version
+        run: |
+          # Get current year
+          YEAR=$(date +'%Y')
+          
+          # Fetch existing versions from PyPI and find next version number
+          NEXT_VERSION=$(python3 << 'PYTHON_EOF'
+          import requests
+          import re
+          import sys
+          from datetime import datetime
+          
+          year = datetime.now().year
+          package_name = "dagex"
+          
+          try:
+              response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=10)
+              if response.status_code == 200:
+                  data = response.json()
+                  versions = list(data['releases'].keys())
+                  
+                  # Filter versions for current year (format: YYYY.v where v is a number)
+                  year_pattern = re.compile(rf'^{year}\.(\d+)$')
+                  year_versions = []
+                  for v in versions:
+                      match = year_pattern.match(v)
+                      if match:
+                          version_num = int(match.group(1))
+                          year_versions.append(version_num)
+                  
+                  # Get next version
+                  if year_versions:
+                      next_num = max(year_versions) + 1
+                  else:
+                      next_num = 1
+                  
+                  print(f"{year}.{next_num}")
+              else:
+                  print(f"{year}.1", file=sys.stderr)
+                  print(f"{year}.1")
+          except Exception as e:
+              print(f"Error: {e}", file=sys.stderr)
+              print(f"{year}.1")
+          PYTHON_EOF
+          )
+          
+          VERSION="$NEXT_VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+      
+      - name: Update pyproject.toml
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          echo "Updated pyproject.toml:"
+          grep "^version" pyproject.toml
+      
+      - name: Update Cargo.toml
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          # Cargo requires SemVer with three parts (MAJOR.MINOR.PATCH)
+          # If version has two parts (e.g., 2026.2), append .0 to make it 2026.2.0
+          # If version already has three parts, use it as-is
+          if [[ $VERSION =~ ^[0-9]+\.[0-9]+$ ]]; then
+            CARGO_VERSION="${VERSION}.0"
+          else
+            CARGO_VERSION="$VERSION"
+          fi
+          sed -i "s/^version = .*/version = \"$CARGO_VERSION\"/" Cargo.toml
+          echo "Updated Cargo.toml:"
+          grep "^version" Cargo.toml
+      
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4.1.3
+        with:
+          path: dist
+          pattern: wheels-*
+          merge-multiple: true
+      
+      - name: List downloaded artifacts
+        run: |
+          echo "Publishing version: ${{ needs.update-version.outputs.version }}"
+          echo "Contents of dist directory:"
+          ls -lah dist/
+          echo "Number of wheels: $(ls -1 dist/*.whl 2>/dev/null | wc -l)"
+          echo "Wheel files:"
+          ls -1 dist/*.whl 2>/dev/null || echo "No wheels found!"
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install maturin and twine
+        run: |
+          pip install maturin==1.2.0 twine
+      
+      - name: Build source distribution
+        run: |
+          maturin build --release --features python --sdist --out dist
+      
+      - name: Publish to PyPI
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          twine upload dist/* --username __token__ --password $PYPI_API_TOKEN --verbose
+
+  publish-crates-io:
+    name: Publish to crates.io
+    needs: [update-version, test]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate version from PyPI
+        id: set-version
+        run: |
+          # Get current year
+          YEAR=$(date +'%Y')
+          
+          # Fetch existing versions from PyPI and find next version number
+          NEXT_VERSION=$(python3 << 'PYTHON_EOF'
+          import requests
+          import re
+          import sys
+          from datetime import datetime
+          
+          year = datetime.now().year
+          package_name = "dagex"
+          
+          try:
+              response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=10)
+              if response.status_code == 200:
+                  data = response.json()
+                  versions = list(data['releases'].keys())
+                  
+                  # Filter versions for current year (format: YYYY.v where v is a number)
+                  year_pattern = re.compile(rf'^{year}\.(\d+)$')
+                  year_versions = []
+                  for v in versions:
+                      match = year_pattern.match(v)
+                      if match:
+                          version_num = int(match.group(1))
+                          year_versions.append(version_num)
+                  
+                  # Get next version
+                  if year_versions:
+                      next_num = max(year_versions) + 1
+                  else:
+                      next_num = 1
+                  
+                  print(f"{year}.{next_num}")
+              else:
+                  print(f"{year}.1", file=sys.stderr)
+                  print(f"{year}.1")
+          except Exception as e:
+              print(f"Error: {e}", file=sys.stderr)
+              print(f"{year}.1")
+          PYTHON_EOF
+          )
+          
+          VERSION="$NEXT_VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
+      
+      - name: Update pyproject.toml
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          sed -i "s/^version = .*/version = \"$VERSION\"/" pyproject.toml
+          echo "Updated pyproject.toml:"
+          grep "^version" pyproject.toml
+      
+      - name: Update Cargo.toml
+        run: |
+          VERSION="${{ steps.set-version.outputs.version }}"
+          # Cargo requires SemVer with three parts (MAJOR.MINOR.PATCH)
+          # If version has two parts (e.g., 2026.2), append .0 to make it 2026.2.0
+          # If version already has three parts, use it as-is
+          if [[ $VERSION =~ ^[0-9]+\.[0-9]+$ ]]; then
+            CARGO_VERSION="${VERSION}.0"
+          else
+            CARGO_VERSION="$VERSION"
+          fi
+          sed -i "s/^version = .*/version = \"$CARGO_VERSION\"/" Cargo.toml
+          echo "Updated Cargo.toml:"
+          grep "^version" Cargo.toml
+      
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Publish to crates.io
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: |
+          cargo publish --allow-dirty --token $CRATES_IO_TOKEN
