@@ -9,243 +9,342 @@
 
 # dagex
 
-**dagex** is a pure Rust DAG (Directed Acyclic Graph) executor that automatically resolves data dependencies and executes computational pipelines in parallel. This README walks through the core concepts with short, runnable Rust snippets, Mermaid visualizations and sample outputs.
+**dagex** is a pure Rust DAG (Directed Acyclic Graph) executor that automatically resolves data dependencies and executes computational pipelines in parallel. Build complex workflows with simple, composable functions.
 
-## Highlights
+## ✨ Highlights
 
-- 🚀 Automatic parallelization of independent nodes
-- 🔄 Dataflow-aware dependency resolution (broadcast → impl variable mapping)
-- 🌳 Branching and merging with branch-scoped outputs
-- 🔀 Parameter sweeps (variants)
-- 📊 Mermaid visualization of the DAG
-- ⚡ Zero-copy sharing for large data via Arc
+- 🚀 **Automatic parallelization** of independent nodes
+- 🔄 **Dataflow-aware dependency resolution** (broadcast → impl variable mapping)
+- 🌳 **Branching and merging** with branch-scoped outputs
+- 🔀 **Parameter sweeps** (variants) for hyperparameter exploration
+- 📊 **Mermaid visualization** of the DAG structure
+- ⚡ **Zero-copy sharing** for large data via Arc
+- 🐍 **Python bindings** for seamless integration
 
-## Installation
+## 📦 Installation
+
+### Rust
 
 Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-dagex = "2026.13"
+dagex = "2026.15"
 ```
 
-## How to read these examples
+### Python
 
-- Code is Rust and uses the `dagex` API in this repository
-- Each example prints a small Mermaid diagram and representative execution output
-- These snippets are minimal; full examples are in `examples/rs/`
+```bash
+pip install dagex
+```
 
----
+## 🎯 Quick Start
 
-## 1) Minimal pipeline — sequential
-
-This shows the simplest dataflow: a generator, a transformer, and a final aggregator.
+Here's a minimal example showing the core concepts:
 
 ```rust
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-fn generate(_: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
-    let mut o = HashMap::new();
-    o.insert("n".to_string(), GraphData::int(10));
-    o
-}
-
-fn double(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
-    let v = inputs.get("x").and_then(|d| d.as_int()).unwrap_or(0);
-    let mut o = HashMap::new();
-    o.insert("y".to_string(), GraphData::int(v * 2));
-    o
-}
-
 fn main() {
-    let mut g = Graph::new();
-    g.add(Arc::new(generate), Some("Source"), None, Some(vec![("n", "x")]));
-    g.add(Arc::new(double), Some("Double"), Some(vec![("x", "x")]), Some(vec![("y", "out")]));
-
-    let dag = g.build();
-    println!("\n📊 Mermaid:\n{}\n", dag.to_mermaid());
-    let ctx = dag.execute(false, None);
-    println!("Result: {}", ctx.get("out").unwrap().as_int().unwrap());
+    let mut graph = Graph::new();
+    
+    // Add a data source
+    graph.add(
+        Arc::new(|_| {
+            let mut out = HashMap::new();
+            out.insert("value".to_string(), GraphData::int(10));
+            out
+        }),
+        Some("Source"),
+        None,
+        Some(vec![("value", "x")])
+    );
+    
+    // Add a processor
+    graph.add(
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
+            let v = inputs.get("x").and_then(|d| d.as_int()).unwrap_or(0);
+            let mut out = HashMap::new();
+            out.insert("result".to_string(), GraphData::int(v * 2));
+            out
+        }),
+        Some("Doubler"),
+        Some(vec![("x", "x")]),
+        Some(vec![("result", "output")])
+    );
+    
+    let dag = graph.build();
+    let context = dag.execute(false, None);
+    
+    println!("Result: {}", context.get("output").unwrap().as_int().unwrap());
+    // Output: Result: 20
 }
 ```
 
-Mermaid (example):
+## 📚 Examples
 
-```
-graph TD
-    0["Source"]
-    1["Double"]
-    0 -->|n → x| 1
-```
+All examples include:
+- 📊 Mermaid DAG diagrams for visualization
+- ⏱️ Runtime and memory measurements
+- 📖 Narrative explanations of concepts
 
-Output:
-
-```
-Result: 20
-```
-
----
-
-## 2) Parallel execution — independent workers
-
-When nodes at the same level have no dependencies between them, they execute in parallel. This saves wall-clock time for slow tasks.
-
-Key API: `dag.execute(true, Some(max_threads))` where `true` enables level-parallel execution.
-
-Snippet outline:
-
-- source produces `value`
-- TaskA, TaskB, TaskC consume `value` and run independently
-- results are stored as `result_a`, `result_b`, `result_c`
-
-Expected behavior: A ~3× speedup when tasks are similar and independent.
-
----
-
-## 3) Branching and merging
-
-Fan-out (branch): create independent subgraphs that run in parallel.
-Fan-in (merge): combine branch-specific outputs. The merge API maps `(branch_id, broadcast, impl)` so you can safely merge identical broadcast names from different branches.
-
-Mermaid (branch+merge example):
-
-```
-graph TD
-    0["Source"]
-    1["BranchA"]
-    2["BranchB"]
-    3["Merge"]
-    0 -->|data → x| 1
-    0 -->|data → x| 2
-    1 --> 3
-    2 --> 3
-```
-
-Key implementation note: branch outputs are stored with branch-scoped keys internally so two branches can both produce `result` without clobbering each other.
-
----
-
-## 4) Parameter sweeps (variants)
-
-Variants let you create many nodes with the same structure but different captured parameters. The graph builder will attach them to the same frontier and the executor will schedule them at the same level when possible.
-
-Example: run multipliers [2,3,5] in parallel and collect results.
-
----
-
-## 5) Data model
-
-`GraphData` provides typed containers: int, float, string, vectors, and Arc-backed large vectors for efficient sharing. Use `as_int()`, `as_float_vec()`, etc., to extract values in node functions.
-
----
-
-## 6) Advanced API surfaces
-
-- `Graph::add(function_handle, label, inputs, outputs)` — register a node
-- `Graph::branch(subgraph)` — attach a branch; returns `branch_id`
-- `Graph::merge(merge_fn, label, inputs, outputs)` — merge multiple branches
-- `Graph::variants(vec<NodeFunction>, ...)` — add multiple variant nodes
-- `graph.build()` → `Dag`
-- `Dag::execute(parallel, max_threads)` → context (HashMap)
-- `Dag::execute_detailed()` → `ExecutionResult` with `context`, `node_outputs`, `branch_outputs`
-
----
-
-## Examples & demos
-
-Full, runnable examples are under `examples/rs/`. Try them live:
+Run any example with:
 
 ```bash
-cargo run --example comprehensive_demo --release
+# Rust
+cargo run --example 01_minimal_pipeline --release
+cargo run --example 02_parallel_vs_sequential --release
+cargo run --example 03_branch_and_merge --release
+cargo run --example 04_variants_sweep --release
+cargo run --example 05_output_access --release
+cargo run --example 06_graphdata_large_payload_arc_or_shared_data --release
+
+# Python
+python3 examples/py/01_minimal_pipeline.py
+python3 examples/py/02_parallel_vs_sequential.py
+python3 examples/py/03_branch_and_merge.py
+python3 examples/py/04_variants_sweep.py
+python3 examples/py/05_output_access.py
+python3 examples/py/06_graphdata_large_payload_arc_or_shared_data.py
 ```
 
-Mermaid diagrams (captured from `cargo run --example comprehensive_demo`) — use these to visualize the examples:
+### Example 01: Minimal Pipeline
 
-Demo 1 (Minimal pipeline):
+The simplest possible DAG: generator → transformer → aggregator.
+
+**Rust output:**
+
+```
+════════════════════════════════════════════════════════════
+  Example 01: Minimal Pipeline
+════════════════════════════════════════════════════════════
+
+📖 Story:
+   This example shows the simplest possible DAG pipeline:
+   A generator creates a number, a transformer doubles it,
+   and a final node adds five to produce the result.
+
+
+────────────────────────────────────────────────────────────
+Mermaid Diagram
+────────────────────────────────────────────────────────────
+
+graph TD
+    0["Generator"]
+    1["Doubler"]
+    2["AddFive"]
+    0 -->|x → x| 1
+    1 -->|y → y| 2
+
+
+────────────────────────────────────────────────────────────
+ASCII Visualization
+────────────────────────────────────────────────────────────
+
+  Generator → Doubler → AddFive
+     (10)       (20)       (25)
+
+────────────────────────────────────────────────────────────
+Execution
+────────────────────────────────────────────────────────────
+
+⏱️  Runtime: 0.012ms
+💾 Memory: RSS: 2080 kB
+
+────────────────────────────────────────────────────────────
+Results
+────────────────────────────────────────────────────────────
+
+✅ Final output: 25
+   (Started with 10, doubled to 20, added 5 = 25)
+```
+
+### Example 02: Parallel vs Sequential Execution
+
+Demonstrates the power of parallel execution for independent tasks.
+
+**Key insight:** Three tasks that each take ~50ms run in ~150ms sequentially but only ~50ms in parallel—a **3x speedup**!
+
+**Rust output:**
+
+```
+⚡ Speedup: 2.98x faster with parallel execution!
+```
+
+### Example 03: Branch and Merge
+
+Fan-out (branching) and fan-in (merging) patterns for complex workflows.
+
+**Mermaid diagram:**
 
 ```
 graph TD
-        0["Source"]
-        1["Double"]
-        0 -->|n → x| 1
+    0["Source"]
+    1["PathA (+10)"]
+    2["PathB (+20)"]
+    5["Merge"]
+    0 -->|x → x| 1
+    0 -->|x → x| 2
+    1 --> 5
+    2 --> 5
 ```
 
-Demo 2 (Parallel branching) — simplified mermaid:
+**Result:** 50 → PathA(60) + PathB(70) → Merge(130)
+
+### Example 04: Variants (Parameter Sweep)
+
+Run multiple variants in parallel—perfect for hyperparameter tuning or A/B testing.
+
+**Rust output:**
 
 ```
-graph TD
-        0["Source"]
-        1["Statistics"]
-        2["MLModel"]
-        3["Visualization"]
-        0 -->|data → input| 1
-        0 -->|data → input| 2
-        0 -->|data → input| 3
+📊 Base value: 10
+
+Detailed variant outputs:
+  Variant 0 (×2): 20
+  Variant 1 (×3): 30
+  Variant 2 (×5): 50
+  Variant 3 (×7): 70
+
+✅ All 4 variants executed successfully!
 ```
 
-Demo 3 (Branching + Merging):
+### Example 05: Output Access
+
+Access intermediate results and branch outputs, not just final values.
+
+**Rust output:**
 
 ```
-graph TD
-        0["Source"]
-        1["PathA (+10)"]
-        2["PathB (+20)"]
-        5["Merge"]
-        0 -->|data → x| 1
-        0 -->|data → x| 2
-        1 --> 5
-        2 --> 5
+📊 Accessing different output levels:
+
+1. Final context outputs:
+   output: 351
+
+2. Individual node outputs:
+   Total nodes executed: 6
+
+3. Branch-specific outputs:
+   Total branches: 2
+   Branch 1:
+     result_a: 200
+   Branch 2:
+     result_b: 150
 ```
 
-Demo 4 (Variants):
+### Example 06: Zero-Copy Data Sharing
+
+Large data is automatically wrapped in `Arc` for efficient sharing without copying.
+
+**Key insight:** A 1M integer vector is created once and shared by reference across all consumers. No data duplication!
+
+**Rust output:**
 
 ```
-graph TD
-        0["DataSource"]
-        1["ScaleLR (v0)"]
-        2["ScaleLR (v1)"]
-        3["ScaleLR (v2)"]
-        4["ScaleLR (v3)"]
-        0 -->|data → input| 1
-        0 -->|data → input| 2
-        0 -->|data → input| 3
-        0 -->|data → input| 4
+⏱️  Runtime: 1.658ms
+💾 Memory: RSS: 10212 kB
+
+📊 Consumer outputs (each processes different segments):
+   ConsumerA (first 1000):  sum = 499500
+   ConsumerB (next 1000):   sum = 1499500
+   ConsumerC (next 1000):   sum = 2499500
+
+✅ Zero-copy data sharing successful!
 ```
 
-Complex graph (all features):
+## 🔧 Core API
 
+### Graph Builder
+
+```rust
+use dagex::{Graph, GraphData};
+use std::sync::Arc;
+
+let mut graph = Graph::new();
+
+// Add a node
+graph.add(
+    Arc::new(function),      // Function handle
+    Some("NodeLabel"),       // Optional label
+    Some(vec![("in", "x")]), // Input mapping: broadcast → impl
+    Some(vec![("out", "y")]) // Output mapping: impl → broadcast
+);
+
+// Create a branch
+let branch_id = graph.branch(subgraph);
+
+// Merge branches
+graph.merge(
+    merge_function,
+    Some("Merge"),
+    vec![(branch_id_a, "out_a", "in_a"), (branch_id_b, "out_b", "in_b")],
+    Some(vec![("result", "final")])
+);
+
+// Add variants (parameter sweep)
+graph.variants(
+    vec![func1, func2, func3],
+    Some("Variants"),
+    Some(vec![("input", "x")]),
+    Some(vec![("output", "results")])
+);
+
+// Build and execute
+let dag = graph.build();
+let context = dag.execute(parallel, max_threads);
 ```
-graph TD
-        0["Ingest"]
-        1["Preprocess"]
-        2["Stats"]
-        3["ML"]
-        6["Combine"]
-        7["Format"]
-        0 -->|data → raw| 1
-        1 -->|clean_data → data| 2
-        1 -->|clean_data → data| 3
-        2 --> 6
-        3 --> 6
-        6 -->|final_report → report| 7
+
+### GraphData Types
+
+```rust
+GraphData::int(42)                    // i64
+GraphData::float(3.14)                // f64
+GraphData::string("hello")            // String
+GraphData::int_vec(vec![1,2,3])       // Arc<Vec<i64>>
+GraphData::float_vec(vec![1.0,2.0])   // Arc<Vec<f64>>
+GraphData::map(HashMap::new())        // Nested data
 ```
 
-## Python bindings and PyPI
+### Execution
 
-This repository exposes the same functionality to Python; see `README_PYPI.md` for the PyPI-oriented guide.
+```rust
+// Simple execution
+let context = dag.execute(parallel: bool, max_threads: Option<usize>);
+let result = context.get("output_name").unwrap().as_int().unwrap();
+
+// Detailed execution (access per-node and per-branch outputs)
+let exec_result = dag.execute_detailed(parallel, max_threads);
+let final_context = exec_result.context;
+let node_outputs = exec_result.node_outputs;
+let branch_outputs = exec_result.branch_outputs;
+```
+
+## 🐍 Python Usage
+
+See [`README_PYPI.md`](README_PYPI.md) for Python-specific documentation with examples and API reference.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Add tests for new features in `tests/`
+2. Add examples under `examples/rs/` and `examples/py/`
+3. Update documentation as needed
+4. Run `cargo test` and verify examples work
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## 🔗 Links
+
+- **Crate:** https://crates.io/crates/dagex
+- **Documentation:** https://docs.rs/dagex
+- **Repository:** https://github.com/briday1/graph-sp
+- **Python Package:** https://pypi.org/project/dagex
 
 ---
 
-## Contributing
-
-Contributions welcome. If you fix or extend branching/merging semantics or add new GraphData types, please add tests in `tests/` and examples under `examples/`.
-
-## License
-
-MIT
-
----
-
-<div align="center">Built with ❤️ in Rust — star the repo if you like it!</div>
+<div align="center">Built with ❤️ in Rust — star the repo if you find it useful!</div>

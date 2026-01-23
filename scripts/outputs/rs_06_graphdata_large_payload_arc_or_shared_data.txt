@@ -1,0 +1,78 @@
+warning: field `label` is never read
+  --> examples/rs/benchmark_utils.rs:46:5
+   |
+44 | pub struct Benchmark {
+   |            --------- field in this struct
+45 |     start: Instant,
+46 |     label: String,
+   |     ^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `dagex` (example "06_graphdata_large_payload_arc_or_shared_data") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 0.01s
+     Running `target/release/examples/06_graphdata_large_payload_arc_or_shared_data`
+
+════════════════════════════════════════════════════════════
+  Example 06: GraphData with Arc (Large Payload Sharing)
+════════════════════════════════════════════════════════════
+
+📖 Story:
+   When working with large data, copying it between nodes is expensive.
+   GraphData automatically wraps large vectors (int_vec, float_vec) in Arc
+   for zero-copy sharing. Multiple nodes can read the same data without
+   duplication, saving both time and memory.
+
+
+────────────────────────────────────────────────────────────
+Building the Graph
+────────────────────────────────────────────────────────────
+
+
+────────────────────────────────────────────────────────────
+Mermaid Diagram
+────────────────────────────────────────────────────────────
+
+graph TD
+    0["CreateLargeData"]
+    1["ConsumerA"]
+    2["ConsumerB"]
+    3["ConsumerC"]
+    0 -->|data → data| 1
+    0 -->|data → data| 2
+    0 -->|data → data| 3
+
+
+────────────────────────────────────────────────────────────
+ASCII Visualization
+────────────────────────────────────────────────────────────
+
+                      ConsumerA
+                     /
+  CreateLargeData  -- ConsumerB
+   (1M integers)    \
+                      ConsumerC
+
+────────────────────────────────────────────────────────────
+Execution
+────────────────────────────────────────────────────────────
+
+💡 Key insight: The large data (1M integers) is created once
+   and shared via Arc. No copies are made when distributing
+   to multiple consumers.
+
+⏱️  Runtime: 1.585ms
+💾 Memory: RSS: 10212 kB
+
+────────────────────────────────────────────────────────────
+Results
+────────────────────────────────────────────────────────────
+
+📊 Consumer outputs (each processes different segments):
+   ConsumerA (first 1000):  sum = 499500
+   ConsumerB (next 1000):   sum = 1499500
+   ConsumerC (next 1000):   sum = 2499500
+
+✅ Zero-copy data sharing successful!
+   Memory benefit: Only 1 copy of data exists, shared by all consumers
+

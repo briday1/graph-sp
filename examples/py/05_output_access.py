@@ -1,6 +1,7 @@
 """Example 05: Output Access
 
-Demonstrates accessing individual node and branch outputs
+Demonstrates accessing outputs in Python. Note: Python bindings primarily
+expose the context (final outputs). This example shows branching and data flow.
 """
 
 import sys
@@ -27,10 +28,11 @@ def processor_b(inputs):
     return {"processed": value + 50}
 
 
-def final_node(inputs):
-    """Final processing node."""
-    value = inputs.get("x", 0)
-    return {"final": value + 1}
+def combine(inputs):
+    """Combine outputs from branches."""
+    a = inputs.get("a", 0)
+    b = inputs.get("b", 0)
+    return {"final": a + b + 1}
 
 
 def main():
@@ -60,7 +62,7 @@ def main():
         processor_a,
         label="ProcessorA",
         inputs=[("input", "input")],
-        outputs=[("processed", "result")]
+        outputs=[("processed", "a")]
     )
     branch_a_id = graph.branch(branch_a)
     
@@ -70,15 +72,15 @@ def main():
         processor_b,
         label="ProcessorB",
         inputs=[("input", "input")],
-        outputs=[("processed", "result")]
+        outputs=[("processed", "b")]
     )
     branch_b_id = graph.branch(branch_b)
     
-    # Add final node that consumes from branch A
+    # Add combine node
     graph.add(
-        final_node,
-        label="FinalNode",
-        inputs=[(branch_a_id, "result", "x")],
+        combine,
+        label="Combine",
+        inputs=[("a", "a"), ("b", "b")],
         outputs=[("final", "output")]
     )
     
@@ -108,7 +110,7 @@ def main():
     print("   Source: 100")
     print("   ProcessorA (branch A): 100 × 2 = 200")
     print("   ProcessorB (branch B): 100 + 50 = 150")
-    print("   FinalNode: 200 + 1 = 201")
+    print("   Combine: 200 + 150 + 1 = 351")
     
     print("\n✅ Successfully accessed outputs!")
     

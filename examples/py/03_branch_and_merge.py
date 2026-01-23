@@ -1,6 +1,7 @@
 """Example 03: Branch and Merge
 
-Demonstrates fan-out (branching) and fan-in (merging) patterns
+Demonstrates fan-out (branching) patterns. Note: Python bindings don't currently
+expose the merge API, so this example shows branching without explicit merging.
 """
 
 import sys
@@ -27,10 +28,11 @@ def path_b(inputs):
     return {"result": value + 20}
 
 
-def merge(inputs):
-    """Merge results from both paths."""
-    a = inputs.get("from_a", 0)
-    b = inputs.get("from_b", 0)
+def combine(inputs):
+    """Combine results from branches."""
+    # In absence of merge API, we combine sequentially
+    a = inputs.get("a", 0)
+    b = inputs.get("b", 0)
     return {"combined": a + b}
 
 
@@ -39,9 +41,8 @@ def main():
     
     print("📖 Story:")
     print("   Fan-out (branch): Create independent subgraphs that run in parallel.")
-    print("   Fan-in (merge): Combine branch-specific outputs safely.")
-    print("   This pattern is useful for processing data through multiple")
-    print("   independent pipelines and then combining the results.\n")
+    print("   This example demonstrates branching. Note: Python bindings don't")
+    print("   currently expose a direct merge API, so we combine results manually.\n")
     
     print_section("Building the Graph")
     
@@ -61,7 +62,7 @@ def main():
         path_a,
         label="PathA (+10)",
         inputs=[("x", "x")],
-        outputs=[("result", "result")]
+        outputs=[("result", "a")]
     )
     branch_a_id = graph.branch(branch_a)
     
@@ -71,18 +72,15 @@ def main():
         path_b,
         label="PathB (+20)",
         inputs=[("x", "x")],
-        outputs=[("result", "result")]
+        outputs=[("result", "b")]
     )
     branch_b_id = graph.branch(branch_b)
     
-    # Merge branches
-    graph.merge(
-        merge,
-        label="Merge",
-        inputs=[
-            (branch_a_id, "result", "from_a"),
-            (branch_b_id, "result", "from_b"),
-        ],
+    # Add combine node
+    graph.add(
+        combine,
+        label="Combine",
+        inputs=[("a", "a"), ("b", "b")],
         outputs=[("combined", "final")]
     )
     
@@ -94,13 +92,13 @@ def main():
     print_section("ASCII Visualization")
     print("          PathA (+10) ──┐")
     print("         /                \\")
-    print("  Source                   Merge")
+    print("  Source                   Combine")
     print("         \\                /")
     print("          PathB (+20) ──┘")
     
     print_section("Execution")
     
-    with Benchmark("Branch and merge execution") as bench:
+    with Benchmark("Branch execution") as bench:
         context = dag.execute(parallel=True, max_threads=4)
     
     bench.print_result()
@@ -111,7 +109,7 @@ def main():
     print("   Source: 50")
     print("   PathA: 50 + 10 = 60")
     print("   PathB: 50 + 20 = 70")
-    print("   Merge: 60 + 70 = 130")
+    print("   Combine: 60 + 70 = 130")
     
     output = context.get("final")
     if output is not None:

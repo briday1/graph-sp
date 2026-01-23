@@ -28,13 +28,6 @@ fn processor_b(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData
     outputs
 }
 
-fn final_node(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
-    let value = inputs.get("x").and_then(|d| d.as_int()).unwrap_or(0);
-    let mut outputs = HashMap::new();
-    outputs.insert("final".to_string(), GraphData::int(value + 1));
-    outputs
-}
-
 fn main() {
     print_header("Example 05: Output Access");
     
@@ -62,7 +55,7 @@ fn main() {
         Arc::new(processor_a),
         Some("ProcessorA"),
         Some(vec![("input", "input")]),
-        Some(vec![("processed", "result")])
+        Some(vec![("processed", "result_a")])
     );
     let branch_a_id = graph.branch(branch_a);
     
@@ -72,15 +65,24 @@ fn main() {
         Arc::new(processor_b),
         Some("ProcessorB"),
         Some(vec![("input", "input")]),
-        Some(vec![("processed", "result")])
+        Some(vec![("processed", "result_b")])
     );
     let branch_b_id = graph.branch(branch_b);
     
-    // Add final node that consumes from branch A
-    graph.add(
-        Arc::new(final_node),
-        Some("FinalNode"),
-        Some(vec![(branch_a_id, "result", "x")]),
+    // Merge branches
+    graph.merge(
+        |inputs: &HashMap<String, GraphData>| -> HashMap<String, GraphData> {
+            let a = inputs.get("from_a").and_then(|d| d.as_int()).unwrap_or(0);
+            let b = inputs.get("from_b").and_then(|d| d.as_int()).unwrap_or(0);
+            let mut outputs = HashMap::new();
+            outputs.insert("final".to_string(), GraphData::int(a + b + 1));
+            outputs
+        },
+        Some("MergeNode"),
+        vec![
+            (branch_a_id, "result_a", "from_a"),
+            (branch_b_id, "result_b", "from_b"),
+        ],
         Some(vec![("final", "output")])
     );
     

@@ -13,8 +13,8 @@ fn create_large_data(_inputs: &HashMap<String, GraphData>) -> HashMap<String, Gr
     let large_vec: Vec<i64> = (0..1_000_000).collect();
     
     let mut outputs = HashMap::new();
-    // Store using Arc to enable zero-copy sharing
-    outputs.insert("large_data".to_string(), GraphData::arc_int_vec(large_vec));
+    // Store using Arc (int_vec automatically wraps in Arc)
+    outputs.insert("large_data".to_string(), GraphData::int_vec(large_vec));
     outputs
 }
 
@@ -22,7 +22,7 @@ fn consumer_a(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData>
     let mut outputs = HashMap::new();
     
     if let Some(data) = inputs.get("data") {
-        if let Some(vec) = data.as_arc_int_vec() {
+        if let Some(vec) = data.as_int_vec() {
             // Access the data through Arc - no copying!
             let sum: i64 = vec.iter().take(1000).sum();
             outputs.insert("sum_a".to_string(), GraphData::int(sum));
@@ -36,7 +36,7 @@ fn consumer_b(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData>
     let mut outputs = HashMap::new();
     
     if let Some(data) = inputs.get("data") {
-        if let Some(vec) = data.as_arc_int_vec() {
+        if let Some(vec) = data.as_int_vec() {
             // Access the data through Arc - no copying!
             let sum: i64 = vec.iter().skip(1000).take(1000).sum();
             outputs.insert("sum_b".to_string(), GraphData::int(sum));
@@ -50,7 +50,7 @@ fn consumer_c(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData>
     let mut outputs = HashMap::new();
     
     if let Some(data) = inputs.get("data") {
-        if let Some(vec) = data.as_arc_int_vec() {
+        if let Some(vec) = data.as_int_vec() {
             // Access the data through Arc - no copying!
             let sum: i64 = vec.iter().skip(2000).take(1000).sum();
             outputs.insert("sum_c".to_string(), GraphData::int(sum));
@@ -65,7 +65,7 @@ fn main() {
     
     println!("📖 Story:");
     println!("   When working with large data, copying it between nodes is expensive.");
-    println!("   GraphData supports Arc-backed containers (arc_int_vec, arc_float_vec)");
+    println!("   GraphData automatically wraps large vectors (int_vec, float_vec) in Arc");
     println!("   for zero-copy sharing. Multiple nodes can read the same data without");
     println!("   duplication, saving both time and memory.\n");
     

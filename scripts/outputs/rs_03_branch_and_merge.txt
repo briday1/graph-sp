@@ -1,0 +1,83 @@
+warning: field `label` is never read
+  --> examples/rs/benchmark_utils.rs:46:5
+   |
+44 | pub struct Benchmark {
+   |            --------- field in this struct
+45 |     start: Instant,
+46 |     label: String,
+   |     ^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `dagex` (example "03_branch_and_merge") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 0.01s
+     Running `target/release/examples/03_branch_and_merge`
+
+════════════════════════════════════════════════════════════
+  Example 03: Branch and Merge
+════════════════════════════════════════════════════════════
+
+📖 Story:
+   Fan-out (branch): Create independent subgraphs that run in parallel.
+   Fan-in (merge): Combine branch-specific outputs safely.
+   This pattern is useful for processing data through multiple
+   independent pipelines and then combining the results.
+
+
+────────────────────────────────────────────────────────────
+Building the Graph
+────────────────────────────────────────────────────────────
+
+
+────────────────────────────────────────────────────────────
+Mermaid Diagram
+────────────────────────────────────────────────────────────
+
+graph TD
+    0["Source"]
+    1["PathA (+10)"]
+    2["PathB (+20)"]
+    3["PathA (+10)"]
+    4["PathB (+20)"]
+    5["Merge"]
+    0 -->|x → x| 1
+    0 -->|x → x| 2
+    0 -->|x → x| 3
+    0 -->|x → x| 4
+    3 --> 5
+    1 --> 5
+    2 --> 5
+    4 --> 5
+    style 1 fill:#e1f5ff
+    style 2 fill:#e1f5ff
+
+
+────────────────────────────────────────────────────────────
+ASCII Visualization
+────────────────────────────────────────────────────────────
+
+          PathA (+10) ──┐
+         /                \
+  Source                   Merge
+         \                /
+          PathB (+20) ──┘
+
+────────────────────────────────────────────────────────────
+Execution
+────────────────────────────────────────────────────────────
+
+⏱️  Runtime: 0.430ms
+💾 Memory: RSS: 2436 kB
+
+────────────────────────────────────────────────────────────
+Results
+────────────────────────────────────────────────────────────
+
+📊 Execution flow:
+   Source: 50
+   PathA: 50 + 10 = 60
+   PathB: 50 + 20 = 70
+   Merge: 60 + 70 = 130
+
+✅ Final output: 130
+

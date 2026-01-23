@@ -79,12 +79,12 @@ fn main() {
     
     // Merge branches
     graph.merge(
-        Arc::new(merge),
+        merge,
         Some("Merge"),
-        Some(vec![
+        vec![
             (branch_a_id, "result", "from_a"),
             (branch_b_id, "result", "from_b"),
-        ]),
+        ],
         Some(vec![("combined", "final")])
     );
     

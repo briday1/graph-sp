@@ -1,0 +1,88 @@
+warning: field `label` is never read
+  --> examples/rs/benchmark_utils.rs:46:5
+   |
+44 | pub struct Benchmark {
+   |            --------- field in this struct
+45 |     start: Instant,
+46 |     label: String,
+   |     ^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `dagex` (example "05_output_access") generated 1 warning
+    Finished `release` profile [optimized] target(s) in 0.01s
+     Running `target/release/examples/05_output_access`
+
+════════════════════════════════════════════════════════════
+  Example 05: Output Access
+════════════════════════════════════════════════════════════
+
+📖 Story:
+   Sometimes you need access to intermediate results, not just the
+   final outputs. The execute_detailed() method returns an ExecutionResult
+   with context (final outputs), node_outputs (per-node results), and
+   branch_outputs (per-branch results).
+
+
+────────────────────────────────────────────────────────────
+Building the Graph
+────────────────────────────────────────────────────────────
+
+
+────────────────────────────────────────────────────────────
+Mermaid Diagram
+────────────────────────────────────────────────────────────
+
+graph TD
+    0["Source"]
+    1["ProcessorA"]
+    2["ProcessorB"]
+    3["ProcessorA"]
+    4["ProcessorB"]
+    5["MergeNode"]
+    0 -->|input → input| 1
+    0 -->|input → input| 2
+    0 -->|input → input| 3
+    0 -->|input → input| 4
+    1 --> 5
+    3 --> 5
+    2 --> 5
+    4 --> 5
+    style 1 fill:#e1f5ff
+    style 2 fill:#e1f5ff
+
+
+────────────────────────────────────────────────────────────
+Execution
+────────────────────────────────────────────────────────────
+
+⏱️  Runtime: 0.316ms
+💾 Memory: RSS: 2324 kB
+
+────────────────────────────────────────────────────────────
+Results
+────────────────────────────────────────────────────────────
+
+📊 Accessing different output levels:
+
+1. Final context outputs:
+   output: 351
+
+2. Individual node outputs:
+   Total nodes executed: 6
+   Node 1: 1 outputs
+   Node 5: 1 outputs
+   Node 2: 1 outputs
+   Node 0: 1 outputs
+   Node 3: 1 outputs
+   Node 4: 1 outputs
+
+3. Branch-specific outputs:
+   Total branches: 2
+   Branch 2:
+     result_b: 150
+   Branch 1:
+     result_a: 200
+
+✅ Successfully accessed all output levels!
+

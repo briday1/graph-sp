@@ -52,4 +52,4 @@ jobs:
 
       - name: Run python example (smoke)
         run: |
-          python examples/py/python_demo.py
+          python examples/py/01_minimal_pipeline.py
