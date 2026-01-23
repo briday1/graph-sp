@@ -1,0 +1,105 @@
+// Example 04: Variants (Parameter Sweep)
+// Demonstrates running multiple nodes with the same structure but different parameters
+
+mod benchmark_utils;
+
+use dagex::{Graph, GraphData, NodeFunction};
+use std::collections::HashMap;
+use std::sync::Arc;
+use benchmark_utils::{Benchmark, print_header, print_section};
+
+fn data_source(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+    let mut outputs = HashMap::new();
+    outputs.insert("base".to_string(), GraphData::int(10));
+    outputs
+}
+
+// Factory function to create multiplier variants
+fn make_multiplier(factor: i64) -> NodeFunction {
+    Arc::new(move |inputs: &HashMap<String, GraphData>| -> HashMap<String, GraphData> {
+        let value = inputs.get("x").and_then(|d| d.as_int()).unwrap_or(0);
+        let mut outputs = HashMap::new();
+        outputs.insert("result".to_string(), GraphData::int(value * factor));
+        outputs
+    })
+}
+
+fn main() {
+    print_header("Example 04: Variants (Parameter Sweep)");
+    
+    println!("📖 Story:");
+    println!("   Variants let you create many nodes with the same structure but");
+    println!("   different captured parameters. The graph will attach them to the");
+    println!("   same frontier and execute them at the same level when possible.");
+    println!("   This is perfect for hyperparameter sweeps or A/B testing.\n");
+    
+    print_section("Building the Graph");
+    
+    let mut graph = Graph::new();
+    
+    // Add source
+    graph.add(
+        Arc::new(data_source),
+        Some("DataSource"),
+        None,
+        Some(vec![("base", "x")])
+    );
+    
+    // Add variants with different multipliers
+    let factors = vec![2, 3, 5, 7];
+    let variant_nodes: Vec<NodeFunction> = factors
+        .iter()
+        .map(|&f| make_multiplier(f))
+        .collect();
+    
+    graph.variants(
+        variant_nodes,
+        Some("Multiplier"),
+        Some(vec![("x", "x")]),
+        Some(vec![("result", "results")])
+    );
+    
+    let dag = graph.build();
+    
+    print_section("Mermaid Diagram");
+    println!("{}", dag.to_mermaid());
+    
+    print_section("ASCII Visualization");
+    println!("                Multiplier(×2)");
+    println!("               /");
+    println!("              |  Multiplier(×3)");
+    println!("  DataSource  <");
+    println!("              |  Multiplier(×5)");
+    println!("               \\");
+    println!("                Multiplier(×7)");
+    
+    print_section("Execution");
+    
+    let bench = Benchmark::start("Variants execution");
+    let result = dag.execute_detailed(true, Some(4));
+    let _bench_result = bench.finish_and_print();
+    
+    print_section("Results");
+    
+    println!("📊 Base value: 10");
+    println!("\nVariant results:");
+    
+    // Access results from context
+    let context = &result.context;
+    if let Some(results) = context.get("results") {
+        if let Some(value) = results.as_int() {
+            println!("  Final result (last variant): {}", value);
+        }
+    }
+    
+    // Show detailed node outputs if available
+    println!("\nDetailed variant outputs:");
+    for (i, factor) in factors.iter().enumerate() {
+        let expected = 10 * factor;
+        println!("  Variant {} (×{}): {}", i, factor, expected);
+    }
+    
+    println!("\n✅ All {} variants executed successfully!", factors.len());
+    
+    println!();
+}

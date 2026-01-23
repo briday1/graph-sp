@@ -29,75 +29,25 @@ name = "dagex"
 crate-type = ["cdylib", "rlib"]
 
 [[example]]
-name = "comprehensive_demo"
-path = "examples/rs/comprehensive_demo.rs"
+name = "01_minimal_pipeline"
+path = "examples/rs/01_minimal_pipeline.rs"
 
 [[example]]
-name = "data_types_demo"
-path = "examples/rs/data_types_demo.rs"
+name = "02_parallel_vs_sequential"
+path = "examples/rs/02_parallel_vs_sequential.rs"
 
 [[example]]
-name = "output_access_demo"
-path = "examples/rs/output_access_demo.rs"
+name = "03_branch_and_merge"
+path = "examples/rs/03_branch_and_merge.rs"
 
 [[example]]
-name = "parallel_execution_demo"
-path = "examples/rs/parallel_execution_demo.rs"
+name = "04_variants_sweep"
+path = "examples/rs/04_variants_sweep.rs"
 
 [[example]]
-name = "per_node_output_access"
-path = "examples/rs/per_node_output_access.rs"
+name = "05_output_access"
+path = "examples/rs/05_output_access.rs"
 
 [[example]]
-name = "radar_demo"
-path = "examples/rs/radar_demo.rs"
-
-[[example]]
-name = "radar_demo_with_plots"
-path = "examples/rs/radar_demo_with_plots.rs"
-required-features = ["radar_examples"]
-
-[[example]]
-name = "tuple_api_demo"
-path = "examples/rs/tuple_api_demo.rs"
-
-[[example]]
-name = "variant_demo"
-path = "examples/rs/variant_demo.rs"
-
-[[example]]
-name = "variant_behavior_test"
-path = "examples/rs/variant_behavior_test.rs"
-
-[[example]]
-name = "simple_frontier_test"
-path = "examples/rs/simple_frontier_test.rs"
-
-[[example]]
-name = "parallel_timing_demo"
-path = "examples/rs/parallel_timing_demo.rs"
-
-[[example]]
-name = "dynamic_variants_demo"
-path = "examples/rs/dynamic_variants_demo.rs"
-
-[[example]]
-name = "pointer_tracking_demo"
-path = "examples/rs/pointer_tracking_demo.rs"
-
-# Disabled - requires optional tikv-jemallocator dependency
-# [[example]]
-# name = "memory_tracking_demo"
-# path = "examples/rs/memory_tracking_demo.rs"
-
-[[example]]
-name = "selective_data_demo"
-path = "examples/rs/selective_data_demo.rs"
-
-[[example]]
-name = "arc_graphdata_demo"
-path = "examples/rs/arc_graphdata_demo.rs"
-
-[[example]]
-name = "arc_benchmark_demo"
-path = "examples/rs/arc_benchmark_demo.rs"
+name = "06_graphdata_large_payload_arc_or_shared_data"
+path = "examples/rs/06_graphdata_large_payload_arc_or_shared_data.rs"
