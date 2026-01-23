@@ -270,7 +270,7 @@ impl Graph {
 
         // function_handle is already Arc<dyn Fn>, so we can clone it directly
         let func_arc: crate::node::NodeFunction = function_handle;
-        for parent in parents {
+        for _parent in parents {
             let id = self.next_id;
             self.next_id += 1;
 
@@ -282,13 +282,14 @@ impl Graph {
                 output_mapping.clone(),
             );
 
-            // Connect to merge targets if present, otherwise to the parent (if any)
+            // Connect to merge targets if present
+            // For branch operations, we still use explicit parent connections
             if !self.merge_targets.is_empty() {
                 node.dependencies.extend(self.merge_targets.iter().copied());
                 self.merge_targets.clear();
-            } else if let Some(pid) = parent {
-                node.dependencies.push(pid);
             }
+            // Note: We no longer automatically add frontier dependencies here
+            // Dependencies will be resolved based on data flow in build()
 
             self.nodes.push(node);
             created_ids.push(id);
@@ -610,7 +611,54 @@ impl Graph {
             self.merge_branch(branch);
         }
 
+        // Resolve data dependencies based on input/output mappings
+        self.resolve_data_dependencies();
+
         Dag::new(self.nodes)
+    }
+
+    /// Resolve dependencies based on data flow (input/output mappings)
+    /// 
+    /// For each node, determine which other nodes it depends on by finding
+    /// nodes that produce the broadcast variables it consumes.
+    fn resolve_data_dependencies(&mut self) {
+        // Build a map of which nodes produce which broadcast variables
+        let mut producers: HashMap<String, Vec<NodeId>> = HashMap::new();
+        
+        for node in &self.nodes {
+            for broadcast_var in node.output_mapping.values() {
+                producers.entry(broadcast_var.clone())
+                    .or_insert_with(Vec::new)
+                    .push(node.id);
+            }
+        }
+
+        // For each node, find its dependencies based on required inputs
+        for i in 0..self.nodes.len() {
+            let node = &self.nodes[i];
+            let required_inputs: Vec<String> = node.input_mapping.keys().cloned().collect();
+            let node_id = node.id;
+            
+            let mut dependencies: HashSet<NodeId> = HashSet::new();
+            
+            // Keep any existing dependencies (from merge_targets or branches)
+            dependencies.extend(node.dependencies.iter().copied());
+            
+            // Add dependencies based on data flow
+            for broadcast_var in &required_inputs {
+                if let Some(producer_ids) = producers.get(broadcast_var) {
+                    for &producer_id in producer_ids {
+                        // Don't depend on ourselves
+                        if producer_id != node_id {
+                            dependencies.insert(producer_id);
+                        }
+                    }
+                }
+            }
+            
+            // Update the node's dependencies
+            self.nodes[i].dependencies = dependencies.into_iter().collect();
+        }
     }
 
     /// Merge a branch builder's nodes into this builder
