@@ -51,14 +51,14 @@ fn demo_sequential_vs_parallel() {
     // Branch A: 100ms work
     let mut branch_a = Graph::new();
     branch_a.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
                 let processed = simulate_work(100, data);
                 result.insert("result".to_string(), GraphData::string(processed));
             }
             result
-        },
+        }),
         Some("BranchA[100ms]"),
         Some(vec![("data", "input")]),
         Some(vec![("result", "result_a")]),
@@ -67,14 +67,14 @@ fn demo_sequential_vs_parallel() {
     // Branch B: 100ms work
     let mut branch_b = Graph::new();
     branch_b.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
                 let processed = simulate_work(100, data);
                 result.insert("result".to_string(), GraphData::string(processed));
             }
             result
-        },
+        }),
         Some("BranchB[100ms]"),
         Some(vec![("data", "input")]),
         Some(vec![("result", "result_b")]),
@@ -83,14 +83,14 @@ fn demo_sequential_vs_parallel() {
     // Branch C: 100ms work
     let mut branch_c = Graph::new();
     branch_c.add(
-        |inputs: &HashMap<String, GraphData>| {
+        Arc::new(|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(data) = inputs.get("input").and_then(|d| d.as_string()) {
                 let processed = simulate_work(100, data);
                 result.insert("result".to_string(), GraphData::string(processed));
             }
             result
-        },
+        }),
         Some("BranchC[100ms]"),
         Some(vec![("data", "input")]),
         Some(vec![("result", "result_c")]),
@@ -165,14 +165,14 @@ fn demo_many_parallel_nodes() {
     for i in 0..10 {
         let mut branch = Graph::new();
         branch.add(
-            move |inputs: &HashMap<String, GraphData>| {
+            Arc::new(move |inputs: &HashMap<String, GraphData>| {
                 let mut result = HashMap::new();
                 if let Some(val) = inputs.get("input").and_then(|d| d.as_int()) {
                     thread::sleep(Duration::from_millis(50));
                     result.insert("result".to_string(), GraphData::int(val + i));
                 }
                 result
-            },
+            }),
             Some(&format!("Worker{}[50ms]", i)),
             Some(vec![("data", "input")]),
             Some(vec![("result", &format!("result_{}", i))]),

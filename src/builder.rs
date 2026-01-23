@@ -6,164 +6,6 @@ use crate::node::{Node, NodeId};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-/// Trait for types that can be converted into variant values
-pub trait IntoVariantValues {
-    fn into_variant_values(self) -> Vec<String>;
-}
-
-/// Implement for Vec<String> - direct list of values
-impl IntoVariantValues for Vec<String> {
-    fn into_variant_values(self) -> Vec<String> {
-        self
-    }
-}
-
-/// Implement for Vec<&str> - direct list of string slices
-impl IntoVariantValues for Vec<&str> {
-    fn into_variant_values(self) -> Vec<String> {
-        self.into_iter().map(|s| s.to_string()).collect()
-    }
-}
-
-/// Implement for Vec<f64> - list of numeric values
-impl IntoVariantValues for Vec<f64> {
-    fn into_variant_values(self) -> Vec<String> {
-        self.into_iter().map(|v| v.to_string()).collect()
-    }
-}
-
-/// Implement for Vec<i32> - list of integer values
-impl IntoVariantValues for Vec<i32> {
-    fn into_variant_values(self) -> Vec<String> {
-        self.into_iter().map(|v| v.to_string()).collect()
-    }
-}
-
-/// Helper struct for linearly spaced values
-pub struct Linspace {
-    start: f64,
-    end: f64,
-    count: usize,
-}
-
-impl Linspace {
-    pub fn new(start: f64, end: f64, count: usize) -> Self {
-        Self { start, end, count }
-    }
-}
-
-impl IntoVariantValues for Linspace {
-    fn into_variant_values(self) -> Vec<String> {
-        if self.count == 0 {
-            return Vec::new();
-        }
-
-        let step = if self.count > 1 {
-            (self.end - self.start) / (self.count - 1) as f64
-        } else {
-            0.0
-        };
-
-        (0..self.count)
-            .map(|i| {
-                let value = self.start + step * i as f64;
-                value.to_string()
-            })
-            .collect()
-    }
-}
-
-/// Helper struct for logarithmically spaced values
-pub struct Logspace {
-    start: f64,
-    end: f64,
-    count: usize,
-}
-
-impl Logspace {
-    pub fn new(start: f64, end: f64, count: usize) -> Self {
-        Self { start, end, count }
-    }
-}
-
-impl IntoVariantValues for Logspace {
-    fn into_variant_values(self) -> Vec<String> {
-        if self.count == 0 || self.start <= 0.0 || self.end <= 0.0 {
-            return Vec::new();
-        }
-
-        let log_start = self.start.ln();
-        let log_end = self.end.ln();
-        let step = if self.count > 1 {
-            (log_end - log_start) / (self.count - 1) as f64
-        } else {
-            0.0
-        };
-
-        (0..self.count)
-            .map(|i| {
-                let value = (log_start + step * i as f64).exp();
-                value.to_string()
-            })
-            .collect()
-    }
-}
-
-/// Helper struct for geometric progression
-pub struct Geomspace {
-    start: f64,
-    ratio: f64,
-    count: usize,
-}
-
-impl Geomspace {
-    pub fn new(start: f64, ratio: f64, count: usize) -> Self {
-        Self {
-            start,
-            ratio,
-            count,
-        }
-    }
-}
-
-impl IntoVariantValues for Geomspace {
-    fn into_variant_values(self) -> Vec<String> {
-        (0..self.count)
-            .map(|i| {
-                let value = self.start * self.ratio.powi(i as i32);
-                value.to_string()
-            })
-            .collect()
-    }
-}
-
-/// Helper struct for custom generator functions
-pub struct Generator<F>
-where
-    F: Fn(usize) -> String,
-{
-    count: usize,
-    generator: F,
-}
-
-impl<F> Generator<F>
-where
-    F: Fn(usize) -> String,
-{
-    pub fn new(count: usize, generator: F) -> Self {
-        Self { count, generator }
-    }
-}
-
-impl<F> IntoVariantValues for Generator<F>
-where
-    F: Fn(usize) -> String,
-{
-    fn into_variant_values(self) -> Vec<String> {
-        (0..self.count).map(|i| (self.generator)(i)).collect()
-    }
-}
-
 /// Graph builder for constructing graphs with implicit node connections
 pub struct Graph {
     /// All nodes in the graph
@@ -496,6 +338,9 @@ impl Graph {
     /// After branching, use `.merge()` to bring parallel paths back to a single point.
     /// The merge function receives outputs from all specified branches and combines them.
     ///
+    /// Branch nodes write their outputs with branch-prefixed keys in the global context
+    /// to avoid conflicts, allowing merge nodes to correctly retrieve branch-specific values.
+    ///
     /// # Arguments
     ///
     /// * `merge_fn` - Function that combines outputs from all branches
@@ -645,7 +490,15 @@ impl Graph {
             dependencies.extend(node.dependencies.iter().copied());
             
             // Add dependencies based on data flow
-            for broadcast_var in &required_inputs {
+            for input_key in &required_inputs {
+                // Handle merge node special format: "branch_id:broadcast_var"
+                let broadcast_var = if input_key.contains(':') {
+                    // For merge nodes, extract the broadcast_var part after ':'
+                    input_key.split(':').nth(1).unwrap_or(input_key.as_str())
+                } else {
+                    input_key.as_str()
+                };
+                
                 if let Some(producer_ids) = producers.get(broadcast_var) {
                     for &producer_id in producer_ids {
                         // Don't depend on ourselves

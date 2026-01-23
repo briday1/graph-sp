@@ -67,13 +67,29 @@ impl Node {
     pub fn execute(&self, context: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
         // Map broadcast context vars to impl vars using input_mapping
         // input_mapping: broadcast_var -> impl_var
+        // Special case: For merge nodes, broadcast_var may be "branch_id:var_name"
         let inputs: HashMap<String, GraphData> = self
             .input_mapping
             .iter()
-            .filter_map(|(broadcast_var, impl_var)| {
-                context
-                    .get(broadcast_var)
-                    .map(|val| (impl_var.clone(), val.clone()))
+            .filter_map(|(broadcast_key, impl_var)| {
+                // Handle merge node special format: "branch_id:broadcast_var"
+                if broadcast_key.contains(':') {
+                    // Parse "branch_id:var_name" and look for "__branch_{id}__{var}"
+                    let parts: Vec<&str> = broadcast_key.split(':').collect();
+                    if parts.len() == 2 {
+                        let prefixed_key = format!("__branch_{}__{}",  parts[0], parts[1]);
+                        context
+                            .get(&prefixed_key)
+                            .map(|val| (impl_var.clone(), val.clone()))
+                    } else {
+                        None
+                    }
+                } else {
+                    // Normal case: direct lookup
+                    context
+                        .get(broadcast_key)
+                        .map(|val| (impl_var.clone(), val.clone()))
+                }
             })
             .collect();
 

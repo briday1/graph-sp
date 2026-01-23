@@ -198,7 +198,15 @@ impl Dag {
                     let outputs = node.execute(&result.context);
 
                     // Store outputs in global context
-                    result.context.extend(outputs.clone());
+                    // For branch nodes, prefix keys with branch_id to avoid conflicts
+                    if let Some(branch_id) = node.branch_id {
+                        for (key, value) in &outputs {
+                            let prefixed_key = format!("__branch_{}__{}",  branch_id, key);
+                            result.context.insert(prefixed_key, value.clone());
+                        }
+                    } else {
+                        result.context.extend(outputs.clone());
+                    }
 
                     // Store outputs per node (using broadcast variable names from output_mapping)
                     result.node_outputs.insert(node_id, outputs.clone());
@@ -223,7 +231,16 @@ impl Dag {
                     if let Some(node) = self.nodes.iter().find(|n| n.id == node_id) {
                         let outputs = node.execute(&result.context);
 
-                        result.context.extend(outputs.clone());
+                        // For branch nodes, prefix keys to avoid conflicts
+                        if let Some(branch_id) = node.branch_id {
+                            for (key, value) in &outputs {
+                                let prefixed_key = format!("__branch_{}__{}",  branch_id, key);
+                                result.context.insert(prefixed_key, value.clone());
+                            }
+                        } else {
+                            result.context.extend(outputs.clone());
+                        }
+                        
                         result.node_outputs.insert(node_id, outputs.clone());
 
                         if let Some(branch_id) = node.branch_id {
@@ -273,7 +290,16 @@ impl Dag {
                     // Collect outputs from all parallel executions
                     let collected_outputs = outputs.lock().unwrap();
                     for (node_id, branch_id, node_outputs) in collected_outputs.iter() {
-                        result.context.extend(node_outputs.clone());
+                        // For branch nodes, prefix keys to avoid conflicts
+                        if let Some(bid) = branch_id {
+                            for (key, value) in node_outputs {
+                                let prefixed_key = format!("__branch_{}__{}",  bid, key);
+                                result.context.insert(prefixed_key, value.clone());
+                            }
+                        } else {
+                            result.context.extend(node_outputs.clone());
+                        }
+                        
                         result.node_outputs.insert(*node_id, node_outputs.clone());
 
                         if let Some(bid) = branch_id {

@@ -9,7 +9,7 @@ and executing the DAG.
 
 import dagex
 
-def data_source(inputs, variant_params):
+def data_source(inputs, variant_params=None):
     """
     Simple data source that produces initial values.
     
@@ -23,7 +23,7 @@ def data_source(inputs, variant_params):
     print("Data source executing...")
     return {"output": "100"}
 
-def processor(inputs, variant_params):
+def processor(inputs, variant_params=None):
     """
     Process the input data.
     
@@ -39,7 +39,7 @@ def processor(inputs, variant_params):
     result = str(int(input_val) * 2)
     return {"result": result}
 
-def formatter(inputs, variant_params):
+def formatter(inputs, variant_params=None):
     """
     Format the result for display.
     

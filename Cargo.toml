@@ -85,9 +85,10 @@ path = "examples/rs/dynamic_variants_demo.rs"
 name = "pointer_tracking_demo"
 path = "examples/rs/pointer_tracking_demo.rs"
 
-[[example]]
-name = "memory_tracking_demo"
-path = "examples/rs/memory_tracking_demo.rs"
+# Disabled - requires optional tikv-jemallocator dependency
+# [[example]]
+# name = "memory_tracking_demo"
+# path = "examples/rs/memory_tracking_demo.rs"
 
 [[example]]
 name = "selective_data_demo"

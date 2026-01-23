@@ -1,4 +1,4 @@
-use dagex::{Graph, GraphData};
+use dagex::{Graph, GraphData, NodeFunction};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -31,13 +31,13 @@ fn main() {
         factors
             .iter()
             .map(|&factor| {
-                move |inputs: &HashMap<String, GraphData>| {
+                Arc::new(move |inputs: &HashMap<String, GraphData>| {
                     let mut outputs = HashMap::new();
                     if let Some(val) = inputs.get("x").and_then(|d| d.as_int()) {
                         outputs.insert("result".to_string(), GraphData::int(val * factor));
                     }
                     outputs
-                }
+                }) as NodeFunction
             })
             .collect(),
         Some("Scale"),
@@ -65,11 +65,11 @@ fn main() {
     let mut graph2 = Graph::new();
 
     graph2.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("x".to_string(), GraphData::int(2));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("x", "number")]),
@@ -80,13 +80,13 @@ fn main() {
         exponents
             .iter()
             .map(|&exp| {
-                move |inputs: &HashMap<String, GraphData>| {
+                Arc::new(move |inputs: &HashMap<String, GraphData>| {
                     let mut outputs = HashMap::new();
                     if let Some(val) = inputs.get("n").and_then(|d| d.as_int()) {
                         outputs.insert("powered".to_string(), GraphData::int(val.pow(exp as u32)));
                     }
                     outputs
-                }
+                }) as NodeFunction
             })
             .collect(),
         Some("Power"),
@@ -112,11 +112,11 @@ fn main() {
     let mut graph3 = Graph::new();
 
     graph3.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("base".to_string(), GraphData::float(100.0));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("base", "value")]),
@@ -128,13 +128,13 @@ fn main() {
         (0..steps)
             .map(|i| {
                 let factor = 0.5 + (i as f64) * 0.25;
-                move |inputs: &HashMap<String, GraphData>| {
+                Arc::new(move |inputs: &HashMap<String, GraphData>| {
                     let mut outputs = HashMap::new();
                     if let Some(val) = inputs.get("v").and_then(|d| d.as_float()) {
                         outputs.insert("scaled".to_string(), GraphData::float(val * factor));
                     }
                     outputs
-                }
+                }) as NodeFunction
             })
             .collect(),
         Some("LinearScale"),

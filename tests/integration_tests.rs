@@ -1,6 +1,6 @@
 //! Integration tests for graph-sp
 
-use dagex::{Graph, GraphData, Linspace, NodeFunction};
+use dagex::{Graph, GraphData};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -117,7 +117,6 @@ fn test_branching() {
 }
 
 #[test]
-#[ignore] // TODO: Merge functionality needs special handling for branch-specific inputs
 fn test_merge() {
     let mut graph = Graph::new();
 
@@ -306,14 +305,4 @@ fn test_mermaid_visualization() {
     assert!(mermaid.contains("Process"));
     // Should contain edges
     assert!(mermaid.contains("-->"));
-}
-
-#[test]
-fn test_linspace_helper() {
-    use dagex::IntoVariantValues;
-    // Arc is now used internally in GraphData
-    let values = Linspace::new(0.0, 1.0, 5).into_variant_values();
-    assert_eq!(values.len(), 5);
-    assert_eq!(values[0].parse::<f64>().unwrap(), 0.0);
-    assert_eq!(values[4].parse::<f64>().unwrap(), 1.0);
 }

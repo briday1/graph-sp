@@ -6,7 +6,7 @@
 //! - Variant parameter sweeps
 //! - Complex graphs with multiple outputs
 
-use dagex::{NodeFunction, Graph, GraphData};
+use dagex::{Graph, GraphData};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -266,12 +266,12 @@ fn demo_variant_output_access() {
     // Variants with unique output names using closure syntax
     graph2.variants(
         vec![
-            |inputs: &HashMap<String, GraphData>| {
+            Arc::new(|inputs: &HashMap<String, GraphData>| {
                 let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
                 let mut result = HashMap::new();
                 result.insert("scaled_2x".to_string(), GraphData::float(value * 2.0));
                 result
-            }
+            })
         ],
         Some("Scale2x"),
         Some(vec![("input_data", "data")]),
@@ -280,12 +280,12 @@ fn demo_variant_output_access() {
 
     graph2.variants(
         vec![
-            |inputs: &HashMap<String, GraphData>| {
+            Arc::new(|inputs: &HashMap<String, GraphData>| {
                 let value = inputs.get("data").and_then(|d| d.as_float()).unwrap_or(0.0);
                 let mut result = HashMap::new();
                 result.insert("scaled_3x".to_string(), GraphData::float(value * 3.0));
                 result
-            }
+            })
         ],
         Some("Scale3x"),
         Some(vec![("input_data", "data")]),

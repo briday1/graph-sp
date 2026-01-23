@@ -1,251 +1,166 @@
-<div align="center">
-  <img src="https://raw.githubusercontent.com/briday1/graph-sp/main/assets/logo-banner.png" alt="dagex" width="600"/>
-  <p><em>A pure Rust DAG executor with Python bindings</em></p>
-</div>
+Real run (captured from `/Users/brian.day/git/graph-sp/.venv/bin/python examples/py/python_demo.py`):
 
-# dagex
+```
+======================================================================
+```
+Creating graph...
+Adding source node...
+Adding processor node...
+Adding formatter node...
 
-A pure Rust DAG (Directed Acyclic Graph) executor with Python bindings for building and executing computational pipelines.
+````markdown
+Mermaid (example):
 
-## Features
-
-- **Implicit Node Connections**: Nodes automatically connect based on execution order
-- **Parallel Branching**: Create fan-out execution paths with `.branch()`
-- **Configuration Variants**: Use `.variant()` to create parameter sweeps
-- **Mermaid Visualization**: Generate diagrams with `.to_mermaid()`
-- **Parallel Execution**: Execute independent branches concurrently
-- **Native Performance**: Rust-powered execution with Python convenience
-- **Memory Efficient**: Zero-copy data sharing between nodes using Arc (18x performance improvement for large datasets)
-
-## Installation
-
+```
+graph TD
+    0["Source"]
+    1["Processor"]
+    2["Formatter"]
+    0 -->|data → input| 1
+    1 -->|final → value| 2
+```
 ```bash
 pip install dagex
 ```
 
-No Rust toolchain required - prebuilt wheels are available for all major platforms.
+Quick overview:
 
-## Quick Start
+- Build a graph by adding functions (callables)
+- Inputs/outputs are mapped by names (broadcast → function param)
+- Branching and variants are supported
+- Use `to_mermaid()` to visualize the DAG
+- Execution returns a context-like mapping with results
 
-### Basic Pipeline
+---
+
+## Minimal Python example
+
+```python
+import dagex
+
+# Data source
+def generate(_):
+    return {"n": 7}
+
+# Processor
+def double(inputs):
+    v = inputs.get("x", 0)
+    return {"y": v * 2}
+
+# Build graph
+g = dagex.Graph()
+g.add(generate, label="Source", inputs=None, outputs=[("n", "x")])
+g.add(double, label="Double", inputs=[("x", "x")], outputs=[("y", "out")])
+
+# Visualize and run
+dag = g.build()
+print('\nMermaid:\n', dag.to_mermaid())
+context = dag.execute(parallel=False)
+print('Result:', context.get('out'))
+```
+
+Expected output:
+
+```
+Result: 14
+```
+
+---
+
+## Branching & Merging (Python)
 
 ```python
 import dagex
 
-def data_source(inputs, variant_params):
-    """Generate initial data"""
-    return {"value": 42}
+# source
+def src(_):
+    return {"base": 50}
 
-def multiply(inputs, variant_params):
-    """Process the data"""
-    val = inputs.get("x", 0)
-    return {"doubled": val * 2}
+# branch functions
+def add10(inputs):
+    return {"result": inputs.get("x", 0) + 10}
 
-# Create graph
-graph = dagex.Graph()
+def add20(inputs):
+    return {"result": inputs.get("x", 0) + 20}
 
-# Add nodes
-graph.add(
-    function=data_source,
-    label="DataSource",
-    inputs=None,
-    outputs=[("value", "data")]
-)
+# graph
+g = dagex.Graph()
+g.add(src, label='Source', inputs=None, outputs=[('base', 'x')])
 
-graph.add(
-    function=multiply,
-    label="Multiply",
-    inputs=[("data", "x")],
-    outputs=[("doubled", "result")]
-)
+b1 = dagex.Graph()
+b1.add(add10, label='A', inputs=[('x','x')], outputs=[('result','result')])
 
-# Build and execute
-dag = graph.build()
-context = dag.execute()
+b2 = dagex.Graph()
+b2.add(add20, label='B', inputs=[('x','x')], outputs=[('result','result')])
 
-print(f"Result: {context['result']}")  # Output: Result: 84
-```
+id1 = g.branch(b1)
+id2 = g.branch(b2)
 
-### Parallel Branching
+# merge maps branch-specific result -> local names
+g.merge(lambda inputs: {"combined": inputs.get('from_a', 0) + inputs.get('from_b', 0)},
+        label='Merge',
+        inputs=[(id1, 'result', 'from_a'), (id2, 'result', 'from_b')],
+        outputs=[('combined', 'final')])
 
-Create multiple parallel processing paths:
-
-```python
-import dagex
-import time
-
-def source(inputs, variant_params):
-    return {"data": 100}
-
-def branch_a(inputs, variant_params):
-    time.sleep(0.1)  # Simulate work
-    return {"result_a": inputs["x"] * 2}
-
-def branch_b(inputs, variant_params):
-    time.sleep(0.1)  # Simulate work
-    return {"result_b": inputs["x"] * 3}
-
-def branch_c(inputs, variant_params):
-    time.sleep(0.1)  # Simulate work
-    return {"result_c": inputs["x"] + 50}
-
-graph = dagex.Graph()
-
-# Source node
-graph.add(source, label="Source", outputs=[("data", "shared_data")])
-
-# Create parallel branches
-graph.branch()
-graph.add(branch_a, label="BranchA", inputs=[("shared_data", "x")], outputs=[("result_a", "a")])
-
-graph.branch()
-graph.add(branch_b, label="BranchB", inputs=[("shared_data", "x")], outputs=[("result_b", "b")])
-
-graph.branch()
-graph.add(branch_c, label="BranchC", inputs=[("shared_data", "x")], outputs=[("result_c", "c")])
-
-dag = graph.build()
-result = dag.execute(parallel=True)
-
-print(f"Branch A (100*2): {result['a']}")  # 200
-print(f"Branch B (100*3): {result['b']}")  # 300
-print(f"Branch C (100+50): {result['c']}")  # 150
-```
-
-### Visualization
-
-Generate Mermaid diagrams to visualize your pipeline:
-
-```python
+dag = g.build()
 print(dag.to_mermaid())
+res = dag.execute(parallel=True)
+print('Final:', res.get('final'))
 ```
 
-Output:
-```mermaid
-graph TD
-    0["Source"]
-    1["BranchA"]
-    2["BranchB"]
-    3["BranchC"]
-    0 -->|shared_data → x| 1
-    0 -->|shared_data → x| 2
-    0 -->|shared_data → x| 3
-    style 1 fill:#e1f5ff
-    style 2 fill:#e1f5ff
-    style 3 fill:#e1f5ff
+Expected output:
+
+```
+Final: 130
 ```
 
-## Working with NumPy Arrays
+---
 
-dagex seamlessly handles NumPy arrays and complex numbers:
+## Variants (parameter sweep)
 
 ```python
 import dagex
-import numpy as np
 
-def generate_signal(inputs, variant_params):
-    """Generate a complex signal"""
-    samples = 256
-    t = np.linspace(0, 1, samples)
-    signal = np.exp(2j * np.pi * 10 * t)  # 10 Hz complex exponential
-    return {
-        "signal": signal,  # numpy array passed directly
-        "num_samples": samples
-    }
+# Source
+def src(_):
+    return {"base": 10}
 
-def process_signal(inputs, variant_params):
-    """Process with FFT"""
-    signal = np.array(inputs["signal"], dtype=complex)
-    spectrum = np.fft.fft(signal)
-    magnitude = np.abs(spectrum)
-    peak_freq = np.argmax(magnitude)
-    
-    return {
-        "spectrum": spectrum,
-        "peak_frequency": int(peak_freq)
-    }
+# Variant function builder (captures factor)
+def make_mul(factor):
+    def mul(inputs):
+        v = inputs.get('x', 0)
+        return {'result': v * factor}
+    return mul
 
-graph = dagex.Graph()
+g = dagex.Graph()
+g.add(src, label='Source', inputs=None, outputs=[('base','x')])
 
-graph.add(
-    generate_signal,
-    label="GenerateSignal",
-    outputs=[("signal", "sig"), ("num_samples", "n")]
-)
+factors = [2,3,5]
+funcs = [make_mul(f) for f in factors]
+# wrap callables appropriately; the Python binding accepts callables directly
+g.variants(funcs, label='Multiply', inputs=[('x','x')], outputs=[('result','final')])
 
-graph.add(
-    process_signal,
-    label="ProcessSignal",
-    inputs=[("sig", "signal")],
-    outputs=[("spectrum", "spec"), ("peak_frequency", "peak")]
-)
-
-dag = graph.build()
-result = dag.execute()
-
-print(f"Peak frequency bin: {result['peak']}")
+dag = g.build()
+print(dag.to_mermaid())
+ctx = dag.execute(parallel=True)
+print('Final:', ctx.get('final'))
 ```
 
-### Data Types
+---
 
-dagex supports any Python data type:
+## Notes & Tips
 
-- **Primitives**: int, float, str, bool
-- **Complex numbers**: Built-in `complex` and `numpy.complex128`
-- **Collections**: list, dict, tuple
-- **NumPy arrays**: All dtypes including complex arrays
-- **Custom objects**: Any Python object can be passed through the graph
+- The Python API mirrors the Rust API closely. When in doubt, consult the Rust README for conceptual diagrams.
+- For large data, prefer providing structures that can be shared (e.g. numpy arrays wrapped appropriately) to avoid copies.
+- Use `dag.execute(parallel=True, max_threads=4)` to limit thread usage.
 
-The framework doesn't impose type restrictions - your node functions determine what data flows through the pipeline.
+---
 
-## API Reference
+## Where to get help
 
-### Graph
+- Docs: https://docs.rs/dagex
+- Issues / PRs: https://github.com/briday1/graph-sp
 
-- `Graph()` - Create a new graph builder
-- `graph.add(function, label=None, inputs=None, outputs=None)` - Add a node
-  - `function`: Callable with signature `(inputs: dict, variant_params: dict) -> dict`
-  - `label`: Optional node name (str)
-  - `inputs`: List of `(broadcast_var, node_input_var)` tuples
-  - `outputs`: List of `(node_output_var, broadcast_var)` tuples
-- `graph.branch(subgraph=None)` - Create a parallel branch
-- `graph.build()` - Build the DAG and return a `Dag` object
+---
 
-### Dag
-
-- `dag.execute(parallel=False, max_threads=None)` - Execute the graph
-  - `parallel`: Enable parallel execution of independent nodes
-  - `max_threads`: Limit concurrent threads (None = unlimited)
-  - Returns: `dict` with all broadcast variables
-- `dag.to_mermaid()` - Generate Mermaid diagram (str)
-
-## Examples
-
-The package includes several example scripts:
-
-- **`python_demo.py`** - Basic pipeline construction
-- **`python_comprehensive_demo.py`** - Multiple pipeline patterns
-- **`python_parallel_demo.py`** - Parallel execution examples
-- **`python_data_types_demo.py`** - Working with various data types
-- **`python_radar_demo.py`** - Signal processing pipeline with NumPy
-
-Find them in the [examples/py directory](https://github.com/briday1/dagex/tree/main/examples/py) on GitHub.
-
-## Performance Notes
-
-- The DAG executor is written in Rust for performance
-- Python functions are called from Rust with proper GIL handling
-- Parallel execution releases the GIL during graph traversal
-- For CPU-bound Python code, use libraries like NumPy that release the GIL internally
-- Best performance gains with parallel execution of I/O-bound or NumPy-based operations
-
-## License
-
-MIT License - see [LICENSE](https://github.com/briday1/dagex/blob/main/LICENSE) for details.
-
-## Links
-
-- **GitHub**: https://github.com/briday1/dagex
-- **Documentation**: https://docs.rs/dagex
-- **PyPI**: https://pypi.org/project/dagex
-- **Crates.io**: https://crates.io/crates/dagex
+<p align="center">Built with ❤️ — enjoy composing DAGs!</p>

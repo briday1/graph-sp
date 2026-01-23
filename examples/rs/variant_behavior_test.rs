@@ -1,4 +1,4 @@
-use dagex::{Graph, GraphData};
+use dagex::{Graph, GraphData, NodeFunction};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -36,7 +36,7 @@ fn main() {
                         result.insert("scaled".to_string(), GraphData::int(val * f));
                     }
                     result
-                })
+                }) as NodeFunction
             })
             .collect(),
         Some("Scale"),
@@ -100,7 +100,7 @@ fn main() {
     let mut graph2 = Graph::new();
 
     graph2.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("x".to_string(), GraphData::int(10));
             result
@@ -122,7 +122,7 @@ fn main() {
                         result.insert("scaled".to_string(), GraphData::int(val * f));
                     }
                     result
-                })
+                }) as NodeFunction
             })
             .collect(),
         Some("Scale"),
@@ -196,11 +196,11 @@ fn main() {
     let mut graph3 = Graph::new();
 
     graph3.add(
-        |_| {
+        Arc::new(|_| {
             let mut result = HashMap::new();
             result.insert("x".to_string(), GraphData::int(10));
             result
-        },
+        }),
         Some("Source"),
         None,
         Some(vec![("x", "data")]),
@@ -218,7 +218,7 @@ fn main() {
                         result.insert("scaled".to_string(), GraphData::int(val * f));
                     }
                     result
-                })
+                }) as NodeFunction
             })
             .collect(),
         Some("ScaleA"),
@@ -238,7 +238,7 @@ fn main() {
                         result.insert("scaled".to_string(), GraphData::int(val * f));
                     }
                     result
-                })
+                }) as NodeFunction
             })
             .collect(),
         Some("ScaleB"),
