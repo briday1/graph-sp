@@ -43,14 +43,12 @@ impl MemoryInfo {
 
 pub struct Benchmark {
     start: Instant,
-    label: String,
 }
 
 impl Benchmark {
-    pub fn start(label: &str) -> Self {
+    pub fn start(_label: &str) -> Self {
         Self {
             start: Instant::now(),
-            label: label.to_string(),
         }
     }
     
