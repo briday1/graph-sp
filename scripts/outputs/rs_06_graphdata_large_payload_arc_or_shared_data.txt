@@ -1,16 +1,5 @@
-warning: field `label` is never read
-  --> examples/rs/benchmark_utils.rs:46:5
-   |
-44 | pub struct Benchmark {
-   |            --------- field in this struct
-45 |     start: Instant,
-46 |     label: String,
-   |     ^^^^^
-   |
-   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
-
-warning: `dagex` (example "06_graphdata_large_payload_arc_or_shared_data") generated 1 warning
-    Finished `release` profile [optimized] target(s) in 0.01s
+   Compiling dagex v2026.15.0 (/home/runner/work/graph-sp/graph-sp)
+    Finished `release` profile [optimized] target(s) in 0.30s
      Running `target/release/examples/06_graphdata_large_payload_arc_or_shared_data`
 
 ════════════════════════════════════════════════════════════
@@ -61,7 +50,7 @@ Execution
    and shared via Arc. No copies are made when distributing
    to multiple consumers.
 
-⏱️  Runtime: 1.585ms
+⏱️  Runtime: 1.627ms
 💾 Memory: RSS: 10212 kB
 
 ────────────────────────────────────────────────────────────

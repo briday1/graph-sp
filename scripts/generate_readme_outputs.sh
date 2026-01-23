@@ -21,8 +21,12 @@ echo "────────────────────────�
 cd "$REPO_ROOT"
 
 for example in 01_minimal_pipeline 02_parallel_vs_sequential 03_branch_and_merge 04_variants_sweep 05_output_access 06_graphdata_large_payload_arc_or_shared_data; do
-    echo "  Running: $example"
-    cargo run --example "$example" --release 2>&1 | tee "$OUTPUT_DIR/rs_${example}.txt"
+    if [ -f "examples/rs/${example}.rs" ]; then
+        echo "  Running: $example"
+        cargo run --example "$example" --release 2>&1 | tee "$OUTPUT_DIR/rs_${example}.txt"
+    else
+        echo "  Skipping: $example (file not found)"
+    fi
     echo ""
 done
 
@@ -31,8 +35,12 @@ echo "Running Python examples..."
 echo "────────────────────────────────────────────────────────────"
 
 for example in 01_minimal_pipeline 02_parallel_vs_sequential 03_branch_and_merge 04_variants_sweep 05_output_access 06_graphdata_large_payload_arc_or_shared_data; do
-    echo "  Running: $example"
-    python3 "examples/py/${example}.py" 2>&1 | tee "$OUTPUT_DIR/py_${example}.txt"
+    if [ -f "examples/py/${example}.py" ]; then
+        echo "  Running: $example"
+        python3 "examples/py/${example}.py" 2>&1 | tee "$OUTPUT_DIR/py_${example}.txt"
+    else
+        echo "  Skipping: $example (file not found)"
+    fi
     echo ""
 done
 
