@@ -27,7 +27,7 @@ while IFS= read -r example; do
     if [ -n "$example" ]; then
         example_name=$(basename "$example")
         echo "Running example: $example_name"
-        if python "$example" 2>&1; then
+        if python3 "$example" 2>&1; then
             echo "✓ Example '$example_name' succeeded"
             SUCCESSFUL_EXAMPLES+=("$example_name")
         else
