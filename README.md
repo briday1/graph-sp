@@ -134,29 +134,35 @@ graph.add(
 **Mermaid Diagram:**
 ```mermaid
 graph TD
-    0["Generator"]
-    1["Doubler"]
-    2["AddFive"]
-    0 -->|x → x| 1
-    1 -->|y → y| 2
+0["Generator"]
+1["Doubler"]
+2["AddFive"]
+0 -->|x → x| 1
+1 -->|y → y| 2
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 0.026ms
-💾 Memory: RSS: 2432 kB
+⏱️  Runtime: 300.177ms
+💾 Memory: RSS: 2208 kB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 0.032ms
-💾 Memory: RSS: 2432 kB
+⏱️  Runtime: 300.216ms
+💾 Memory: RSS: 2208 kB
 ```
 
 **Output:**
 ```
+Sequential execution:
+Final output: 25
+Time: 300.177ms
+Parallel execution:
+Final output: 25
+Time: 300.216ms
 ✅ Pipeline completed successfully!
-   (Started with 10, doubled to 20, added 5 = 25)
+(Started with 10, doubled to 20, added 5 = 25)
 ```
 
 ### Example 02: Parallel vs Sequential Execution
@@ -183,41 +189,40 @@ let context_par = dag.execute(true, Some(4)); // Parallel with 4 threads
 **Mermaid Diagram:**
 ```mermaid
 graph TD
-    0["Source"]
-    1["TaskA"]
-    2["TaskB"]
-    3["TaskC"]
-    0 -->|input → input| 1
-    0 -->|input → input| 2
-    0 -->|input → input| 3
+0["Source"]
+1["TaskA"]
+2["TaskB"]
+3["TaskC"]
+0 -->|input → input| 1
+0 -->|input → input| 2
+0 -->|input → input| 3
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 150.290ms
-💾 Memory: RSS: 2500 kB
+⏱️  Runtime: 450.289ms
+💾 Memory: RSS: 2272 kB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 50.453ms
-💾 Memory: RSS: 2628 kB
-⚡ Speedup: 2.98x faster with parallel execution!
+⏱️  Runtime: 150.393ms
+💾 Memory: RSS: 2400 kB
 ```
 
 **Output:**
 ```
 Sequential results:
-  TaskA: 110
-  TaskB: 120
-  TaskC: 130
-  Time: 150.290ms
-
+TaskA: 110
+TaskB: 120
+TaskC: 130
+Time: 450.289ms
 Parallel results:
-  TaskA: 110
-  TaskB: 120
-  TaskC: 130
-  Time: 50.453ms
+TaskA: 110
+TaskB: 120
+TaskC: 130
+Time: 150.393ms
+⚡ Speedup: 2.99x faster with parallel execution!
 ```
 
 ### Example 03: Branch and Merge
@@ -255,37 +260,50 @@ graph.merge(
 **Mermaid Diagram:**
 ```mermaid
 graph TD
-    0["Source"]
-    1["PathA (+10)"]
-    2["PathB (+20)"]
-    5["Merge"]
-    0 -->|x → x| 1
-    0 -->|x → x| 2
-    1 --> 5
-    2 --> 5
+0["Source"]
+1["PathA (+10)"]
+2["PathB (+20)"]
+3["PathA (+10)"]
+4["PathB (+20)"]
+5["Merge"]
+0 -->|x → x| 1
+0 -->|x → x| 2
+0 -->|x → x| 3
+0 -->|x → x| 4
+1 --> 5
+4 --> 5
+3 --> 5
+2 --> 5
+style 1 fill:#e1f5ff
+style 2 fill:#e1f5ff
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 0.072ms
-💾 Memory: RSS: 2316 kB
+⏱️  Runtime: 600.422ms
+💾 Memory: RSS: 2204 kB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 0.906ms
-💾 Memory: RSS: 2576 kB
+⏱️  Runtime: 150.560ms
+💾 Memory: RSS: 2464 kB
 ```
 
 **Output:**
 ```
 📊 Execution flow:
-   Source: 50
-   PathA: 50 + 10 = 60
-   PathB: 50 + 20 = 70
-   Merge: 60 + 70 = 130
-
-✅ Final output: 130
+Source: 50
+PathA: 50 + 10 = 60
+PathB: 50 + 20 = 70
+Merge: 60 + 70 = 130
+Sequential execution:
+Final output: 130
+Time: 600.422ms
+Parallel execution:
+Final output: 130
+Time: 150.560ms
+✅ Branch and merge completed successfully!
 ```
 
 ### Example 04: Variants (Parameter Sweep)
@@ -327,39 +345,49 @@ graph.variants(
 **Mermaid Diagram:**
 ```mermaid
 graph TD
-    0["DataSource"]
-    1["Multiplier (v0)"]
-    2["Multiplier (v1)"]
-    3["Multiplier (v2)"]
-    4["Multiplier (v3)"]
-    0 -->|x → x| 1
-    0 -->|x → x| 2
-    0 -->|x → x| 3
-    0 -->|x → x| 4
+0["DataSource"]
+1["Multiplier (v0)"]
+2["Multiplier (v1)"]
+3["Multiplier (v2)"]
+4["Multiplier (v3)"]
+0 -->|x → x| 1
+0 -->|x → x| 2
+0 -->|x → x| 3
+0 -->|x → x| 4
+style 1 fill:#e1f5ff
+style 2 fill:#e1f5ff
+style 3 fill:#e1f5ff
+style 4 fill:#e1f5ff
+style 1 fill:#ffe1e1
+style 2 fill:#e1ffe1
+style 3 fill:#ffe1ff
+style 4 fill:#ffffe1
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 0.055ms
-💾 Memory: RSS: 2372 kB
+⏱️  Runtime: 600.411ms
+💾 Memory: RSS: 2236 kB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 0.398ms
-💾 Memory: RSS: 2632 kB
+⏱️  Runtime: 150.541ms
+💾 Memory: RSS: 2496 kB
 ```
 
 **Output:**
 ```
 📊 Base value: 10
-
+Sequential execution:
+Time: 600.411ms
+Parallel execution:
+Time: 150.541ms
 Detailed variant outputs:
-  Variant 0 (×2): 20
-  Variant 1 (×3): 30
-  Variant 2 (×5): 50
-  Variant 3 (×7): 70
-
+Variant 0 (×2): 20
+Variant 1 (×3): 30
+Variant 2 (×5): 50
+Variant 3 (×7): 70
 ✅ All 4 variants executed successfully!
 ```
 
@@ -395,44 +423,60 @@ for (branch_id, outputs) in result.branch_outputs.iter() {
 **Mermaid Diagram:**
 ```mermaid
 graph TD
-    0["Source"]
-    1["ProcessorA"]
-    2["ProcessorB"]
-    5["MergeNode"]
-    0 -->|input → input| 1
-    0 -->|input → input| 2
-    1 --> 5
-    2 --> 5
+0["Source"]
+1["ProcessorA"]
+2["ProcessorB"]
+3["ProcessorA"]
+4["ProcessorB"]
+5["MergeNode"]
+0 -->|input → input| 1
+0 -->|input → input| 2
+0 -->|input → input| 3
+0 -->|input → input| 4
+4 --> 5
+1 --> 5
+2 --> 5
+3 --> 5
+style 1 fill:#e1f5ff
+style 2 fill:#e1f5ff
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 0.090ms
-💾 Memory: RSS: 2480 kB
+⏱️  Runtime: 600.405ms
+💾 Memory: RSS: 2228 kB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 0.556ms
-💾 Memory: RSS: 2612 kB
+⏱️  Runtime: 150.568ms
+💾 Memory: RSS: 2488 kB
 ```
 
 **Output:**
 ```
 📊 Accessing different output levels:
-
+Sequential execution:
+Time: 600.405ms
+Parallel execution:
+Time: 150.568ms
 1. Final context outputs:
-   output: 351
-
+output: 351
 2. Individual node outputs:
-   Total nodes executed: 6
-
+Total nodes executed: 6
+Node 0: 1 outputs
+Node 3: 1 outputs
+Node 4: 1 outputs
+Node 1: 1 outputs
+Node 2: 1 outputs
+Node 5: 1 outputs
 3. Branch-specific outputs:
-   Total branches: 2
-   Branch 1:
-     result_a: 200
-   Branch 2:
-     result_b: 150
+Total branches: 2
+Branch 1:
+result_a: 200
+Branch 2:
+result_b: 150
+✅ Successfully accessed all output levels!
 ```
 
 ### Example 06: Zero-Copy Data Sharing
@@ -467,37 +511,41 @@ graph.add(consumer_c, Some("ConsumerC"), /* ... */);
 **Mermaid Diagram:**
 ```mermaid
 graph TD
-    0["CreateLargeData"]
-    1["ConsumerA"]
-    2["ConsumerB"]
-    3["ConsumerC"]
-    0 -->|data → data| 1
-    0 -->|data → data| 2
-    0 -->|data → data| 3
+0["CreateLargeData"]
+1["ConsumerA"]
+2["ConsumerB"]
+3["ConsumerC"]
+0 -->|data → data| 1
+0 -->|data → data| 2
+0 -->|data → data| 3
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 11.198ms
-💾 Memory: RSS: 10288 kB
+⏱️  Runtime: 1.528ms
+💾 Memory: RSS: 9984 kB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 10.853ms
-💾 Memory: RSS: 18244 kB
+⏱️  Runtime: 1.831ms
+💾 Memory: RSS: 18072 kB
 ```
 
 **Output:**
 ```
 📊 Consumer outputs (each processes different segments):
-   ConsumerA (first 1000):  sum = 499500
-   ConsumerB (next 1000):   sum = 1499500
-   ConsumerC (next 1000):   sum = 2499500
-
+ConsumerA (first 1000):  sum = 499500
+ConsumerB (next 1000):   sum = 1499500
+ConsumerC (next 1000):   sum = 2499500
+Sequential execution:
+Time: 1.528ms
+Parallel execution:
+Time: 1.831ms
 ✅ Zero-copy data sharing successful!
-   Memory benefit: Only 1 copy of data exists, shared by all consumers
+Memory benefit: Only 1 copy of data exists, shared by all consumers
 ```
+
 
 ## 🔧 Core API
 

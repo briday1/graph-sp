@@ -1,0 +1,45 @@
+name: Update README from Demo Outputs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'examples/**'
+      - 'scripts/build_readme.py'
+  workflow_dispatch:
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install maturin
+      
+      - name: Build and install Python package
+        run: |
+          maturin develop --release
+      
+      - name: Run README builder
+        run: python3 scripts/build_readme.py
+      
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md README_PYPI.md
+          git diff --quiet && git diff --staged --quiet || (git commit -m "docs: Update READMEs from demo outputs [skip ci]" && git push)
