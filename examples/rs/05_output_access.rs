@@ -5,6 +5,8 @@ mod benchmark_utils;
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
+use std::thread;
+use std::time::Duration;
 use benchmark_utils::{Benchmark, print_header, print_section};
 
 fn source(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
@@ -15,6 +17,11 @@ fn source(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
 
 fn processor_a(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let value = inputs.get("input").and_then(|d| d.as_int()).unwrap_or(0);
+    
+    // Simulate I/O-bound work (file read, network call, database query, etc.)
+    // that benefits from parallelization
+    thread::sleep(Duration::from_millis(20));
+    
     let mut outputs = HashMap::new();
     outputs.insert("processed".to_string(), GraphData::int(value * 2));
     outputs
@@ -22,6 +29,11 @@ fn processor_a(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData
 
 fn processor_b(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let value = inputs.get("input").and_then(|d| d.as_int()).unwrap_or(0);
+    
+    // Simulate I/O-bound work (file read, network call, database query, etc.)
+    // that benefits from parallelization
+    thread::sleep(Duration::from_millis(20));
+    
     let mut outputs = HashMap::new();
     outputs.insert("processed".to_string(), GraphData::int(value + 50));
     outputs

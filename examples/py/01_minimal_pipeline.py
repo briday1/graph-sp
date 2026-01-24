@@ -8,6 +8,7 @@ sys.path.insert(0, '/home/runner/work/graph-sp/graph-sp/examples/py')
 
 from benchmark_utils import Benchmark, print_header, print_section
 import dagex
+import time
 
 
 def generate(_inputs):
@@ -18,12 +19,22 @@ def generate(_inputs):
 def double(inputs):
     """Double the input value."""
     value = inputs.get("x", 0)
+    
+    # Simulate I/O or blocking operation that releases the GIL
+    # This allows true parallel execution in Python
+    time.sleep(0.01)
+    
     return {"result": value * 2}
 
 
 def add_five(inputs):
     """Add five to the input value."""
     value = inputs.get("y", 0)
+    
+    # Simulate I/O or blocking operation that releases the GIL
+    # This allows true parallel execution in Python
+    time.sleep(0.01)
+    
     return {"final": value + 5}
 
 

@@ -18,6 +18,17 @@ pip install dagex
 - **Variants** for parameter sweeps and A/B testing
 - **Mermaid diagrams** for visualizing your pipeline
 
+### Python Parallel Execution & the GIL
+
+Python's Global Interpreter Lock (GIL) means that pure Python computations cannot achieve true parallelism. However, **dagex enables true parallel execution** when your node functions perform operations that release the GIL, such as:
+
+- **I/O operations**: File reads/writes, network calls, database queries
+- **NumPy/SciPy operations**: Most numerical computations in these libraries release the GIL
+- **C extensions**: Custom C/Rust extensions that release the GIL
+- **Sleep/wait operations**: Simulating blocking operations
+
+The examples in this package use `time.sleep()` to demonstrate parallelization benefits, as sleep operations release the GIL and allow other threads to run concurrently.
+
 ## 🎯 Basic Example
 
 ```python

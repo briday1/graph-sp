@@ -5,6 +5,8 @@ mod benchmark_utils;
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
+use std::thread;
+use std::time::Duration;
 use benchmark_utils::{Benchmark, print_header, print_section};
 
 fn data_source(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
@@ -17,6 +19,11 @@ fn data_source(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphDat
 fn make_multiplier(factor: i64) -> impl Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData> + Send + Sync + 'static {
     move |inputs: &HashMap<String, GraphData>| -> HashMap<String, GraphData> {
         let value = inputs.get("x").and_then(|d| d.as_int()).unwrap_or(0);
+        
+        // Simulate I/O-bound work (file read, network call, database query, etc.)
+        // that benefits from parallelization
+        thread::sleep(Duration::from_millis(20));
+        
         let mut outputs = HashMap::new();
         outputs.insert("result".to_string(), GraphData::int(value * factor));
         outputs

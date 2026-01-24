@@ -9,6 +9,7 @@ sys.path.insert(0, '/home/runner/work/graph-sp/graph-sp/examples/py')
 
 from benchmark_utils import Benchmark, print_header, print_section
 import dagex
+import time
 
 
 def source(_inputs):
@@ -19,12 +20,22 @@ def source(_inputs):
 def path_a(inputs):
     """Path A: add 10."""
     value = inputs.get("x", 0)
+    
+    # Simulate I/O or blocking operation that releases the GIL
+    # This allows true parallel execution in Python
+    time.sleep(0.02)
+    
     return {"result": value + 10}
 
 
 def path_b(inputs):
     """Path B: add 20."""
     value = inputs.get("x", 0)
+    
+    # Simulate I/O or blocking operation that releases the GIL
+    # This allows true parallel execution in Python
+    time.sleep(0.02)
+    
     return {"result": value + 20}
 
 

@@ -8,6 +8,7 @@ sys.path.insert(0, '/home/runner/work/graph-sp/graph-sp/examples/py')
 
 from benchmark_utils import Benchmark, print_header, print_section
 import dagex
+import time
 
 
 def data_source(_inputs):
@@ -19,6 +20,11 @@ def make_multiplier(factor):
     """Factory function to create multiplier variants."""
     def multiplier(inputs):
         value = inputs.get("x", 0)
+        
+        # Simulate I/O or blocking operation that releases the GIL
+        # This allows true parallel execution in Python
+        time.sleep(0.02)
+        
         return {"result": value * factor}
     return multiplier
 

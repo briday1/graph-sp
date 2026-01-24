@@ -9,6 +9,7 @@ sys.path.insert(0, '/home/runner/work/graph-sp/graph-sp/examples/py')
 
 from benchmark_utils import Benchmark, print_header, print_section
 import dagex
+import time
 
 
 def source(_inputs):
@@ -19,12 +20,22 @@ def source(_inputs):
 def processor_a(inputs):
     """Processor A: multiply by 2."""
     value = inputs.get("input", 0)
+    
+    # Simulate I/O or blocking operation that releases the GIL
+    # This allows true parallel execution in Python
+    time.sleep(0.02)
+    
     return {"processed": value * 2}
 
 
 def processor_b(inputs):
     """Processor B: add 50."""
     value = inputs.get("input", 0)
+    
+    # Simulate I/O or blocking operation that releases the GIL
+    # This allows true parallel execution in Python
+    time.sleep(0.02)
+    
     return {"processed": value + 50}
 
 
