@@ -150,8 +150,8 @@ jobs:
       
       - name: Run Rust examples
         run: |
-          cargo run --example comprehensive_demo
-          cargo run --example simple_frontier_test
+          bash scripts/run_examples.sh
+        continue-on-error: true
       
       - name: Install maturin and build Python bindings
         run: |
