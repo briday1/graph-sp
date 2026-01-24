@@ -198,13 +198,13 @@ impl PyGraph {
             .map(|(a, b)| (a.as_str(), b.as_str()))
             .collect();
 
-        // Convert Python functions to a vector of Rust node functions (NodeFunction Arc wrappers)
-        let rust_functions: Vec<crate::node::NodeFunction> = functions
+        // Convert Python functions to Rust closures (Arc wrapping is now automatic in variants())
+        let rust_functions: Vec<_> = functions
             .iter()
-            .map(|func| Arc::new(create_python_node_function(func.clone())) as crate::node::NodeFunction)
+            .map(|func| create_python_node_function(func.clone()))
             .collect();
 
-        // Call variants with the vector of NodeFunction
+        // Call variants with the vector of closures
         graph.variants(
             rust_functions,
             label.as_deref(),

@@ -45,21 +45,17 @@ Here's a minimal example showing the core concepts:
 ```rust
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 fn main() {
     let mut graph = Graph::new();
     
-    // Add a data source
-    // Note: All node functions must be wrapped in Arc::new() for thread-safe sharing
-    // across parallel execution. Arc (Atomic Reference Counting) enables multiple
-    // threads to safely access the same function without copying.
+    // Add a data source - functions are automatically wrapped for thread safety
     graph.add(
-        Arc::new(|_| {
+        |_| {
             let mut out = HashMap::new();
             out.insert("value".to_string(), GraphData::int(10));
             out
-        }),
+        },
         Some("Source"),
         None,
         Some(vec![("value", "x")])
@@ -67,12 +63,12 @@ fn main() {
     
     // Add a processor
     graph.add(
-        Arc::new(|inputs: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let v = inputs.get("x").and_then(|d| d.as_int()).unwrap_or(0);
             let mut out = HashMap::new();
             out.insert("result".to_string(), GraphData::int(v * 2));
             out
-        }),
+        },
         Some("Doubler"),
         Some(vec![("x", "x")]),
         Some(vec![("result", "output")])
@@ -123,13 +119,12 @@ Shows a basic 3-node pipeline where each node depends on the previous one. Demon
 **Syntax:**
 ```rust
 use dagex::{Graph, GraphData};
-use std::sync::Arc;
 
 let mut graph = Graph::new();
 
-// Note: Arc::new() wraps the function for thread-safe sharing
+// Functions are automatically wrapped for thread-safe parallel execution
 graph.add(
-    Arc::new(generate),  // Function wrapped in Arc for parallel execution
+    generate,  // Just pass the function directly
     Some("Generator"),
     None,
     Some(vec![("number", "x")])
@@ -174,12 +169,11 @@ Shows three independent tasks (A, B, C) that each take ~50ms. When executed sequ
 **Syntax:**
 ```rust
 use dagex::{Graph, GraphData};
-use std::sync::Arc;
 
-// All tasks are wrapped in Arc for thread-safe parallel execution
-graph.add(Arc::new(task_a), Some("TaskA"), /* ... */);
-graph.add(Arc::new(task_b), Some("TaskB"), /* ... */);
-graph.add(Arc::new(task_c), Some("TaskC"), /* ... */);
+// All tasks are automatically wrapped for thread-safe parallel execution
+graph.add(task_a, Some("TaskA"), /* ... */);
+graph.add(task_b, Some("TaskB"), /* ... */);
+graph.add(task_c, Some("TaskC"), /* ... */);
 
 // Execute with parallel=false or parallel=true
 let context_seq = dag.execute(false, None);  // Sequential
@@ -236,20 +230,19 @@ Demonstrates creating independent branches that process data in parallel, then m
 **Syntax:**
 ```rust
 use dagex::{Graph, GraphData};
-use std::sync::Arc;
 
 // Create branches
 let mut branch_a = Graph::new();
-branch_a.add(Arc::new(path_a), Some("PathA (+10)"), /* ... */);
+branch_a.add(path_a, Some("PathA (+10)"), /* ... */);
 let branch_a_id = graph.branch(branch_a);
 
 let mut branch_b = Graph::new();
-branch_b.add(Arc::new(path_b), Some("PathB (+20)"), /* ... */);
+branch_b.add(path_b, Some("PathB (+20)"), /* ... */);
 let branch_b_id = graph.branch(branch_b);
 
 // Merge branches - combine outputs from multiple branches
 graph.merge(
-    merge_function,
+    merge_function,  // Function automatically wrapped for thread safety
     Some("Merge"),
     vec![
         (branch_a_id, "result", "from_a"),
@@ -304,26 +297,25 @@ Demonstrates running multiple nodes with the same structure but different parame
 
 **Syntax:**
 ```rust
-use dagex::{Graph, GraphData, NodeFunction};
-use std::sync::Arc;
+use dagex::{Graph, GraphData};
 
 // Factory function to create variants with different parameters
-fn make_multiplier(factor: i64) -> NodeFunction {
-    Arc::new(move |inputs: &HashMap<String, GraphData>| {
+fn make_multiplier(factor: i64) -> impl Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData> + Send + Sync + 'static {
+    move |inputs: &HashMap<String, GraphData>| {
         let value = inputs.get("x").and_then(|d| d.as_int()).unwrap_or(0);
         let mut outputs = HashMap::new();
         outputs.insert("result".to_string(), GraphData::int(value * factor));
         outputs
-    })
+    }
 }
 
 // Create multiple variants
 let factors = vec![2, 3, 5, 7];
-let variant_nodes: Vec<NodeFunction> = factors.iter()
+let variant_nodes: Vec<_> = factors.iter()
     .map(|&f| make_multiplier(f))
     .collect();
 
-// Add all variants at once
+// Add all variants at once - functions automatically wrapped for thread safety
 graph.variants(
     variant_nodes,
     Some("Multiplier"),
@@ -381,7 +373,6 @@ Demonstrates how to access different levels of output: final context outputs, in
 **Syntax:**
 ```rust
 use dagex::{Graph, GraphData};
-use std::sync::Arc;
 
 // Execute with detailed output
 let result = dag.execute_detailed(true, Some(4));
@@ -454,7 +445,6 @@ Demonstrates efficient memory handling for large datasets. GraphData automatical
 **Syntax:**
 ```rust
 use dagex::{Graph, GraphData};
-use std::sync::Arc;
 
 // Create large data - automatically wrapped in Arc by GraphData::int_vec
 fn create_large_data(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
@@ -465,13 +455,13 @@ fn create_large_data(_inputs: &HashMap<String, GraphData>) -> HashMap<String, Gr
     outputs
 }
 
-// All node functions must be wrapped in Arc
-graph.add(Arc::new(create_large_data), Some("CreateLargeData"), /* ... */);
+// Functions are automatically wrapped for thread safety
+graph.add(create_large_data, Some("CreateLargeData"), /* ... */);
 
 // Multiple consumers access the same Arc<Vec<i64>> - no copying!
-graph.add(Arc::new(consumer_a), Some("ConsumerA"), /* ... */);
-graph.add(Arc::new(consumer_b), Some("ConsumerB"), /* ... */);
-graph.add(Arc::new(consumer_c), Some("ConsumerC"), /* ... */);
+graph.add(consumer_a, Some("ConsumerA"), /* ... */);
+graph.add(consumer_b, Some("ConsumerB"), /* ... */);
+graph.add(consumer_c, Some("ConsumerC"), /* ... */);
 ```
 
 **Mermaid Diagram:**
@@ -515,13 +505,12 @@ graph TD
 
 ```rust
 use dagex::{Graph, GraphData};
-use std::sync::Arc;
 
 let mut graph = Graph::new();
 
-// Add a node - function must be wrapped in Arc for thread-safe parallel execution
+// Add a node - function is automatically wrapped for thread-safe parallel execution
 graph.add(
-    Arc::new(function),      // Function handle wrapped in Arc
+    function,                // Function (automatically wrapped in Arc internally)
     Some("NodeLabel"),       // Optional label
     Some(vec![("in", "x")]), // Input mapping: broadcast → impl
     Some(vec![("out", "y")]) // Output mapping: impl → broadcast
@@ -530,7 +519,7 @@ graph.add(
 // Create a branch
 let branch_id = graph.branch(subgraph);
 
-// Merge branches
+// Merge branches - function is automatically wrapped for thread safety
 graph.merge(
     merge_function,
     Some("Merge"),
@@ -538,9 +527,9 @@ graph.merge(
     Some(vec![("result", "final")])
 );
 
-// Add variants (parameter sweep) - each function wrapped in Arc
+// Add variants (parameter sweep) - functions automatically wrapped
 graph.variants(
-    vec![Arc::new(func1), Arc::new(func2), Arc::new(func3)],
+    vec![func1, func2, func3],
     Some("Variants"),
     Some(vec![("input", "x")]),
     Some(vec![("output", "results")])

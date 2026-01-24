@@ -5,7 +5,6 @@ mod benchmark_utils;
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
-use std::sync::Arc;
 use benchmark_utils::{Benchmark, print_header, print_section};
 
 fn source(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
@@ -43,7 +42,7 @@ fn main() {
     
     // Add source
     graph.add(
-        Arc::new(source),
+        source,
         Some("Source"),
         None,
         Some(vec![("data", "input")])
@@ -52,7 +51,7 @@ fn main() {
     // Create branch A
     let mut branch_a = Graph::new();
     branch_a.add(
-        Arc::new(processor_a),
+        processor_a,
         Some("ProcessorA"),
         Some(vec![("input", "input")]),
         Some(vec![("processed", "result_a")])
@@ -62,7 +61,7 @@ fn main() {
     // Create branch B
     let mut branch_b = Graph::new();
     branch_b.add(
-        Arc::new(processor_b),
+        processor_b,
         Some("ProcessorB"),
         Some(vec![("input", "input")]),
         Some(vec![("processed", "result_b")])

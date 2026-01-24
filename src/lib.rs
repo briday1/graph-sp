@@ -15,7 +15,6 @@
 //! ```rust
 //! use dagex::{Graph, GraphData};
 //! use std::collections::HashMap;
-//! use std::sync::Arc;
 //!
 //! fn data_source(_: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
 //!     let mut result = HashMap::new();
@@ -32,8 +31,8 @@
 //! }
 //!
 //! let mut graph = Graph::new();
-//! graph.add(Arc::new(data_source), Some("Source"), None, Some(vec![("output", "output")]));
-//! graph.add(Arc::new(processor), Some("Processor"), Some(vec![("output", "input")]), Some(vec![("output", "output")]));
+//! graph.add(data_source, Some("Source"), None, Some(vec![("output", "output")]));
+//! graph.add(processor, Some("Processor"), Some(vec![("output", "input")]), Some(vec![("output", "output")]));
 //!
 //! let dag = graph.build();
 //! ```

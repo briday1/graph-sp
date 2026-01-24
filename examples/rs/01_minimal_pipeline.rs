@@ -5,7 +5,6 @@ mod benchmark_utils;
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
-use std::sync::Arc;
 use benchmark_utils::{Benchmark, print_header, print_section};
 
 fn generate(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
@@ -40,19 +39,19 @@ fn main() {
     
     let mut graph = Graph::new();
     graph.add(
-        Arc::new(generate),
+        generate,
         Some("Generator"),
         None,
         Some(vec![("number", "x")])
     );
     graph.add(
-        Arc::new(double),
+        double,
         Some("Doubler"),
         Some(vec![("x", "x")]),
         Some(vec![("result", "y")])
     );
     graph.add(
-        Arc::new(add_five),
+        add_five,
         Some("AddFive"),
         Some(vec![("y", "y")]),
         Some(vec![("final", "output")])

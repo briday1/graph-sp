@@ -5,7 +5,6 @@ mod benchmark_utils;
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
-use std::sync::Arc;
 use benchmark_utils::{Benchmark, print_header, print_section};
 
 fn create_large_data(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
@@ -75,7 +74,7 @@ fn main() {
     
     // Create large data source
     graph.add(
-        Arc::new(create_large_data),
+        create_large_data,
         Some("CreateLargeData"),
         None,
         Some(vec![("large_data", "data")])
@@ -83,21 +82,21 @@ fn main() {
     
     // Add multiple consumers that share the large data
     graph.add(
-        Arc::new(consumer_a),
+        consumer_a,
         Some("ConsumerA"),
         Some(vec![("data", "data")]),
         Some(vec![("sum_a", "sum_a")])
     );
     
     graph.add(
-        Arc::new(consumer_b),
+        consumer_b,
         Some("ConsumerB"),
         Some(vec![("data", "data")]),
         Some(vec![("sum_b", "sum_b")])
     );
     
     graph.add(
-        Arc::new(consumer_c),
+        consumer_c,
         Some("ConsumerC"),
         Some(vec![("data", "data")]),
         Some(vec![("sum_c", "sum_c")])
