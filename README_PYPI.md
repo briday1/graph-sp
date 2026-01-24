@@ -68,7 +68,7 @@ python3 examples/py/06_graphdata_large_payload_arc_or_shared_data.py
 
 ### Example 01: Minimal Pipeline
 
-The simplest possible pipeline: generator → transformer → aggregator.
+The simplest possible DAG: generator → transformer → aggregator.
 
 **Description:**
 Shows a basic 3-node pipeline where each node depends on the previous one. Demonstrates the fundamental dataflow concept.
@@ -103,98 +103,106 @@ context = dag.execute(parallel=True)   # Parallel
 **Mermaid Diagram:**
 ```mermaid
 graph TD
-    0["Generator"]
-    1["Doubler"]
-    2["AddFive"]
-    0 -->|x → x| 1
-    1 -->|y → y| 2
+0["Generator"]
+1["Doubler"]
+2["AddFive"]
+0 -->|x → x| 1
+1 -->|y → y| 2
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 0.024ms
+⏱️  Runtime: 302.202ms
 💾 Memory: Current: 0.05 KB, Peak: 0.05 KB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 0.032ms
-💾 Memory: Current: 0.06 KB, Peak: 0.06 KB
+⏱️  Runtime: 304.032ms
+💾 Memory: Current: 0.07 KB, Peak: 0.07 KB
 ```
 
 **Output:**
 ```
+Sequential execution:
+Final output: 25
+Time: 302.202ms
+Parallel execution:
+Final output: 25
+Time: 304.032ms
 ✅ Pipeline completed successfully!
-   (Started with 10, doubled to 20, added 5 = 25)
+(Started with 10, doubled to 20, added 5 = 25)
 ```
 
 ### Example 02: Parallel vs Sequential Execution
 
-Demonstrates the power of parallel execution.
+Demonstrates the power of parallel execution for independent tasks.
 
 **Description:**
-Shows three independent tasks (A, B, C) that each take ~50ms. When executed sequentially, they take ~150ms total. When executed in parallel, they complete in ~50ms—a **3x speedup**!
+Shows three independent tasks (A, B, C) that each simulate I/O-bound work. When executed sequentially, tasks run one after another. When executed in parallel, independent tasks run simultaneously, demonstrating significant speedup.
 
 **Syntax:**
 ```python
 import dagex
 
-# Add independent tasks that can run in parallel
+# Add independent tasks
 graph.add(task_a, label="TaskA", inputs=[("input", "input")], outputs=[("result_a", "a")])
 graph.add(task_b, label="TaskB", inputs=[("input", "input")], outputs=[("result_b", "b")])
 graph.add(task_c, label="TaskC", inputs=[("input", "input")], outputs=[("result_c", "c")])
 
+# Build and execute
 dag = graph.build()
 
-# Compare sequential vs parallel execution
-context_seq = dag.execute(parallel=False)           # Sequential
-context_par = dag.execute(parallel=True, max_threads=4)  # Parallel
+# Sequential vs parallel
+context_seq = dag.execute(parallel=False)
+context_par = dag.execute(parallel=True, max_threads=4)
 ```
 
 **Mermaid Diagram:**
 ```mermaid
 graph TD
-    0["Source"]
-    1["TaskA"]
-    2["TaskB"]
-    3["TaskC"]
-    0 -->|input → input| 1
-    0 -->|input → input| 2
-    0 -->|input → input| 3
+0["Source"]
+1["TaskA"]
+2["TaskB"]
+3["TaskC"]
+0 -->|input → input| 1
+0 -->|input → input| 2
+0 -->|input → input| 3
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 150.3ms
-💾 Memory: Current: 0.10 KB, Peak: 0.12 KB
+⏱️  Runtime: 453.869ms
+💾 Memory: Current: 0.04 KB, Peak: 0.04 KB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 50.5ms
-💾 Memory: Current: 0.15 KB, Peak: 0.18 KB
-⚡ Speedup: 2.98x faster with parallel execution!
+⏱️  Runtime: 150.673ms
+💾 Memory: Current: 0.25 KB, Peak: 1.16 KB
 ```
 
 **Output:**
 ```
 Sequential results:
-  TaskA: 110
-  TaskB: 120
-  TaskC: 130
-
+TaskA: 110
+TaskB: 120
+TaskC: 130
+Time: 453.869ms
 Parallel results:
-  TaskA: 110
-  TaskB: 120
-  TaskC: 130
+TaskA: 110
+TaskB: 120
+TaskC: 130
+Time: 150.673ms
+⚡ Speedup: 3.01x faster with parallel execution!
 ```
 
-### Example 03: Branching
+### Example 03: Branch and Merge
 
-Create independent execution paths that run in parallel.
+Fan-out (branching) and fan-in (merging) patterns for complex workflows.
 
 **Description:**
-Demonstrates creating independent branches that process data in parallel. Each branch contains its own subgraph that can have multiple nodes.
+Demonstrates creating independent branches that process data in parallel, then merging their outputs. Each branch contains its own subgraph that can have multiple nodes.
 
 **Syntax:**
 ```python
@@ -202,18 +210,21 @@ import dagex
 
 # Create branches
 branch_a = dagex.Graph()
-branch_a.add(path_a, label="PathA (+10)", inputs=[("x", "x")], outputs=[("result", "a")])
+branch_a.add(path_a_func, label="PathA (+10)", ...)
 branch_a_id = graph.branch(branch_a)
 
 branch_b = dagex.Graph()
-branch_b.add(path_b, label="PathB (+20)", inputs=[("x", "x")], outputs=[("result", "b")])
+branch_b.add(path_b_func, label="PathB (+20)", ...)
 branch_b_id = graph.branch(branch_b)
 
-# Add a node to combine branch outputs
-graph.add(
-    combine,
-    label="Combine",
-    inputs=[("a", "a"), ("b", "b")],
+# Merge branches
+graph.merge(
+    merge_func,
+    label="Merge",
+    branch_inputs=[
+        (branch_a_id, "result", "from_a"),
+        (branch_b_id, "result", "from_b"),
+    ],
     outputs=[("combined", "final")]
 )
 ```
@@ -221,42 +232,55 @@ graph.add(
 **Mermaid Diagram:**
 ```mermaid
 graph TD
-    0["Source"]
-    1["PathA (+10)"]
-    2["PathB (+20)"]
-    3["Combine"]
-    0 -->|x → x| 1
-    0 -->|x → x| 2
-    1 --> 3
-    2 --> 3
+0["Source"]
+1["PathA (+10)"]
+2["PathB (+20)"]
+3["Combine"]
+4["PathA (+10)"]
+5["PathB (+20)"]
+0 -->|x → x| 1
+0 -->|x → x| 2
+4 -->|a → a| 3
+2 -->|b → b| 3
+5 -->|b → b| 3
+1 -->|a → a| 3
+0 -->|x → x| 4
+0 -->|x → x| 5
+style 1 fill:#e1f5ff
+style 2 fill:#e1f5ff
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 0.08ms
-💾 Memory: Current: 0.05 KB, Peak: 0.06 KB
+⏱️  Runtime: 602.807ms
+💾 Memory: Current: 0.35 KB, Peak: 0.35 KB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 0.12ms
-💾 Memory: Current: 0.08 KB, Peak: 0.10 KB
+⏱️  Runtime: 152.378ms
+💾 Memory: Current: 0.62 KB, Peak: 1.37 KB
 ```
 
 **Output:**
 ```
 📊 Execution flow:
-   Source: 50
-   PathA: 50 + 10 = 60
-   PathB: 50 + 20 = 70
-   Combine: 60 + 70 = 130
-
-✅ Final output: 130
+Source: 50
+PathA: 50 + 10 = 60
+PathB: 50 + 20 = 70
+Combine: 60 + 70 = 130
+Sequential execution:
+Final output: 130
+Time: 602.807ms
+Parallel execution:
+Final output: 130
+Time: 152.378ms
+✅ Branch and merge completed successfully!
 ```
 
 ### Example 04: Variants (Parameter Sweep)
 
-Run multiple parameter configurations in parallel.
+Run multiple variants in parallel—perfect for hyperparameter tuning or A/B testing.
 
 **Description:**
 Demonstrates running multiple nodes with the same structure but different parameters. All variants execute at the same level in the DAG, enabling efficient parallel exploration of parameter spaces.
@@ -265,7 +289,7 @@ Demonstrates running multiple nodes with the same structure but different parame
 ```python
 import dagex
 
-# Factory function to create variants with different parameters
+# Create variant functions with different parameters
 def make_multiplier(factor):
     def multiplier(inputs):
         value = inputs.get("x", 0)
@@ -274,11 +298,11 @@ def make_multiplier(factor):
 
 # Create multiple variants
 factors = [2, 3, 5, 7]
-variant_nodes = [make_multiplier(f) for f in factors]
+variant_funcs = [make_multiplier(f) for f in factors]
 
 # Add all variants at once
 graph.variants(
-    variant_nodes,
+    variant_funcs,
     label="Multiplier",
     inputs=[("x", "x")],
     outputs=[("result", "results")]
@@ -288,251 +312,283 @@ graph.variants(
 **Mermaid Diagram:**
 ```mermaid
 graph TD
-    0["DataSource"]
-    1["Multiplier (v0)"]
-    2["Multiplier (v1)"]
-    3["Multiplier (v2)"]
-    4["Multiplier (v3)"]
-    0 -->|x → x| 1
-    0 -->|x → x| 2
-    0 -->|x → x| 3
-    0 -->|x → x| 4
+0["DataSource"]
+1["Multiplier (v0)"]
+2["Multiplier (v1)"]
+3["Multiplier (v2)"]
+4["Multiplier (v3)"]
+0 -->|x → x| 1
+0 -->|x → x| 2
+0 -->|x → x| 3
+0 -->|x → x| 4
+style 1 fill:#e1f5ff
+style 2 fill:#e1f5ff
+style 3 fill:#e1f5ff
+style 4 fill:#e1f5ff
+style 1 fill:#ffe1e1
+style 2 fill:#e1ffe1
+style 3 fill:#ffe1ff
+style 4 fill:#ffffe1
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 0.06ms
-💾 Memory: Current: 0.05 KB, Peak: 0.06 KB
+⏱️  Runtime: 605.985ms
+💾 Memory: Current: 0.05 KB, Peak: 0.05 KB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 0.10ms
-💾 Memory: Current: 0.08 KB, Peak: 0.10 KB
+⏱️  Runtime: 153.865ms
+💾 Memory: Current: 0.48 KB, Peak: 1.53 KB
 ```
 
 **Output:**
 ```
 📊 Base value: 10
-
+Sequential execution:
+Time: 605.985ms
+Parallel execution:
+Time: 153.865ms
 Detailed variant outputs:
-  Variant 0 (×2): 20
-  Variant 1 (×3): 30
-  Variant 2 (×5): 50
-  Variant 3 (×7): 70
-
+Variant 0 (×2): 20
+Variant 1 (×3): 30
+Variant 2 (×5): 50
+Variant 3 (×7): 70
 ✅ All 4 variants executed successfully!
 ```
 
 ### Example 05: Output Access
 
-Access outputs from different parts of the graph.
+Access intermediate results and branch outputs, not just final values.
 
 **Description:**
-Demonstrates accessing final outputs from the context. While Python bindings primarily expose the final context (global broadcast space), this example shows how to work with branching and understand the flow of data through the graph.
+Demonstrates how to access different levels of output: final context outputs, individual node outputs, and branch-specific outputs. Uses `execute_detailed()` instead of `execute()` to get comprehensive execution information.
 
 **Syntax:**
 ```python
 import dagex
 
-# Execute the graph
-context = dag.execute(parallel=True, max_threads=4)
+# Execute with detailed output
+result = dag.execute_detailed(parallel=True, max_threads=4)
 
-# Access final outputs from the context
-output = context.get("output")
-print(f"Final output: {output}")
+# Access different output levels:
+# 1. Final context outputs
+final_output = result.context.get("output")
 
-# The context contains all values in the global broadcast space
-# that were produced by nodes via their output mappings
+# 2. Per-node outputs
+for node_id, outputs in result.node_outputs.items():
+    print(f"Node {node_id}: {len(outputs)} outputs")
+
+# 3. Branch-specific outputs
+for branch_id, outputs in result.branch_outputs.items():
+    print(f"Branch {branch_id}: {outputs}")
 ```
 
 **Mermaid Diagram:**
 ```mermaid
 graph TD
-    0["Source"]
-    1["ProcessorA"]
-    2["ProcessorB"]
-    5["Combine"]
-    0 -->|input → input| 1
-    0 -->|input → input| 2
-    1 --> 5
-    2 --> 5
+0["Source"]
+1["ProcessorA"]
+2["ProcessorB"]
+3["Combine"]
+4["ProcessorA"]
+5["ProcessorB"]
+0 -->|input → input| 1
+0 -->|input → input| 2
+4 -->|a → a| 3
+5 -->|b → b| 3
+1 -->|a → a| 3
+2 -->|b → b| 3
+0 -->|input → input| 4
+0 -->|input → input| 5
+style 1 fill:#e1f5ff
+style 2 fill:#e1f5ff
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 0.09ms
-💾 Memory: Current: 0.05 KB, Peak: 0.06 KB
+⏱️  Runtime: 603.634ms
+💾 Memory: Current: 0.43 KB, Peak: 0.43 KB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 0.15ms
-💾 Memory: Current: 0.10 KB, Peak: 0.12 KB
+⏱️  Runtime: 150.890ms
+💾 Memory: Current: 0.70 KB, Peak: 1.55 KB
 ```
 
 **Output:**
 ```
 📊 Accessing outputs:
-
+Sequential execution:
+Time: 603.634ms
+Parallel execution:
+Time: 150.890ms
 Final context outputs:
-   output: 351
-
+output: 351
 Execution flow:
-   Source: 100
-   ProcessorA (branch A): 100 × 2 = 200
-   ProcessorB (branch B): 100 + 50 = 150
-   Combine: 200 + 150 + 1 = 351
+Source: 100
+ProcessorA (branch A): 100 × 2 = 200
+ProcessorB (branch B): 100 + 50 = 150
+Combine: 200 + 150 + 1 = 351
+✅ Successfully accessed outputs!
 ```
 
-### Example 06: Efficient Data Sharing
+### Example 06: Zero-Copy Data Sharing
 
-Python's reference counting means large data is automatically shared efficiently.
+Large data is automatically wrapped in `Arc` for efficient sharing without copying.
 
 **Description:**
-Demonstrates efficient memory handling for large datasets in Python. Objects are reference-counted, so passing lists/arrays to multiple consumers shares references rather than copying data. For even better performance, use NumPy arrays which are efficiently passed through the Python/Rust boundary.
+Demonstrates efficient memory handling for large datasets. GraphData automatically wraps large vectors (int_vec, float_vec) in Arc, enabling multiple nodes to read the same data without duplication.
 
 **Syntax:**
 ```python
 import dagex
+import numpy as np
 
+# Create large data
 def create_large_data(_inputs):
-    # Create a large list - Python's reference counting means
-    # this data is shared by reference, not copied
-    large_list = list(range(1_000_000))
-    return {"large_data": large_list}
+    # Large numpy array - efficiently shared
+    large_array = list(range(1_000_000))
+    return {"large_data": large_array}
 
-# Multiple consumers receive references to the same data
-graph.add(consumer_a, label="ConsumerA", inputs=[("data", "data")], outputs=[("sum_a", "sum_a")])
-graph.add(consumer_b, label="ConsumerB", inputs=[("data", "data")], outputs=[("sum_b", "sum_b")])
-graph.add(consumer_c, label="ConsumerC", inputs=[("data", "data")], outputs=[("sum_c", "sum_c")])
+graph.add(create_large_data, label="CreateLargeData", ...)
 
-# All consumers access the same data by reference - no copying!
+# Multiple consumers access the same data - minimal copying
+graph.add(consumer_a, label="ConsumerA", ...)
+graph.add(consumer_b, label="ConsumerB", ...)
+graph.add(consumer_c, label="ConsumerC", ...)
 ```
 
 **Mermaid Diagram:**
 ```mermaid
 graph TD
-    0["CreateLargeData"]
-    1["ConsumerA"]
-    2["ConsumerB"]
-    3["ConsumerC"]
-    0 -->|data → data| 1
-    0 -->|data → data| 2
-    0 -->|data → data| 3
+0["CreateLargeData"]
+1["ConsumerA"]
+2["ConsumerB"]
+3["ConsumerC"]
+0 -->|data → data| 1
+0 -->|data → data| 2
+0 -->|data → data| 3
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 305.5ms
-💾 Memory: Current: 39050 KB, Peak: 39060 KB
+⏱️  Runtime: 597.179ms
+💾 Memory: Current: 39054.78 KB, Peak: 39062.48 KB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 310.2ms
-💾 Memory: Current: 39055 KB, Peak: 39065 KB
+⏱️  Runtime: 542.189ms
+💾 Memory: Current: 39054.81 KB, Peak: 39062.76 KB
 ```
 
 **Output:**
 ```
 📊 Consumer outputs (each processes different segments):
-   ConsumerA (first 1000):  sum = 499500
-   ConsumerB (next 1000):   sum = 1499500
-   ConsumerC (next 1000):   sum = 2499500
-
+ConsumerA (first 1000):  sum = 499500
+ConsumerB (next 1000):   sum = 1499500
+ConsumerC (next 1000):   sum = 2499500
+Sequential execution:
+Time: 597.179ms
+Parallel execution:
+Time: 542.189ms
 ✅ Reference-based data sharing successful!
-   Memory benefit: Data shared by reference, not copied
+Memory benefit: Data shared by reference, not copied
 ```
 
-## 🔧 API Reference
 
-### Graph
+## 🔧 Python API
 
-Create and configure a computational graph:
+### Building a Graph
 
 ```python
 import dagex
 
+# Create graph
 graph = dagex.Graph()
 
 # Add a node
 graph.add(
-    function,                    # Python callable
-    label="NodeName",            # Optional label
-    inputs=[("src", "dst")],     # Input mapping: broadcast → impl
-    outputs=[("impl", "bcast")]  # Output mapping: impl → broadcast
+    function,                       # Python callable
+    label="NodeLabel",              # Optional label
+    inputs=[("broadcast", "impl")], # Input mapping
+    outputs=[("impl", "broadcast")] # Output mapping
 )
 
-# Create a branch
-branch = dagex.Graph()
-# ... add nodes to branch ...
-branch_id = graph.branch(branch)
+# Create branches
+branch_graph = dagex.Graph()
+# ... add nodes to branch_graph ...
+branch_id = graph.branch(branch_graph)
 
-# Add variants (parameter sweep)
+# Merge branches
+graph.merge(
+    merge_function,
+    label="Merge",
+    branch_inputs=[
+        (branch_id_a, "out_a", "in_a"),
+        (branch_id_b, "out_b", "in_b")
+    ],
+    outputs=[("result", "final")]
+)
+
+# Add variants
 graph.variants(
-    [func1, func2, func3],       # List of callables
+    [func1, func2, func3],
     label="Variants",
     inputs=[("input", "x")],
     outputs=[("output", "results")]
 )
 
-# Build the DAG
+# Build and execute
 dag = graph.build()
+context = dag.execute(parallel=False)
+context = dag.execute(parallel=True, max_threads=4)
 ```
-
-### DAG Execution
-
-```python
-# Execute the graph
-context = dag.execute(
-    parallel=True,      # Enable parallel execution
-    max_threads=4       # Limit thread count (optional)
-)
-
-# Access results
-result = context.get("output_name")
-```
-
-### Visualization
-
-```python
-# Generate Mermaid diagram
-mermaid_text = dag.to_mermaid()
-print(mermaid_text)
-```
-
-## 💡 Tips and Best Practices
 
 ### Data Types
 
-- **Integers and floats** are passed efficiently
-- **Lists and dicts** are passed by reference (no copying unless you modify them)
-- **NumPy arrays** work well for large numerical data
+Python values are automatically converted to GraphData:
 
-### Performance
+```python
+# Return Python dictionaries from node functions
+def my_node(inputs):
+    value = inputs.get("x", 0)  # Access inputs
+    return {
+        "int_val": 42,
+        "float_val": 3.14,
+        "str_val": "hello",
+        "list_val": [1, 2, 3],
+        "nested": {"a": 1, "b": 2}
+    }
+```
 
-- Use `parallel=True` when you have independent nodes at the same level
-- Set `max_threads` to control resource usage
-- Large data structures are reference-counted, not copied
+### Execution
 
-### Debugging
+```python
+# Simple execution
+context = dag.execute(parallel=False)  # Sequential
+context = dag.execute(parallel=True, max_threads=4)  # Parallel
 
-- Use `to_mermaid()` to visualize your graph structure
-- Print intermediate results to understand data flow
-- Start with `parallel=False` for easier debugging
+# Access results
+result = context.get("output_name")
 
-## 🔗 Links
-
-- **PyPI Package:** https://pypi.org/project/dagex
-- **Repository:** https://github.com/briday1/graph-sp
-- **Rust Documentation:** https://docs.rs/dagex
-- **Issues:** https://github.com/briday1/graph-sp/issues
+# Detailed execution
+result = dag.execute_detailed(parallel=True, max_threads=4)
+final_context = result.context
+node_outputs = result.node_outputs
+branch_outputs = result.branch_outputs
+```
 
 ## 📄 License
 
-MIT License - see LICENSE file for details.
+MIT License
 
----
+## 🔗 Links
 
-<p align="center">Built with ❤️ — enjoy composing DAGs!</p>
+- **Python Package:** https://pypi.org/project/dagex
+- **Documentation:** https://docs.rs/dagex
+- **Repository:** https://github.com/briday1/graph-sp
+- **Rust Crate:** https://crates.io/crates/dagex
