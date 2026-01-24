@@ -143,24 +143,24 @@ graph TD
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 300.177ms
-💾 Memory: RSS: 2208 kB
+⏱️  Runtime: 300.184ms
+💾 Memory: RSS: 2232 kB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 300.216ms
-💾 Memory: RSS: 2208 kB
+⏱️  Runtime: 300.192ms
+💾 Memory: RSS: 2232 kB
 ```
 
 **Output:**
 ```
 Sequential execution:
 Final output: 25
-Time: 300.177ms
+Time: 300.184ms
 Parallel execution:
 Final output: 25
-Time: 300.216ms
+Time: 300.192ms
 ✅ Pipeline completed successfully!
 (Started with 10, doubled to 20, added 5 = 25)
 ```
@@ -170,7 +170,7 @@ Time: 300.216ms
 Demonstrates the power of parallel execution for independent tasks.
 
 **Description:**
-Shows three independent tasks (A, B, C) that each take ~50ms. When executed sequentially, they take ~150ms total. When executed in parallel, they complete in ~50ms—a **3x speedup**!
+Shows three independent tasks (A, B, C) that each simulate I/O-bound work. When executed sequentially, tasks run one after another. When executed in parallel, independent tasks run simultaneously, demonstrating significant speedup.
 
 **Syntax:**
 ```rust
@@ -200,14 +200,14 @@ graph TD
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 450.289ms
-💾 Memory: RSS: 2272 kB
+⏱️  Runtime: 450.242ms
+💾 Memory: RSS: 2296 kB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 150.393ms
-💾 Memory: RSS: 2400 kB
+⏱️  Runtime: 150.416ms
+💾 Memory: RSS: 2424 kB
 ```
 
 **Output:**
@@ -216,12 +216,12 @@ Sequential results:
 TaskA: 110
 TaskB: 120
 TaskC: 130
-Time: 450.289ms
+Time: 450.242ms
 Parallel results:
 TaskA: 110
 TaskB: 120
 TaskC: 130
-Time: 150.393ms
+Time: 150.416ms
 ⚡ Speedup: 2.99x faster with parallel execution!
 ```
 
@@ -270,24 +270,24 @@ graph TD
 0 -->|x → x| 2
 0 -->|x → x| 3
 0 -->|x → x| 4
+2 --> 5
+3 --> 5
 1 --> 5
 4 --> 5
-3 --> 5
-2 --> 5
 style 1 fill:#e1f5ff
 style 2 fill:#e1f5ff
 ```
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 600.422ms
-💾 Memory: RSS: 2204 kB
+⏱️  Runtime: 600.331ms
+💾 Memory: RSS: 2216 kB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 150.560ms
-💾 Memory: RSS: 2464 kB
+⏱️  Runtime: 150.451ms
+💾 Memory: RSS: 2344 kB
 ```
 
 **Output:**
@@ -299,10 +299,10 @@ PathB: 50 + 20 = 70
 Merge: 60 + 70 = 130
 Sequential execution:
 Final output: 130
-Time: 600.422ms
+Time: 600.331ms
 Parallel execution:
 Final output: 130
-Time: 150.560ms
+Time: 150.451ms
 ✅ Branch and merge completed successfully!
 ```
 
@@ -366,23 +366,23 @@ style 4 fill:#ffffe1
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 600.411ms
-💾 Memory: RSS: 2236 kB
+⏱️  Runtime: 600.355ms
+💾 Memory: RSS: 2272 kB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 150.541ms
-💾 Memory: RSS: 2496 kB
+⏱️  Runtime: 150.429ms
+💾 Memory: RSS: 2400 kB
 ```
 
 **Output:**
 ```
 📊 Base value: 10
 Sequential execution:
-Time: 600.411ms
+Time: 600.355ms
 Parallel execution:
-Time: 150.541ms
+Time: 150.429ms
 Detailed variant outputs:
 Variant 0 (×2): 20
 Variant 1 (×3): 30
@@ -433,9 +433,9 @@ graph TD
 0 -->|input → input| 2
 0 -->|input → input| 3
 0 -->|input → input| 4
-4 --> 5
 1 --> 5
 2 --> 5
+4 --> 5
 3 --> 5
 style 1 fill:#e1f5ff
 style 2 fill:#e1f5ff
@@ -443,39 +443,39 @@ style 2 fill:#e1f5ff
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 600.405ms
-💾 Memory: RSS: 2228 kB
+⏱️  Runtime: 601.476ms
+💾 Memory: RSS: 2232 kB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 150.568ms
-💾 Memory: RSS: 2488 kB
+⏱️  Runtime: 150.479ms
+💾 Memory: RSS: 2364 kB
 ```
 
 **Output:**
 ```
 📊 Accessing different output levels:
 Sequential execution:
-Time: 600.405ms
+Time: 601.476ms
 Parallel execution:
-Time: 150.568ms
+Time: 150.479ms
 1. Final context outputs:
 output: 351
 2. Individual node outputs:
 Total nodes executed: 6
-Node 0: 1 outputs
-Node 3: 1 outputs
 Node 4: 1 outputs
-Node 1: 1 outputs
-Node 2: 1 outputs
 Node 5: 1 outputs
+Node 2: 1 outputs
+Node 0: 1 outputs
+Node 1: 1 outputs
+Node 3: 1 outputs
 3. Branch-specific outputs:
 Total branches: 2
-Branch 1:
-result_a: 200
 Branch 2:
 result_b: 150
+Branch 1:
+result_a: 200
 ✅ Successfully accessed all output levels!
 ```
 
@@ -522,14 +522,14 @@ graph TD
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 1.528ms
-💾 Memory: RSS: 9984 kB
+⏱️  Runtime: 1.316ms
+💾 Memory: RSS: 10052 kB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 1.831ms
-💾 Memory: RSS: 18072 kB
+⏱️  Runtime: 1.712ms
+💾 Memory: RSS: 18008 kB
 ```
 
 **Output:**
@@ -539,9 +539,9 @@ ConsumerA (first 1000):  sum = 499500
 ConsumerB (next 1000):   sum = 1499500
 ConsumerC (next 1000):   sum = 2499500
 Sequential execution:
-Time: 1.528ms
+Time: 1.316ms
 Parallel execution:
-Time: 1.831ms
+Time: 1.712ms
 ✅ Zero-copy data sharing successful!
 Memory benefit: Only 1 copy of data exists, shared by all consumers
 ```

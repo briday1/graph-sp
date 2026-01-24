@@ -112,13 +112,13 @@ graph TD
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 300.223ms
+⏱️  Runtime: 302.202ms
 💾 Memory: Current: 0.05 KB, Peak: 0.05 KB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 300.248ms
+⏱️  Runtime: 304.032ms
 💾 Memory: Current: 0.07 KB, Peak: 0.07 KB
 ```
 
@@ -126,10 +126,10 @@ graph TD
 ```
 Sequential execution:
 Final output: 25
-Time: 300.223ms
+Time: 302.202ms
 Parallel execution:
 Final output: 25
-Time: 300.248ms
+Time: 304.032ms
 ✅ Pipeline completed successfully!
 (Started with 10, doubled to 20, added 5 = 25)
 ```
@@ -139,7 +139,7 @@ Time: 300.248ms
 Demonstrates the power of parallel execution for independent tasks.
 
 **Description:**
-Shows three independent tasks (A, B, C) that each take ~50ms. When executed sequentially, they take ~150ms total. When executed in parallel, they complete in ~50ms—a **3x speedup**!
+Shows three independent tasks (A, B, C) that each simulate I/O-bound work. When executed sequentially, tasks run one after another. When executed in parallel, independent tasks run simultaneously, demonstrating significant speedup.
 
 **Syntax:**
 ```python
@@ -172,13 +172,13 @@ graph TD
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 450.412ms
+⏱️  Runtime: 453.869ms
 💾 Memory: Current: 0.04 KB, Peak: 0.04 KB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 150.594ms
+⏱️  Runtime: 150.673ms
 💾 Memory: Current: 0.25 KB, Peak: 1.16 KB
 ```
 
@@ -188,13 +188,13 @@ Sequential results:
 TaskA: 110
 TaskB: 120
 TaskC: 130
-Time: 450.412ms
+Time: 453.869ms
 Parallel results:
 TaskA: 110
 TaskB: 120
 TaskC: 130
-Time: 150.594ms
-⚡ Speedup: 2.99x faster with parallel execution!
+Time: 150.673ms
+⚡ Speedup: 3.01x faster with parallel execution!
 ```
 
 ### Example 03: Branch and Merge
@@ -240,10 +240,10 @@ graph TD
 5["PathB (+20)"]
 0 -->|x → x| 1
 0 -->|x → x| 2
-5 -->|b → b| 3
-1 -->|a → a| 3
 4 -->|a → a| 3
 2 -->|b → b| 3
+5 -->|b → b| 3
+1 -->|a → a| 3
 0 -->|x → x| 4
 0 -->|x → x| 5
 style 1 fill:#e1f5ff
@@ -252,13 +252,13 @@ style 2 fill:#e1f5ff
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 600.567ms
+⏱️  Runtime: 602.807ms
 💾 Memory: Current: 0.35 KB, Peak: 0.35 KB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 150.649ms
+⏱️  Runtime: 152.378ms
 💾 Memory: Current: 0.62 KB, Peak: 1.37 KB
 ```
 
@@ -271,10 +271,10 @@ PathB: 50 + 20 = 70
 Combine: 60 + 70 = 130
 Sequential execution:
 Final output: 130
-Time: 600.567ms
+Time: 602.807ms
 Parallel execution:
 Final output: 130
-Time: 150.649ms
+Time: 152.378ms
 ✅ Branch and merge completed successfully!
 ```
 
@@ -333,13 +333,13 @@ style 4 fill:#ffffe1
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 600.442ms
+⏱️  Runtime: 605.985ms
 💾 Memory: Current: 0.05 KB, Peak: 0.05 KB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 150.546ms
+⏱️  Runtime: 153.865ms
 💾 Memory: Current: 0.48 KB, Peak: 1.53 KB
 ```
 
@@ -347,9 +347,9 @@ style 4 fill:#ffffe1
 ```
 📊 Base value: 10
 Sequential execution:
-Time: 600.442ms
+Time: 605.985ms
 Parallel execution:
-Time: 150.546ms
+Time: 153.865ms
 Detailed variant outputs:
 Variant 0 (×2): 20
 Variant 1 (×3): 30
@@ -396,10 +396,10 @@ graph TD
 5["ProcessorB"]
 0 -->|input → input| 1
 0 -->|input → input| 2
-5 -->|b → b| 3
-2 -->|b → b| 3
 4 -->|a → a| 3
+5 -->|b → b| 3
 1 -->|a → a| 3
+2 -->|b → b| 3
 0 -->|input → input| 4
 0 -->|input → input| 5
 style 1 fill:#e1f5ff
@@ -408,13 +408,13 @@ style 2 fill:#e1f5ff
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 600.564ms
+⏱️  Runtime: 603.634ms
 💾 Memory: Current: 0.43 KB, Peak: 0.43 KB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 150.724ms
+⏱️  Runtime: 150.890ms
 💾 Memory: Current: 0.70 KB, Peak: 1.55 KB
 ```
 
@@ -422,9 +422,9 @@ style 2 fill:#e1f5ff
 ```
 📊 Accessing outputs:
 Sequential execution:
-Time: 600.564ms
+Time: 603.634ms
 Parallel execution:
-Time: 150.724ms
+Time: 150.890ms
 Final context outputs:
 output: 351
 Execution flow:
@@ -475,13 +475,13 @@ graph TD
 
 **Performance (Sequential):**
 ```
-⏱️  Runtime: 302.515ms
+⏱️  Runtime: 597.179ms
 💾 Memory: Current: 39054.78 KB, Peak: 39062.48 KB
 ```
 
 **Performance (Parallel):**
 ```
-⏱️  Runtime: 286.770ms
+⏱️  Runtime: 542.189ms
 💾 Memory: Current: 39054.81 KB, Peak: 39062.76 KB
 ```
 
@@ -492,9 +492,9 @@ ConsumerA (first 1000):  sum = 499500
 ConsumerB (next 1000):   sum = 1499500
 ConsumerC (next 1000):   sum = 2499500
 Sequential execution:
-Time: 302.515ms
+Time: 597.179ms
 Parallel execution:
-Time: 286.770ms
+Time: 542.189ms
 ✅ Reference-based data sharing successful!
 Memory benefit: Data shared by reference, not copied
 ```
