@@ -77,13 +77,13 @@ fn test_branching() {
     // Branch A
     let mut branch_a = Graph::new();
     branch_a.add(
-        (|inputs: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val * 2));
             }
             result
-        }),
+        },
         Some("Branch A"),
         Some(vec![("data", "x")]),
         Some(vec![("output", "result_a")]),
@@ -92,13 +92,13 @@ fn test_branching() {
     // Branch B
     let mut branch_b = Graph::new();
     branch_b.add(
-        (|inputs: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val * 3));
             }
             result
-        }),
+        },
         Some("Branch B"),
         Some(vec![("data", "x")]),
         Some(vec![("output", "result_b")]),
@@ -130,13 +130,13 @@ fn test_merge() {
     // Branch A
     let mut branch_a = Graph::new();
     branch_a.add(
-        (|inputs: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val + 10));
             }
             result
-        }),
+        },
         Some("Branch A"),
         Some(vec![("data", "x")]),
         Some(vec![("output", "result")]),
@@ -145,13 +145,13 @@ fn test_merge() {
     // Branch B
     let mut branch_b = Graph::new();
     branch_b.add(
-        (|inputs: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val + 20));
             }
             result
-        }),
+        },
         Some("Branch B"),
         Some(vec![("data", "x")]),
         Some(vec![("output", "result")]),
@@ -162,13 +162,13 @@ fn test_merge() {
 
     // Merge function combines both branches
     graph.merge(
-        (|inputs: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             let a = inputs.get("from_a").and_then(|d: &GraphData| d.as_int()).unwrap_or(0);
             let b = inputs.get("from_b").and_then(|d: &GraphData| d.as_int()).unwrap_or(0);
             result.insert("merged".to_string(), GraphData::int(a + b));
             result
-        }),
+        },
         Some("Merge"),
         vec![
             (branch_a_id, "result", "from_a"),
@@ -192,11 +192,11 @@ fn test_variants() {
 
     // Source
     graph.add(
-        (|_: &HashMap<String, GraphData>| {
+        |_: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(10));
             result
-        }),
+        },
         Some("Source"),
         None,
         Some(vec![("value", "data")]),
