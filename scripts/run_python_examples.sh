@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 echo "=== Discovering Python examples from examples/py/ ==="
 
