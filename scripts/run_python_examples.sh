@@ -14,7 +14,7 @@ fi
 
 echo "Found examples:"
 echo "$EXAMPLES" | while read -r example; do
-    echo "  - $(basename $example)"
+    echo "  - $(basename "$example")"
 done
 echo ""
 
