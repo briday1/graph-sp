@@ -100,32 +100,47 @@ def main():
     print("   (1M integers)    \\")
     print("                      ConsumerC")
     
-    print_section("Execution")
-    
     print("💡 Key insight: The large data (1M integers) is created once")
     print("   and shared by reference. Python's reference counting ensures")
     print("   efficient memory usage.\n")
     
-    with Benchmark("Execution with reference sharing") as bench:
-        context = dag.execute(parallel=True, max_threads=4)
+    print_section("Sequential Execution (parallel=False)")
     
-    bench.print_result()
+    with Benchmark("Sequential execution") as bench_seq:
+        context_seq = dag.execute(parallel=False)
+    
+    bench_seq.print_result()
+    result_seq = bench_seq.result
+    
+    print_section("Parallel Execution (parallel=True)")
+    
+    with Benchmark("Parallel execution") as bench_par:
+        context_par = dag.execute(parallel=True, max_threads=4)
+    
+    bench_par.print_result()
+    result_par = bench_par.result
     
     print_section("Results")
     
     print("📊 Consumer outputs (each processes different segments):")
     
-    sum_a = context.get("sum_a")
+    sum_a = context_par.get("sum_a")
     if sum_a is not None:
         print(f"   ConsumerA (first 1000):  sum = {sum_a}")
     
-    sum_b = context.get("sum_b")
+    sum_b = context_par.get("sum_b")
     if sum_b is not None:
         print(f"   ConsumerB (next 1000):   sum = {sum_b}")
     
-    sum_c = context.get("sum_c")
+    sum_c = context_par.get("sum_c")
     if sum_c is not None:
         print(f"   ConsumerC (next 1000):   sum = {sum_c}")
+    
+    print("\nSequential execution:")
+    print(f"  Time: {result_seq.duration_ms:.3f}ms")
+    
+    print("\nParallel execution:")
+    print(f"  Time: {result_par.duration_ms:.3f}ms")
     
     print("\n✅ Reference-based data sharing successful!")
     print("   Memory benefit: Data shared by reference, not copied")

@@ -3,9 +3,10 @@
 
 mod benchmark_utils;
 
-use dagex::{Graph, GraphData, NodeFunction};
+use dagex::{Graph, GraphData};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 use benchmark_utils::{Benchmark, print_header, print_section};
 
 fn data_source(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
@@ -15,13 +16,18 @@ fn data_source(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphDat
 }
 
 // Factory function to create multiplier variants
-fn make_multiplier(factor: i64) -> NodeFunction {
-    Arc::new(move |inputs: &HashMap<String, GraphData>| -> HashMap<String, GraphData> {
+fn make_multiplier(factor: i64) -> impl Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData> + Send + Sync + 'static {
+    move |inputs: &HashMap<String, GraphData>| -> HashMap<String, GraphData> {
         let value = inputs.get("x").and_then(|d| d.as_int()).unwrap_or(0);
+        
+        // Simulate I/O-bound work (file read, network call, database query, etc.)
+        // that benefits from parallelization
+        thread::sleep(Duration::from_millis(20));
+        
         let mut outputs = HashMap::new();
         outputs.insert("result".to_string(), GraphData::int(value * factor));
         outputs
-    })
+    }
 }
 
 fn main() {
@@ -39,7 +45,7 @@ fn main() {
     
     // Add source
     graph.add(
-        Arc::new(data_source),
+        data_source,
         Some("DataSource"),
         None,
         Some(vec![("base", "x")])
@@ -47,7 +53,7 @@ fn main() {
     
     // Add variants with different multipliers
     let factors = vec![2, 3, 5, 7];
-    let variant_nodes: Vec<NodeFunction> = factors
+    let variant_nodes: Vec<_> = factors
         .iter()
         .map(|&f| make_multiplier(f))
         .collect();
@@ -73,24 +79,27 @@ fn main() {
     println!("               \\");
     println!("                Multiplier(×7)");
     
-    print_section("Execution");
+    print_section("Sequential Execution (parallel=false)");
     
-    let bench = Benchmark::start("Variants execution");
-    let result = dag.execute_detailed(true, Some(4));
-    let _bench_result = bench.finish_and_print();
+    let bench = Benchmark::start("Sequential execution");
+    let _result_seq = dag.execute_detailed(false, None);
+    let bench_result_seq = bench.finish_and_print();
+    
+    print_section("Parallel Execution (parallel=true)");
+    
+    let bench = Benchmark::start("Parallel execution");
+    let _result_par = dag.execute_detailed(true, Some(4));
+    let bench_result_par = bench.finish_and_print();
     
     print_section("Results");
     
     println!("📊 Base value: 10");
-    println!("\nVariant results:");
     
-    // Access results from context
-    let context = &result.context;
-    if let Some(results) = context.get("results") {
-        if let Some(value) = results.as_int() {
-            println!("  Final result (last variant): {}", value);
-        }
-    }
+    println!("\nSequential execution:");
+    println!("  Time: {:.3}ms", bench_result_seq.duration_ms);
+    
+    println!("\nParallel execution:");
+    println!("  Time: {:.3}ms", bench_result_par.duration_ms);
     
     // Show detailed node outputs if available
     println!("\nDetailed variant outputs:");

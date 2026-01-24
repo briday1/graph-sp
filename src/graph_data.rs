@@ -135,7 +135,7 @@ impl GraphData {
         }
     }
 
-    /// Try to extract as Vec<f64> reference (dereferences Arc)
+    /// Try to extract as `Vec<f64>` reference (dereferences Arc)
     pub fn as_float_vec(&self) -> Option<&Vec<f64>> {
         match self {
             GraphData::FloatVec(v) => Some(v.as_ref()),
@@ -143,7 +143,7 @@ impl GraphData {
         }
     }
 
-    /// Try to extract as Vec<i64> reference (dereferences Arc)
+    /// Try to extract as `Vec<i64>` reference (dereferences Arc)
     pub fn as_int_vec(&self) -> Option<&Vec<i64>> {
         match self {
             GraphData::IntVec(v) => Some(v.as_ref()),

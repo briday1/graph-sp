@@ -5,7 +5,8 @@ mod benchmark_utils;
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 use benchmark_utils::{Benchmark, print_header, print_section};
 
 fn source(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
@@ -16,6 +17,11 @@ fn source(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
 
 fn path_a(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let value = inputs.get("x").and_then(|d| d.as_int()).unwrap_or(0);
+    
+    // Simulate I/O-bound work (file read, network call, database query, etc.)
+    // that benefits from parallelization
+    thread::sleep(Duration::from_millis(20));
+    
     let mut outputs = HashMap::new();
     outputs.insert("result".to_string(), GraphData::int(value + 10));
     outputs
@@ -23,6 +29,11 @@ fn path_a(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
 
 fn path_b(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let value = inputs.get("x").and_then(|d| d.as_int()).unwrap_or(0);
+    
+    // Simulate I/O-bound work (file read, network call, database query, etc.)
+    // that benefits from parallelization
+    thread::sleep(Duration::from_millis(20));
+    
     let mut outputs = HashMap::new();
     outputs.insert("result".to_string(), GraphData::int(value + 20));
     outputs
@@ -51,7 +62,7 @@ fn main() {
     
     // Add source
     graph.add(
-        Arc::new(source),
+        source,
         Some("Source"),
         None,
         Some(vec![("data", "x")])
@@ -60,7 +71,7 @@ fn main() {
     // Create branch A
     let mut branch_a = Graph::new();
     branch_a.add(
-        Arc::new(path_a),
+        path_a,
         Some("PathA (+10)"),
         Some(vec![("x", "x")]),
         Some(vec![("result", "result")])
@@ -70,7 +81,7 @@ fn main() {
     // Create branch B
     let mut branch_b = Graph::new();
     branch_b.add(
-        Arc::new(path_b),
+        path_b,
         Some("PathB (+20)"),
         Some(vec![("x", "x")]),
         Some(vec![("result", "result")])
@@ -100,11 +111,17 @@ fn main() {
     println!("         \\                /");
     println!("          PathB (+20) ──┘");
     
-    print_section("Execution");
+    print_section("Sequential Execution (parallel=false)");
     
-    let bench = Benchmark::start("Branch and merge execution");
-    let context = dag.execute(true, Some(4));
-    let _result = bench.finish_and_print();
+    let bench = Benchmark::start("Sequential execution");
+    let context_seq = dag.execute(false, None);
+    let result_seq = bench.finish_and_print();
+    
+    print_section("Parallel Execution (parallel=true)");
+    
+    let bench = Benchmark::start("Parallel execution");
+    let context_par = dag.execute(true, Some(4));
+    let result_par = bench.finish_and_print();
     
     print_section("Results");
     
@@ -114,11 +131,23 @@ fn main() {
     println!("   PathB: 50 + 20 = 70");
     println!("   Merge: 60 + 70 = 130");
     
-    if let Some(output) = context.get("final") {
+    println!("\nSequential execution:");
+    if let Some(output) = context_seq.get("final") {
         if let Some(value) = output.as_int() {
-            println!("\n✅ Final output: {}", value);
+            println!("  Final output: {}", value);
+            println!("  Time: {:.3}ms", result_seq.duration_ms);
         }
     }
+    
+    println!("\nParallel execution:");
+    if let Some(output) = context_par.get("final") {
+        if let Some(value) = output.as_int() {
+            println!("  Final output: {}", value);
+            println!("  Time: {:.3}ms", result_par.duration_ms);
+        }
+    }
+    
+    println!("\n✅ Branch and merge completed successfully!");
     
     println!();
 }

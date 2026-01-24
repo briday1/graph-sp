@@ -5,7 +5,6 @@ mod benchmark_utils;
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use benchmark_utils::{Benchmark, print_header, print_section};
@@ -56,25 +55,25 @@ fn main() {
     
     let mut graph = Graph::new();
     graph.add(
-        Arc::new(source),
+        source,
         Some("Source"),
         None,
         Some(vec![("value", "input")])
     );
     graph.add(
-        Arc::new(task_a),
+        task_a,
         Some("TaskA"),
         Some(vec![("input", "input")]),
         Some(vec![("result_a", "a")])
     );
     graph.add(
-        Arc::new(task_b),
+        task_b,
         Some("TaskB"),
         Some(vec![("input", "input")]),
         Some(vec![("result_b", "b")])
     );
     graph.add(
-        Arc::new(task_c),
+        task_c,
         Some("TaskC"),
         Some(vec![("input", "input")]),
         Some(vec![("result_c", "c")])

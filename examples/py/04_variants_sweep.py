@@ -8,6 +8,7 @@ sys.path.insert(0, '/home/runner/work/graph-sp/graph-sp/examples/py')
 
 from benchmark_utils import Benchmark, print_header, print_section
 import dagex
+import time
 
 
 def data_source(_inputs):
@@ -19,6 +20,11 @@ def make_multiplier(factor):
     """Factory function to create multiplier variants."""
     def multiplier(inputs):
         value = inputs.get("x", 0)
+        
+        # Simulate I/O or blocking operation that releases the GIL
+        # This allows true parallel execution in Python
+        time.sleep(0.02)
+        
         return {"result": value * factor}
     return multiplier
 
@@ -69,22 +75,31 @@ def main():
     print("               \\")
     print("                Multiplier(×7)")
     
-    print_section("Execution")
+    print_section("Sequential Execution (parallel=False)")
     
-    with Benchmark("Variants execution") as bench:
-        context = dag.execute(parallel=True, max_threads=4)
+    with Benchmark("Sequential execution") as bench_seq:
+        context_seq = dag.execute(parallel=False)
     
-    bench.print_result()
+    bench_seq.print_result()
+    result_seq = bench_seq.result
+    
+    print_section("Parallel Execution (parallel=True)")
+    
+    with Benchmark("Parallel execution") as bench_par:
+        context_par = dag.execute(parallel=True, max_threads=4)
+    
+    bench_par.print_result()
+    result_par = bench_par.result
     
     print_section("Results")
     
     print("📊 Base value: 10")
-    print("\nVariant results:")
     
-    # Access results from context
-    results = context.get("results")
-    if results is not None:
-        print(f"  Final result (last variant): {results}")
+    print("\nSequential execution:")
+    print(f"  Time: {result_seq.duration_ms:.3f}ms")
+    
+    print("\nParallel execution:")
+    print(f"  Time: {result_par.duration_ms:.3f}ms")
     
     # Show detailed variant outputs
     print("\nDetailed variant outputs:")

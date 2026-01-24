@@ -2,7 +2,6 @@
 
 use dagex::{Graph, GraphData};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 // Helper functions for tests
 
@@ -43,14 +42,14 @@ fn test_simple_pipeline() {
     let mut graph = Graph::new();
 
     graph.add(
-        Arc::new(data_source),
+        data_source,
         Some("Source"),
         None,
         Some(vec![("raw_data", "data")]),
     );
 
     graph.add(
-        Arc::new(processor),
+        processor,
         Some("Process"),
         Some(vec![("data", "input_data")]),
         Some(vec![("processed_value", "result")]),
@@ -69,7 +68,7 @@ fn test_branching() {
 
     // Source node
     graph.add(
-        Arc::new(data_source),
+        data_source,
         Some("Source"),
         None,
         Some(vec![("raw_data", "data")]),
@@ -78,13 +77,13 @@ fn test_branching() {
     // Branch A
     let mut branch_a = Graph::new();
     branch_a.add(
-        Arc::new(|inputs: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val * 2));
             }
             result
-        }),
+        },
         Some("Branch A"),
         Some(vec![("data", "x")]),
         Some(vec![("output", "result_a")]),
@@ -93,13 +92,13 @@ fn test_branching() {
     // Branch B
     let mut branch_b = Graph::new();
     branch_b.add(
-        Arc::new(|inputs: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val * 3));
             }
             result
-        }),
+        },
         Some("Branch B"),
         Some(vec![("data", "x")]),
         Some(vec![("output", "result_b")]),
@@ -122,7 +121,7 @@ fn test_merge() {
 
     // Source node
     graph.add(
-        Arc::new(data_source),
+        data_source,
         Some("Source"),
         None,
         Some(vec![("raw_data", "data")]),
@@ -131,13 +130,13 @@ fn test_merge() {
     // Branch A
     let mut branch_a = Graph::new();
     branch_a.add(
-        Arc::new(|inputs: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val + 10));
             }
             result
-        }),
+        },
         Some("Branch A"),
         Some(vec![("data", "x")]),
         Some(vec![("output", "result")]),
@@ -146,13 +145,13 @@ fn test_merge() {
     // Branch B
     let mut branch_b = Graph::new();
     branch_b.add(
-        Arc::new(|inputs: &HashMap<String, GraphData>| {
+        |inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_int()) {
                 result.insert("output".to_string(), GraphData::int(val + 20));
             }
             result
-        }),
+        },
         Some("Branch B"),
         Some(vec![("data", "x")]),
         Some(vec![("output", "result")]),
@@ -193,11 +192,11 @@ fn test_variants() {
 
     // Source
     graph.add(
-        Arc::new(|_: &HashMap<String, GraphData>| {
+        |_: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             result.insert("value".to_string(), GraphData::int(10));
             result
-        }),
+        },
         Some("Source"),
         None,
         Some(vec![("value", "data")]),
@@ -205,22 +204,22 @@ fn test_variants() {
 
     // Variant sweep: multiply by different factors using closures
     let _factors = vec![2.0, 3.0, 5.0];
-    let multipliers: Vec<dagex::NodeFunction> = vec![
-        Arc::new(|inputs: &HashMap<String, GraphData>| {
+    let multipliers = vec![
+        (|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_float()) {
                 result.insert("scaled".to_string(), GraphData::float(val * 1.5));
             }
             result
         }),
-        Arc::new(|inputs: &HashMap<String, GraphData>| {
+        (|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_float()) {
                 result.insert("scaled".to_string(), GraphData::float(val * 2.0));
             }
             result
         }),
-        Arc::new(|inputs: &HashMap<String, GraphData>| {
+        (|inputs: &HashMap<String, GraphData>| {
             let mut result = HashMap::new();
             if let Some(val) = inputs.get("x").and_then(|d: &GraphData| d.as_float()) {
                 result.insert("scaled".to_string(), GraphData::float(val * 3.0));
@@ -252,19 +251,19 @@ fn test_dag_stats() {
     let mut graph = Graph::new();
 
     graph.add(
-        Arc::new(data_source),
+        data_source,
         Some("Source"),
         None,
         Some(vec![("raw_data", "data")]),
     );
     graph.add(
-        Arc::new(processor),
+        processor,
         Some("Process"),
         Some(vec![("data", "input_data")]),
         Some(vec![("processed_value", "result")]),
     );
     graph.add(
-        Arc::new(adder),
+        adder,
         Some("Add"),
         Some(vec![("result", "input")]),
         Some(vec![("sum", "final")]),
@@ -283,13 +282,13 @@ fn test_mermaid_visualization() {
     let mut graph = Graph::new();
 
     graph.add(
-        Arc::new(data_source),
+        data_source,
         Some("Source"),
         None,
         Some(vec![("raw_data", "data")]),
     );
     graph.add(
-        Arc::new(processor),
+        processor,
         Some("Process"),
         Some(vec![("data", "input_data")]),
         Some(vec![("processed_value", "result")]),

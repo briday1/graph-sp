@@ -49,7 +49,7 @@ impl Graph {
     ///
     /// # Arguments
     ///
-    /// * `function_handle` - The function to execute for this node
+    /// * `function` - The function to execute for this node (automatically wrapped in Arc)
     /// * `label` - Optional label for visualization
     /// * `inputs` - Optional list of (broadcast_var, impl_var) tuples for inputs
     /// * `outputs` - Optional list of (impl_var, broadcast_var) tuples for outputs
@@ -79,13 +79,18 @@ impl Graph {
     ///     Some(vec![("output_value", "result")])  // (impl, broadcast)
     /// );
     /// ```
-    pub fn add(
+    pub fn add<F>(
         &mut self,
-        function_handle: crate::node::NodeFunction,
+        function: F,
         label: Option<&str>,
         inputs: Option<Vec<(&str, &str)>>,
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
+    where
+        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
+            + Send
+            + Sync
+            + 'static,
     {   
         // Build input_mapping: broadcast_var -> impl_var
         let input_mapping: HashMap<String, String> = inputs
@@ -110,8 +115,8 @@ impl Graph {
 
         let mut created_ids: Vec<NodeId> = Vec::new();
 
-        // function_handle is already Arc<dyn Fn>, so we can clone it directly
-        let func_arc: crate::node::NodeFunction = function_handle;
+        // Automatically wrap the function in Arc for thread-safe sharing
+        let func_arc: crate::node::NodeFunction = Arc::new(function);
         for _parent in parents {
             let id = self.next_id;
             self.next_id += 1;
@@ -229,11 +234,11 @@ impl Graph {
     /// Create variant nodes from a vector of closures
     ///
     /// Takes a vector of closures, each representing a variant of the computation.
-    /// This is the simpler API that matches the Python bindings.
+    /// Functions are automatically wrapped in Arc for thread-safe sharing.
     ///
     /// # Arguments
     ///
-    /// * `functions` - Vector of node functions (closures)
+    /// * `functions` - Vector of node functions (closures) - automatically wrapped in Arc
     /// * `label` - Optional label for visualization (default: None)
     /// * `inputs` - Optional list of (broadcast_var, impl_var) tuples for inputs
     /// * `outputs` - Optional list of (impl_var, broadcast_var) tuples for outputs
@@ -244,7 +249,7 @@ impl Graph {
     /// let factors = vec![2.0, 3.0, 5.0];
     /// graph.variants(
     ///     factors.iter().map(|&factor| {
-    ///         move |inputs: &HashMap<String, GraphData>, _: &HashMap<String, GraphData>| {
+    ///         move |inputs: &HashMap<String, GraphData>| {
     ///             let mut outputs = HashMap::new();
     ///             if let Some(val) = inputs.get("x").and_then(|d| d.as_float()) {
     ///                 outputs.insert("scaled".to_string(), GraphData::float(val * factor));
@@ -257,13 +262,18 @@ impl Graph {
     ///     Some(vec![("scaled", "result")])
     /// );
     /// ```
-    pub fn variants(
+    pub fn variants<F>(
         &mut self,
-        functions: Vec<crate::node::NodeFunction>,
+        functions: Vec<F>,
         label: Option<&str>,
         inputs: Option<Vec<(&str, &str)>>,
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
+    where
+        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
+            + Send
+            + Sync
+            + 'static,
     {
         // Determine parent attach points (frontier). If frontier is empty, treat as a single None parent
         let parents: Vec<Option<NodeId>> = if self.frontier.is_empty() {
@@ -297,13 +307,15 @@ impl Graph {
         let mut created_ids: Vec<NodeId> = Vec::new();
 
         for (idx, node_fn) in functions.into_iter().enumerate() {
+            // Automatically wrap each function in Arc and cast to trait object
+            let node_fn_arc: crate::node::NodeFunction = Arc::new(node_fn);
             for parent in &parents {
                 let id = self.next_id;
                 self.next_id += 1;
 
                 let mut node = Node::new(
                     id,
-                    Arc::clone(&node_fn),
+                    Arc::clone(&node_fn_arc),
                     label.map(|s| format!("{} (v{})", s, idx)),
                     input_mapping.clone(),
                     output_mapping.clone(),

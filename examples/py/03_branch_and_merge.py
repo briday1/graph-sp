@@ -9,6 +9,7 @@ sys.path.insert(0, '/home/runner/work/graph-sp/graph-sp/examples/py')
 
 from benchmark_utils import Benchmark, print_header, print_section
 import dagex
+import time
 
 
 def source(_inputs):
@@ -19,12 +20,22 @@ def source(_inputs):
 def path_a(inputs):
     """Path A: add 10."""
     value = inputs.get("x", 0)
+    
+    # Simulate I/O or blocking operation that releases the GIL
+    # This allows true parallel execution in Python
+    time.sleep(0.02)
+    
     return {"result": value + 10}
 
 
 def path_b(inputs):
     """Path B: add 20."""
     value = inputs.get("x", 0)
+    
+    # Simulate I/O or blocking operation that releases the GIL
+    # This allows true parallel execution in Python
+    time.sleep(0.02)
+    
     return {"result": value + 20}
 
 
@@ -96,12 +107,21 @@ def main():
     print("         \\                /")
     print("          PathB (+20) ──┘")
     
-    print_section("Execution")
+    print_section("Sequential Execution (parallel=False)")
     
-    with Benchmark("Branch execution") as bench:
-        context = dag.execute(parallel=True, max_threads=4)
+    with Benchmark("Sequential execution") as bench_seq:
+        context_seq = dag.execute(parallel=False)
     
-    bench.print_result()
+    bench_seq.print_result()
+    result_seq = bench_seq.result
+    
+    print_section("Parallel Execution (parallel=True)")
+    
+    with Benchmark("Parallel execution") as bench_par:
+        context_par = dag.execute(parallel=True, max_threads=4)
+    
+    bench_par.print_result()
+    result_par = bench_par.result
     
     print_section("Results")
     
@@ -111,9 +131,19 @@ def main():
     print("   PathB: 50 + 20 = 70")
     print("   Combine: 60 + 70 = 130")
     
-    output = context.get("final")
-    if output is not None:
-        print(f"\n✅ Final output: {output}")
+    print("\nSequential execution:")
+    output_seq = context_seq.get("final")
+    if output_seq is not None:
+        print(f"  Final output: {output_seq}")
+        print(f"  Time: {result_seq.duration_ms:.3f}ms")
+    
+    print("\nParallel execution:")
+    output_par = context_par.get("final")
+    if output_par is not None:
+        print(f"  Final output: {output_par}")
+        print(f"  Time: {result_par.duration_ms:.3f}ms")
+    
+    print("\n✅ Branch and merge completed successfully!")
     
     print()
 
