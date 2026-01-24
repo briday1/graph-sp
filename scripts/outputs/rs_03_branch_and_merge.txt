@@ -1,0 +1,72 @@
+   Compiling dagex v2026.15.0 (/home/runner/work/graph-sp/graph-sp)
+    Finished `release` profile [optimized] target(s) in 0.29s
+     Running `target/release/examples/03_branch_and_merge`
+
+════════════════════════════════════════════════════════════
+  Example 03: Branch and Merge
+════════════════════════════════════════════════════════════
+
+📖 Story:
+   Fan-out (branch): Create independent subgraphs that run in parallel.
+   Fan-in (merge): Combine branch-specific outputs safely.
+   This pattern is useful for processing data through multiple
+   independent pipelines and then combining the results.
+
+
+────────────────────────────────────────────────────────────
+Building the Graph
+────────────────────────────────────────────────────────────
+
+
+────────────────────────────────────────────────────────────
+Mermaid Diagram
+────────────────────────────────────────────────────────────
+
+graph TD
+    0["Source"]
+    1["PathA (+10)"]
+    2["PathB (+20)"]
+    3["PathA (+10)"]
+    4["PathB (+20)"]
+    5["Merge"]
+    0 -->|x → x| 1
+    0 -->|x → x| 2
+    0 -->|x → x| 3
+    0 -->|x → x| 4
+    1 --> 5
+    2 --> 5
+    4 --> 5
+    3 --> 5
+    style 1 fill:#e1f5ff
+    style 2 fill:#e1f5ff
+
+
+────────────────────────────────────────────────────────────
+ASCII Visualization
+────────────────────────────────────────────────────────────
+
+          PathA (+10) ──┐
+         /                \
+  Source                   Merge
+         \                /
+          PathB (+20) ──┘
+
+────────────────────────────────────────────────────────────
+Execution
+────────────────────────────────────────────────────────────
+
+⏱️  Runtime: 0.325ms
+💾 Memory: RSS: 2352 kB
+
+────────────────────────────────────────────────────────────
+Results
+────────────────────────────────────────────────────────────
+
+📊 Execution flow:
+   Source: 50
+   PathA: 50 + 10 = 60
+   PathB: 50 + 20 = 70
+   Merge: 60 + 70 = 130
+
+✅ Final output: 130
+
