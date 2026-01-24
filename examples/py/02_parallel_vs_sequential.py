@@ -20,7 +20,7 @@ def task_a(inputs):
     """Task A: add 10 with simulated work."""
     value = inputs.get("input", 0)
     # Simulate some work
-    time.sleep(0.05)
+    time.sleep(0.15)
     return {"result_a": value + 10}
 
 
@@ -28,7 +28,7 @@ def task_b(inputs):
     """Task B: add 20 with simulated work."""
     value = inputs.get("input", 0)
     # Simulate some work
-    time.sleep(0.05)
+    time.sleep(0.15)
     return {"result_b": value + 20}
 
 
@@ -36,7 +36,7 @@ def task_c(inputs):
     """Task C: add 30 with simulated work."""
     value = inputs.get("input", 0)
     # Simulate some work
-    time.sleep(0.05)
+    time.sleep(0.15)
     return {"result_c": value + 30}
 
 

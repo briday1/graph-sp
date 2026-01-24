@@ -23,7 +23,7 @@ def path_a(inputs):
     
     # Simulate I/O or blocking operation that releases the GIL
     # This allows true parallel execution in Python
-    time.sleep(0.02)
+    time.sleep(0.15)
     
     return {"result": value + 10}
 
@@ -34,7 +34,7 @@ def path_b(inputs):
     
     # Simulate I/O or blocking operation that releases the GIL
     # This allows true parallel execution in Python
-    time.sleep(0.02)
+    time.sleep(0.15)
     
     return {"result": value + 20}
 

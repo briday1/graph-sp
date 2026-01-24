@@ -23,7 +23,7 @@ def processor_a(inputs):
     
     # Simulate I/O or blocking operation that releases the GIL
     # This allows true parallel execution in Python
-    time.sleep(0.02)
+    time.sleep(0.15)
     
     return {"processed": value * 2}
 
@@ -34,7 +34,7 @@ def processor_b(inputs):
     
     # Simulate I/O or blocking operation that releases the GIL
     # This allows true parallel execution in Python
-    time.sleep(0.02)
+    time.sleep(0.15)
     
     return {"processed": value + 50}
 

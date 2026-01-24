@@ -18,7 +18,7 @@ fn source(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
 fn task_a(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let value = inputs.get("input").and_then(|d| d.as_int()).unwrap_or(0);
     // Simulate some work
-    thread::sleep(Duration::from_millis(50));
+    thread::sleep(Duration::from_millis(150));
     let mut outputs = HashMap::new();
     outputs.insert("result_a".to_string(), GraphData::int(value + 10));
     outputs
@@ -27,7 +27,7 @@ fn task_a(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
 fn task_b(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let value = inputs.get("input").and_then(|d| d.as_int()).unwrap_or(0);
     // Simulate some work
-    thread::sleep(Duration::from_millis(50));
+    thread::sleep(Duration::from_millis(150));
     let mut outputs = HashMap::new();
     outputs.insert("result_b".to_string(), GraphData::int(value + 20));
     outputs
@@ -36,7 +36,7 @@ fn task_b(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
 fn task_c(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     let value = inputs.get("input").and_then(|d| d.as_int()).unwrap_or(0);
     // Simulate some work
-    thread::sleep(Duration::from_millis(50));
+    thread::sleep(Duration::from_millis(150));
     let mut outputs = HashMap::new();
     outputs.insert("result_c".to_string(), GraphData::int(value + 30));
     outputs

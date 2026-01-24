@@ -22,7 +22,7 @@ fn make_multiplier(factor: i64) -> impl Fn(&HashMap<String, GraphData>) -> HashM
         
         // Simulate I/O-bound work (file read, network call, database query, etc.)
         // that benefits from parallelization
-        thread::sleep(Duration::from_millis(20));
+        thread::sleep(Duration::from_millis(150));
         
         let mut outputs = HashMap::new();
         outputs.insert("result".to_string(), GraphData::int(value * factor));
