@@ -89,20 +89,35 @@ def main():
     print_section("Mermaid Diagram")
     print(dag.to_mermaid())
     
-    print_section("Execution")
+    print_section("Sequential Execution (parallel=False)")
     
-    with Benchmark("Execution with detailed output") as bench:
-        context = dag.execute(parallel=True, max_threads=4)
+    with Benchmark("Sequential execution") as bench_seq:
+        context_seq = dag.execute(parallel=False)
     
-    bench.print_result()
+    bench_seq.print_result()
+    result_seq = bench_seq.result
+    
+    print_section("Parallel Execution (parallel=True)")
+    
+    with Benchmark("Parallel execution") as bench_par:
+        context_par = dag.execute(parallel=True, max_threads=4)
+    
+    bench_par.print_result()
+    result_par = bench_par.result
     
     print_section("Results")
     
     print("📊 Accessing outputs:\n")
     
+    print("Sequential execution:")
+    print(f"  Time: {result_seq.duration_ms:.3f}ms")
+    
+    print("\nParallel execution:")
+    print(f"  Time: {result_par.duration_ms:.3f}ms")
+    
     # Final context outputs
-    print("Final context outputs:")
-    output = context.get("output")
+    print("\nFinal context outputs:")
+    output = context_par.get("output")
     if output is not None:
         print(f"   output: {output}")
     

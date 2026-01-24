@@ -67,20 +67,38 @@ fn main() {
     println!("  Generator → Doubler → AddFive");
     println!("     (10)       (20)       (25)");
     
-    print_section("Execution");
+    print_section("Sequential Execution (parallel=false)");
     
-    let bench = Benchmark::start("Pipeline execution");
-    let context = dag.execute(false, None);
-    let _result = bench.finish_and_print();
+    let bench = Benchmark::start("Sequential execution");
+    let context_seq = dag.execute(false, None);
+    let result_seq = bench.finish_and_print();
+    
+    print_section("Parallel Execution (parallel=true)");
+    
+    let bench = Benchmark::start("Parallel execution");
+    let context_par = dag.execute(true, Some(4));
+    let result_par = bench.finish_and_print();
     
     print_section("Results");
     
-    if let Some(output) = context.get("output") {
+    println!("Sequential execution:");
+    if let Some(output) = context_seq.get("output") {
         if let Some(value) = output.as_int() {
-            println!("✅ Final output: {}", value);
-            println!("   (Started with 10, doubled to 20, added 5 = 25)");
+            println!("  Final output: {}", value);
+            println!("  Time: {:.3}ms", result_seq.duration_ms);
         }
     }
+    
+    println!("\nParallel execution:");
+    if let Some(output) = context_par.get("output") {
+        if let Some(value) = output.as_int() {
+            println!("  Final output: {}", value);
+            println!("  Time: {:.3}ms", result_par.duration_ms);
+        }
+    }
+    
+    println!("\n✅ Pipeline completed successfully!");
+    println!("   (Started with 10, doubled to 20, added 5 = 25)");
     
     println!();
 }

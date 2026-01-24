@@ -73,24 +73,27 @@ fn main() {
     println!("               \\");
     println!("                Multiplier(×7)");
     
-    print_section("Execution");
+    print_section("Sequential Execution (parallel=false)");
     
-    let bench = Benchmark::start("Variants execution");
-    let result = dag.execute_detailed(true, Some(4));
-    let _bench_result = bench.finish_and_print();
+    let bench = Benchmark::start("Sequential execution");
+    let _result_seq = dag.execute_detailed(false, None);
+    let bench_result_seq = bench.finish_and_print();
+    
+    print_section("Parallel Execution (parallel=true)");
+    
+    let bench = Benchmark::start("Parallel execution");
+    let _result_par = dag.execute_detailed(true, Some(4));
+    let bench_result_par = bench.finish_and_print();
     
     print_section("Results");
     
     println!("📊 Base value: 10");
-    println!("\nVariant results:");
     
-    // Access results from context
-    let context = &result.context;
-    if let Some(results) = context.get("results") {
-        if let Some(value) = results.as_int() {
-            println!("  Final result (last variant): {}", value);
-        }
-    }
+    println!("\nSequential execution:");
+    println!("  Time: {:.3}ms", bench_result_seq.duration_ms);
+    
+    println!("\nParallel execution:");
+    println!("  Time: {:.3}ms", bench_result_par.duration_ms);
     
     // Show detailed node outputs if available
     println!("\nDetailed variant outputs:");

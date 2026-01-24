@@ -66,19 +66,38 @@ def main():
     print("  Generator → Doubler → AddFive")
     print("     (10)       (20)       (25)")
     
-    print_section("Execution")
+    print_section("Sequential Execution (parallel=False)")
     
-    with Benchmark("Pipeline execution") as bench:
-        context = dag.execute(parallel=False)
+    with Benchmark("Sequential execution") as bench_seq:
+        context_seq = dag.execute(parallel=False)
     
-    bench.print_result()
+    bench_seq.print_result()
+    result_seq = bench_seq.result
+    
+    print_section("Parallel Execution (parallel=True)")
+    
+    with Benchmark("Parallel execution") as bench_par:
+        context_par = dag.execute(parallel=True, max_threads=4)
+    
+    bench_par.print_result()
+    result_par = bench_par.result
     
     print_section("Results")
     
-    output = context.get("output")
-    if output is not None:
-        print(f"✅ Final output: {output}")
-        print("   (Started with 10, doubled to 20, added 5 = 25)")
+    print("Sequential execution:")
+    output_seq = context_seq.get("output")
+    if output_seq is not None:
+        print(f"  Final output: {output_seq}")
+        print(f"  Time: {result_seq.duration_ms:.3f}ms")
+    
+    print("\nParallel execution:")
+    output_par = context_par.get("output")
+    if output_par is not None:
+        print(f"  Final output: {output_par}")
+        print(f"  Time: {result_par.duration_ms:.3f}ms")
+    
+    print("\n✅ Pipeline completed successfully!")
+    print("   (Started with 10, doubled to 20, added 5 = 25)")
     
     print()
 

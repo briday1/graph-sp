@@ -91,19 +91,31 @@ fn main() {
     print_section("Mermaid Diagram");
     println!("{}", dag.to_mermaid());
     
-    print_section("Execution");
+    print_section("Sequential Execution (parallel=false)");
     
-    let bench = Benchmark::start("Execution with detailed output");
-    let result = dag.execute_detailed(true, Some(4));
-    let _bench_result = bench.finish_and_print();
+    let bench = Benchmark::start("Sequential execution");
+    let _result_seq = dag.execute_detailed(false, None);
+    let bench_result_seq = bench.finish_and_print();
+    
+    print_section("Parallel Execution (parallel=true)");
+    
+    let bench = Benchmark::start("Parallel execution");
+    let result_par = dag.execute_detailed(true, Some(4));
+    let bench_result_par = bench.finish_and_print();
     
     print_section("Results");
     
     println!("📊 Accessing different output levels:\n");
     
+    println!("Sequential execution:");
+    println!("  Time: {:.3}ms", bench_result_seq.duration_ms);
+    
+    println!("\nParallel execution:");
+    println!("  Time: {:.3}ms", bench_result_par.duration_ms);
+    
     // Final context outputs
-    println!("1. Final context outputs:");
-    if let Some(output) = result.context.get("output") {
+    println!("\n1. Final context outputs:");
+    if let Some(output) = result_par.context.get("output") {
         if let Some(value) = output.as_int() {
             println!("   output: {}", value);
         }
@@ -111,15 +123,15 @@ fn main() {
     
     // Node outputs
     println!("\n2. Individual node outputs:");
-    println!("   Total nodes executed: {}", result.node_outputs.len());
-    for (node_id, outputs) in result.node_outputs.iter() {
+    println!("   Total nodes executed: {}", result_par.node_outputs.len());
+    for (node_id, outputs) in result_par.node_outputs.iter() {
         println!("   Node {}: {} outputs", node_id, outputs.len());
     }
     
     // Branch outputs
     println!("\n3. Branch-specific outputs:");
-    println!("   Total branches: {}", result.branch_outputs.len());
-    for (branch_id, outputs) in result.branch_outputs.iter() {
+    println!("   Total branches: {}", result_par.branch_outputs.len());
+    for (branch_id, outputs) in result_par.branch_outputs.iter() {
         println!("   Branch {}:", branch_id);
         for (key, value) in outputs.iter() {
             if let Some(v) = value.as_int() {
