@@ -51,6 +51,9 @@ fn main() {
     let mut graph = Graph::new();
     
     // Add a data source
+    // Note: All node functions must be wrapped in Arc::new() for thread-safe sharing
+    // across parallel execution. Arc (Atomic Reference Counting) enables multiple
+    // threads to safely access the same function without copying.
     graph.add(
         Arc::new(|_| {
             let mut out = HashMap::new();
@@ -114,50 +117,50 @@ python3 examples/py/06_graphdata_large_payload_arc_or_shared_data.py
 
 The simplest possible DAG: generator → transformer → aggregator.
 
-**Rust output:**
+**Description:**
+Shows a basic 3-node pipeline where each node depends on the previous one. Demonstrates the fundamental dataflow concept.
 
+**Syntax:**
+```rust
+use dagex::{Graph, GraphData};
+use std::sync::Arc;
+
+let mut graph = Graph::new();
+
+// Note: Arc::new() wraps the function for thread-safe sharing
+graph.add(
+    Arc::new(generate),  // Function wrapped in Arc for parallel execution
+    Some("Generator"),
+    None,
+    Some(vec![("number", "x")])
+);
 ```
-════════════════════════════════════════════════════════════
-  Example 01: Minimal Pipeline
-════════════════════════════════════════════════════════════
 
-📖 Story:
-   This example shows the simplest possible DAG pipeline:
-   A generator creates a number, a transformer doubles it,
-   and a final node adds five to produce the result.
-
-
-────────────────────────────────────────────────────────────
-Mermaid Diagram
-────────────────────────────────────────────────────────────
-
+**Mermaid Diagram:**
+```mermaid
 graph TD
     0["Generator"]
     1["Doubler"]
     2["AddFive"]
     0 -->|x → x| 1
     1 -->|y → y| 2
+```
 
+**Performance (Sequential):**
+```
+⏱️  Runtime: 0.026ms
+💾 Memory: RSS: 2432 kB
+```
 
-────────────────────────────────────────────────────────────
-ASCII Visualization
-────────────────────────────────────────────────────────────
+**Performance (Parallel):**
+```
+⏱️  Runtime: 0.032ms
+💾 Memory: RSS: 2432 kB
+```
 
-  Generator → Doubler → AddFive
-     (10)       (20)       (25)
-
-────────────────────────────────────────────────────────────
-Execution
-────────────────────────────────────────────────────────────
-
-⏱️  Runtime: 0.012ms
-💾 Memory: RSS: 2080 kB
-
-────────────────────────────────────────────────────────────
-Results
-────────────────────────────────────────────────────────────
-
-✅ Final output: 25
+**Output:**
+```
+✅ Pipeline completed successfully!
    (Started with 10, doubled to 20, added 5 = 25)
 ```
 
@@ -165,21 +168,99 @@ Results
 
 Demonstrates the power of parallel execution for independent tasks.
 
-**Key insight:** Three tasks that each take ~50ms run in ~150ms sequentially but only ~50ms in parallel—a **3x speedup**!
+**Description:**
+Shows three independent tasks (A, B, C) that each take ~50ms. When executed sequentially, they take ~150ms total. When executed in parallel, they complete in ~50ms—a **3x speedup**!
 
-**Rust output:**
+**Syntax:**
+```rust
+use dagex::{Graph, GraphData};
+use std::sync::Arc;
 
+// All tasks are wrapped in Arc for thread-safe parallel execution
+graph.add(Arc::new(task_a), Some("TaskA"), /* ... */);
+graph.add(Arc::new(task_b), Some("TaskB"), /* ... */);
+graph.add(Arc::new(task_c), Some("TaskC"), /* ... */);
+
+// Execute with parallel=false or parallel=true
+let context_seq = dag.execute(false, None);  // Sequential
+let context_par = dag.execute(true, Some(4)); // Parallel with 4 threads
 ```
+
+**Mermaid Diagram:**
+```mermaid
+graph TD
+    0["Source"]
+    1["TaskA"]
+    2["TaskB"]
+    3["TaskC"]
+    0 -->|input → input| 1
+    0 -->|input → input| 2
+    0 -->|input → input| 3
+```
+
+**Performance (Sequential):**
+```
+⏱️  Runtime: 150.290ms
+💾 Memory: RSS: 2500 kB
+```
+
+**Performance (Parallel):**
+```
+⏱️  Runtime: 50.453ms
+💾 Memory: RSS: 2628 kB
 ⚡ Speedup: 2.98x faster with parallel execution!
+```
+
+**Output:**
+```
+Sequential results:
+  TaskA: 110
+  TaskB: 120
+  TaskC: 130
+  Time: 150.290ms
+
+Parallel results:
+  TaskA: 110
+  TaskB: 120
+  TaskC: 130
+  Time: 50.453ms
 ```
 
 ### Example 03: Branch and Merge
 
 Fan-out (branching) and fan-in (merging) patterns for complex workflows.
 
-**Mermaid diagram:**
+**Description:**
+Demonstrates creating independent branches that process data in parallel, then merging their outputs. Each branch contains its own subgraph that can have multiple nodes.
 
+**Syntax:**
+```rust
+use dagex::{Graph, GraphData};
+use std::sync::Arc;
+
+// Create branches
+let mut branch_a = Graph::new();
+branch_a.add(Arc::new(path_a), Some("PathA (+10)"), /* ... */);
+let branch_a_id = graph.branch(branch_a);
+
+let mut branch_b = Graph::new();
+branch_b.add(Arc::new(path_b), Some("PathB (+20)"), /* ... */);
+let branch_b_id = graph.branch(branch_b);
+
+// Merge branches - combine outputs from multiple branches
+graph.merge(
+    merge_function,
+    Some("Merge"),
+    vec![
+        (branch_a_id, "result", "from_a"),
+        (branch_b_id, "result", "from_b"),
+    ],
+    Some(vec![("combined", "final")])
+);
 ```
+
+**Mermaid Diagram:**
+```mermaid
 graph TD
     0["Source"]
     1["PathA (+10)"]
@@ -191,14 +272,93 @@ graph TD
     2 --> 5
 ```
 
-**Result:** 50 → PathA(60) + PathB(70) → Merge(130)
+**Performance (Sequential):**
+```
+⏱️  Runtime: 0.072ms
+💾 Memory: RSS: 2316 kB
+```
+
+**Performance (Parallel):**
+```
+⏱️  Runtime: 0.906ms
+💾 Memory: RSS: 2576 kB
+```
+
+**Output:**
+```
+📊 Execution flow:
+   Source: 50
+   PathA: 50 + 10 = 60
+   PathB: 50 + 20 = 70
+   Merge: 60 + 70 = 130
+
+✅ Final output: 130
+```
 
 ### Example 04: Variants (Parameter Sweep)
 
 Run multiple variants in parallel—perfect for hyperparameter tuning or A/B testing.
 
-**Rust output:**
+**Description:**
+Demonstrates running multiple nodes with the same structure but different parameters. All variants execute at the same level in the DAG, enabling efficient parallel exploration of parameter spaces.
 
+**Syntax:**
+```rust
+use dagex::{Graph, GraphData, NodeFunction};
+use std::sync::Arc;
+
+// Factory function to create variants with different parameters
+fn make_multiplier(factor: i64) -> NodeFunction {
+    Arc::new(move |inputs: &HashMap<String, GraphData>| {
+        let value = inputs.get("x").and_then(|d| d.as_int()).unwrap_or(0);
+        let mut outputs = HashMap::new();
+        outputs.insert("result".to_string(), GraphData::int(value * factor));
+        outputs
+    })
+}
+
+// Create multiple variants
+let factors = vec![2, 3, 5, 7];
+let variant_nodes: Vec<NodeFunction> = factors.iter()
+    .map(|&f| make_multiplier(f))
+    .collect();
+
+// Add all variants at once
+graph.variants(
+    variant_nodes,
+    Some("Multiplier"),
+    Some(vec![("x", "x")]),
+    Some(vec![("result", "results")])
+);
+```
+
+**Mermaid Diagram:**
+```mermaid
+graph TD
+    0["DataSource"]
+    1["Multiplier (v0)"]
+    2["Multiplier (v1)"]
+    3["Multiplier (v2)"]
+    4["Multiplier (v3)"]
+    0 -->|x → x| 1
+    0 -->|x → x| 2
+    0 -->|x → x| 3
+    0 -->|x → x| 4
+```
+
+**Performance (Sequential):**
+```
+⏱️  Runtime: 0.055ms
+💾 Memory: RSS: 2372 kB
+```
+
+**Performance (Parallel):**
+```
+⏱️  Runtime: 0.398ms
+💾 Memory: RSS: 2632 kB
+```
+
+**Output:**
 ```
 📊 Base value: 10
 
@@ -215,8 +375,58 @@ Detailed variant outputs:
 
 Access intermediate results and branch outputs, not just final values.
 
-**Rust output:**
+**Description:**
+Demonstrates how to access different levels of output: final context outputs, individual node outputs, and branch-specific outputs. Uses `execute_detailed()` instead of `execute()` to get comprehensive execution information.
 
+**Syntax:**
+```rust
+use dagex::{Graph, GraphData};
+use std::sync::Arc;
+
+// Execute with detailed output
+let result = dag.execute_detailed(true, Some(4));
+
+// Access different output levels:
+// 1. Final context outputs (global broadcast space)
+let final_output = result.context.get("output");
+
+// 2. Per-node outputs (each node's raw output)
+for (node_id, outputs) in result.node_outputs.iter() {
+    println!("Node {}: {} outputs", node_id, outputs.len());
+}
+
+// 3. Branch-specific outputs (scoped to branches)
+for (branch_id, outputs) in result.branch_outputs.iter() {
+    println!("Branch {}: {:?}", branch_id, outputs);
+}
+```
+
+**Mermaid Diagram:**
+```mermaid
+graph TD
+    0["Source"]
+    1["ProcessorA"]
+    2["ProcessorB"]
+    5["MergeNode"]
+    0 -->|input → input| 1
+    0 -->|input → input| 2
+    1 --> 5
+    2 --> 5
+```
+
+**Performance (Sequential):**
+```
+⏱️  Runtime: 0.090ms
+💾 Memory: RSS: 2480 kB
+```
+
+**Performance (Parallel):**
+```
+⏱️  Runtime: 0.556ms
+💾 Memory: RSS: 2612 kB
+```
+
+**Output:**
 ```
 📊 Accessing different output levels:
 
@@ -238,20 +448,65 @@ Access intermediate results and branch outputs, not just final values.
 
 Large data is automatically wrapped in `Arc` for efficient sharing without copying.
 
-**Key insight:** A 1M integer vector is created once and shared by reference across all consumers. No data duplication!
+**Description:**
+Demonstrates efficient memory handling for large datasets. GraphData automatically wraps large vectors (int_vec, float_vec) in Arc, enabling multiple nodes to read the same data without duplication.
 
-**Rust output:**
+**Syntax:**
+```rust
+use dagex::{Graph, GraphData};
+use std::sync::Arc;
 
+// Create large data - automatically wrapped in Arc by GraphData::int_vec
+fn create_large_data(_inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+    let large_vec: Vec<i64> = (0..1_000_000).collect();
+    let mut outputs = HashMap::new();
+    // int_vec automatically wraps the Vec in Arc for zero-copy sharing
+    outputs.insert("large_data".to_string(), GraphData::int_vec(large_vec));
+    outputs
+}
+
+// All node functions must be wrapped in Arc
+graph.add(Arc::new(create_large_data), Some("CreateLargeData"), /* ... */);
+
+// Multiple consumers access the same Arc<Vec<i64>> - no copying!
+graph.add(Arc::new(consumer_a), Some("ConsumerA"), /* ... */);
+graph.add(Arc::new(consumer_b), Some("ConsumerB"), /* ... */);
+graph.add(Arc::new(consumer_c), Some("ConsumerC"), /* ... */);
 ```
-⏱️  Runtime: 1.658ms
-💾 Memory: RSS: 10212 kB
 
+**Mermaid Diagram:**
+```mermaid
+graph TD
+    0["CreateLargeData"]
+    1["ConsumerA"]
+    2["ConsumerB"]
+    3["ConsumerC"]
+    0 -->|data → data| 1
+    0 -->|data → data| 2
+    0 -->|data → data| 3
+```
+
+**Performance (Sequential):**
+```
+⏱️  Runtime: 11.198ms
+💾 Memory: RSS: 10288 kB
+```
+
+**Performance (Parallel):**
+```
+⏱️  Runtime: 10.853ms
+💾 Memory: RSS: 18244 kB
+```
+
+**Output:**
+```
 📊 Consumer outputs (each processes different segments):
    ConsumerA (first 1000):  sum = 499500
    ConsumerB (next 1000):   sum = 1499500
    ConsumerC (next 1000):   sum = 2499500
 
 ✅ Zero-copy data sharing successful!
+   Memory benefit: Only 1 copy of data exists, shared by all consumers
 ```
 
 ## 🔧 Core API
@@ -264,9 +519,9 @@ use std::sync::Arc;
 
 let mut graph = Graph::new();
 
-// Add a node
+// Add a node - function must be wrapped in Arc for thread-safe parallel execution
 graph.add(
-    Arc::new(function),      // Function handle
+    Arc::new(function),      // Function handle wrapped in Arc
     Some("NodeLabel"),       // Optional label
     Some(vec![("in", "x")]), // Input mapping: broadcast → impl
     Some(vec![("out", "y")]) // Output mapping: impl → broadcast
@@ -283,9 +538,9 @@ graph.merge(
     Some(vec![("result", "final")])
 );
 
-// Add variants (parameter sweep)
+// Add variants (parameter sweep) - each function wrapped in Arc
 graph.variants(
-    vec![func1, func2, func3],
+    vec![Arc::new(func1), Arc::new(func2), Arc::new(func3)],
     Some("Variants"),
     Some(vec![("input", "x")]),
     Some(vec![("output", "results")])
