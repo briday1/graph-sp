@@ -23,7 +23,7 @@ def make_multiplier(factor):
         
         # Simulate I/O or blocking operation that releases the GIL
         # This allows true parallel execution in Python
-        time.sleep(0.02)
+        time.sleep(0.15)
         
         return {"result": value * factor}
     return multiplier

@@ -20,7 +20,7 @@ fn processor_a(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData
     
     // Simulate I/O-bound work (file read, network call, database query, etc.)
     // that benefits from parallelization
-    thread::sleep(Duration::from_millis(20));
+    thread::sleep(Duration::from_millis(150));
     
     let mut outputs = HashMap::new();
     outputs.insert("processed".to_string(), GraphData::int(value * 2));
@@ -32,7 +32,7 @@ fn processor_b(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData
     
     // Simulate I/O-bound work (file read, network call, database query, etc.)
     // that benefits from parallelization
-    thread::sleep(Duration::from_millis(20));
+    thread::sleep(Duration::from_millis(150));
     
     let mut outputs = HashMap::new();
     outputs.insert("processed".to_string(), GraphData::int(value + 50));

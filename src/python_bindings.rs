@@ -80,12 +80,11 @@ impl PyGraph {
 
         // Create the node function
         if let Some(py_func) = function {
-            // Wrap Python callable in a Rust closure and then into a NodeFunction (Arc)
+            // Wrap Python callable in a Rust closure - graph.add will handle Arc wrapping
             let rust_function = create_python_node_function(py_func);
-            let node_fn: crate::node::NodeFunction = Arc::new(rust_function);
 
             graph.add(
-                node_fn,
+                rust_function,
                 label.as_deref(),
                 if input_refs.is_empty() {
                     None
@@ -99,11 +98,10 @@ impl PyGraph {
                 },
             );
         } else {
-            // No-op function if None provided
+            // No-op function if None provided - graph.add will handle Arc wrapping
             let noop = |_: &HashMap<String, GraphData>| HashMap::new();
-            let node_fn: crate::node::NodeFunction = Arc::new(noop);
             graph.add(
-                node_fn,
+                noop,
                 label.as_deref(),
                 if input_refs.is_empty() {
                     None

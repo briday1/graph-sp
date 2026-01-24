@@ -20,7 +20,7 @@ fn double(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     
     // Simulate I/O-bound work (file read, network call, database query, etc.)
     // that benefits from parallelization
-    thread::sleep(Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(150));
     
     let mut outputs = HashMap::new();
     outputs.insert("result".to_string(), GraphData::int(value * 2));
@@ -32,7 +32,7 @@ fn add_five(inputs: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
     
     // Simulate I/O-bound work (file read, network call, database query, etc.)
     // that benefits from parallelization
-    thread::sleep(Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(150));
     
     let mut outputs = HashMap::new();
     outputs.insert("final".to_string(), GraphData::int(value + 5));

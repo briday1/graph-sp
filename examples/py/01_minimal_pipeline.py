@@ -22,7 +22,7 @@ def double(inputs):
     
     # Simulate I/O or blocking operation that releases the GIL
     # This allows true parallel execution in Python
-    time.sleep(0.01)
+    time.sleep(0.15)
     
     return {"result": value * 2}
 
@@ -33,7 +33,7 @@ def add_five(inputs):
     
     # Simulate I/O or blocking operation that releases the GIL
     # This allows true parallel execution in Python
-    time.sleep(0.01)
+    time.sleep(0.15)
     
     return {"final": value + 5}
 
