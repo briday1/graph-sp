@@ -39,13 +39,17 @@
 
 mod builder;
 mod dag;
+mod distribution;
 mod graph_data;
 mod node;
+mod stat_result;
 
 #[cfg(feature = "python")]
 mod python_bindings;
 
 pub use builder::Graph;
-pub use dag::{Dag, ExecutionContext, ExecutionResult};
+pub use dag::{Dag, DagStats, ExecutionContext, ExecutionResult};
+pub use distribution::{DistContext, DistTransferFn, Distribution, PortSummary};
 pub use graph_data::GraphData;
+pub use stat_result::StatResult;
 pub use node::{NodeFunction, NodeId};

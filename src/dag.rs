@@ -1,7 +1,9 @@
 //! DAG representation with execution and visualization support
 
+use crate::distribution::{DistContext, Distribution};
 use crate::graph_data::GraphData;
 use crate::node::{Node, NodeId};
+use crate::stat_result::StatResult;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 
@@ -400,6 +402,146 @@ impl Dag {
         &self.nodes
     }
 
+    // ── Statistical forward pass ──────────────────────────────────────────────
+
+    /// Forward-propagate distributions through the DAG.
+    ///
+    /// For each node in topological order:
+    ///   1. If the node has a `dist_transfer`, call it analytically.
+    ///   2. Else if all inputs are deterministic (or there are no distribution inputs),
+    ///      run the node's function once and wrap outputs in `Deterministic`.
+    ///   3. Otherwise draw `n_samples` samples from input distributions, run the
+    ///      node's function that many times, and collect outputs into `Empirical`
+    ///      distributions.
+    ///
+    /// `input_dists` maps **broadcast variable names** to their prior distributions
+    /// (same namespace as `ExecutionContext`).
+    pub fn predict(&self, input_dists: DistContext, n_samples: usize) -> StatResult {
+        let mut stat = StatResult::new();
+        let mut dist_ctx: DistContext = input_dists;
+        let mut rng = rand::thread_rng();
+
+        for &node_id in &self.execution_order {
+            let node = match self.nodes.iter().find(|n| n.id == node_id) {
+                Some(n) => n,
+                None => continue,
+            };
+
+            // ── 1. Gather input distributions keyed by impl_var (for DistTransfer) ──
+            let input_dists_impl = Self::gather_impl_dists(node, &dist_ctx);
+
+            // ── 2. Try analytical DistTransfer ──────────────────────────────────
+            let maybe_analytical: Option<DistContext> = node
+                .dist_transfer
+                .as_ref()
+                .and_then(|t| t(&input_dists_impl));
+
+            // ── 3. Produce output distributions (broadcast-var keyed) ──────────
+            let output_broadcast: DistContext = if let Some(impl_dists) = maybe_analytical {
+                // Map impl_var -> broadcast_var
+                node.output_mapping
+                    .iter()
+                    .filter_map(|(impl_var, broadcast_var)| {
+                        impl_dists
+                            .get(impl_var)
+                            .map(|d| (broadcast_var.clone(), d.clone()))
+                    })
+                    .collect()
+            } else if input_dists_impl.is_empty()
+                || input_dists_impl.values().all(|d| d.is_deterministic())
+            {
+                // All inputs known — run once, wrap outputs as Deterministic
+                let mini = Self::build_mini_ctx(node, &dist_ctx, None::<&mut rand::rngs::ThreadRng>);
+                node.execute(&mini)
+                    .into_iter()
+                    .filter_map(|(k, v)| gd_to_f64(&v).map(|f| (k, Distribution::deterministic(f))))
+                    .collect()
+            } else {
+                // MC fallback
+                let mut sample_vecs: HashMap<String, Vec<f64>> = HashMap::new();
+                for _ in 0..n_samples {
+                    let mini = Self::build_mini_ctx(node, &dist_ctx, Some(&mut rng));
+                    for (k, v) in node.execute(&mini) {
+                        if let Some(f) = gd_to_f64(&v) {
+                            sample_vecs.entry(k).or_default().push(f);
+                        }
+                    }
+                }
+                sample_vecs
+                    .into_iter()
+                    .map(|(k, s)| (k, Distribution::empirical(s)))
+                    .collect()
+            };
+
+            // ── 4. Write outputs into dist_ctx and StatResult ────────────────
+            for (broadcast_var, dist) in output_broadcast {
+                if let Some(bid) = node.branch_id {
+                    let prefixed = format!("__branch_{}__{}" , bid, broadcast_var);
+                    dist_ctx.insert(prefixed, dist.clone());
+                    stat.branch_dists
+                        .entry(bid)
+                        .or_default()
+                        .insert(broadcast_var.clone(), dist.clone());
+                } else {
+                    dist_ctx.insert(broadcast_var.clone(), dist.clone());
+                }
+
+                stat.node_dists
+                    .entry(node_id)
+                    .or_default()
+                    .insert(broadcast_var.clone(), dist.clone());
+
+                if let Some(vi) = node.variant_index {
+                    stat.variant_dists
+                        .entry(vi)
+                        .or_default()
+                        .insert(broadcast_var.clone(), dist.clone());
+                }
+            }
+        }
+
+        stat.dist_context = dist_ctx;
+        stat
+    }
+
+    /// Gather input distributions for a node, keyed by **impl_var** names
+    /// (the names the node function / DistTransfer sees).
+    fn gather_impl_dists(node: &Node, dist_ctx: &DistContext) -> DistContext {
+        node.input_mapping
+            .iter()
+            .filter_map(|(broadcast_key, impl_var)| {
+                let lookup = broadcast_to_lookup_key(broadcast_key);
+                dist_ctx
+                    .get(&lookup)
+                    .map(|d| (impl_var.clone(), d.clone()))
+            })
+            .collect()
+    }
+
+    /// Build a mini execution context for one MC sample (or deterministic run).
+    ///
+    /// Keys are the lookup keys `node.execute()` expects in its context argument.
+    /// When `rng` is `None`, deterministic values are used (point-mass sampling).
+    fn build_mini_ctx<R: rand::Rng>(
+        node: &Node,
+        dist_ctx: &DistContext,
+        mut rng: Option<&mut R>,
+    ) -> ExecutionContext {
+        node.input_mapping
+            .keys()
+            .filter_map(|broadcast_key| {
+                let lookup = broadcast_to_lookup_key(broadcast_key);
+                dist_ctx.get(&lookup).map(|dist| {
+                    let val = match rng.as_mut() {
+                        Some(r) => dist.sample_n_with_rng(1, r)[0],
+                        None => dist.mean(), // deterministic path
+                    };
+                    (lookup, GraphData::Float(val))
+                })
+            })
+            .collect()
+    }
+
     /// Get statistics about the DAG
     pub fn stats(&self) -> DagStats {
         DagStats {
@@ -423,7 +565,30 @@ impl Dag {
     }
 }
 
-/// Statistics about a DAG
+// ─── Free helpers used by Dag::predict ───────────────────────────────────────
+
+/// Convert a `GraphData` value to `f64` if it is numeric.
+/// Delegates to `GraphData::as_f64_lossy()` which also unwraps Python number
+/// objects when the `python` feature is enabled.
+fn gd_to_f64(gd: &GraphData) -> Option<f64> {
+    gd.as_f64_lossy()
+}
+
+/// Return the context lookup key that `Node::execute()` uses internally.
+///
+/// - Normal keys: returned as-is.
+/// - Merge keys `"branch_id:var"` → `"__branch_{id}__{var}"` (the format
+///   that branch nodes write into the execution context).
+fn broadcast_to_lookup_key(broadcast_key: &str) -> String {
+    if broadcast_key.contains(':') {
+        let mut parts = broadcast_key.splitn(2, ':');
+        let id = parts.next().unwrap_or("");
+        let var = parts.next().unwrap_or("");
+        format!("__branch_{}__{}" , id, var)
+    } else {
+        broadcast_key.to_string()
+    }
+}
 #[derive(Debug, Clone)]
 pub struct DagStats {
     /// Total number of nodes
