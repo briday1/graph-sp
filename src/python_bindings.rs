@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::builder::Graph;
-use crate::dag::Dag;
+use crate::dag::{Dag, PredictTarget};
 use crate::distribution::{DistContext, Distribution};
 use crate::graph_data::GraphData;
 use crate::stat_result::StatResult;
@@ -474,40 +474,122 @@ impl PyDag {
         self.dag.nodes().len()
     }
 
+    /// Return a sorted list of unique node labels present in the DAG.
+    ///
+    /// Useful for discovering valid values to pass as `at_node` to `predict()`.
+    ///
+    /// Example::
+    ///
+    ///     dag.node_labels()   # ["AddNoise", "Scale", "Source"]
+    fn node_labels(&self, py: Python) -> PyObject {
+        let mut labels: Vec<&str> = self
+            .dag
+            .nodes()
+            .iter()
+            .filter_map(|n| n.label.as_deref())
+            .collect();
+        labels.sort();
+        labels.dedup();
+        labels.to_object(py)
+    }
+
+    /// Return a sorted list of unique branch IDs present in the DAG.
+    fn branch_ids(&self, py: Python) -> PyObject {
+        let mut ids: Vec<usize> = self
+            .dag
+            .nodes()
+            .iter()
+            .filter_map(|n| n.branch_id)
+            .collect();
+        ids.sort();
+        ids.dedup();
+        ids.to_object(py)
+    }
+
+    /// Return a sorted list of unique variant indices present in the DAG.
+    fn variant_indices(&self, py: Python) -> PyObject {
+        let mut idxs: Vec<usize> = self
+            .dag
+            .nodes()
+            .iter()
+            .filter_map(|n| n.variant_index)
+            .collect();
+        idxs.sort();
+        idxs.dedup();
+        idxs.to_object(py)
+    }
+
     /// Forward-propagate distributions through the graph.
     ///
     /// Args:
     ///     inputs (dict[str, Distribution]): Initial distributions keyed by broadcast variable name.
-    ///     n_samples (int): Number of Monte Carlo samples to draw for nodes that do not have an
-    ///         analytical dist_transfer.  Default: 1000.
+    ///     n_samples (int): Monte Carlo sample count for nodes without an analytical dist_transfer.
+    ///         Default: 1000.
+    ///     at_node (str | None): Stop after all nodes with this label have been computed.  Pass
+    ///         ``None`` (default) to run the full graph.  Use :meth:`node_labels` to list valid
+    ///         values.
+    ///     at_branch (int | None): Stop after all nodes belonging to this branch ID have been
+    ///         computed.  Use :meth:`branch_ids` to list valid values.
+    ///     at_variant (int | None): Stop after all nodes with this variant index have been
+    ///         computed.  Use :meth:`variant_indices` to list valid values.
+    ///
+    /// Only one of ``at_node``, ``at_branch``, ``at_variant`` should be given at a time.
+    /// If more than one is supplied, ``at_node`` takes precedence, then ``at_branch``,
+    /// then ``at_variant``.
     ///
     /// Returns:
-    ///     StatResult: distribution over every reachable broadcast variable.
+    ///     StatResult: distribution over every broadcast variable computed up to the target.
     ///
     /// Example::
     ///
-    ///     stat = dag.predict({"x": dagex.normal(0.0, 1.0)}, n_samples=2000)
-    ///     print(stat["y"].mean, stat["y"].std)
-    ///     print(stat["y"].summary())
-    #[pyo3(signature = (inputs, n_samples=1000))]
+    ///     # Full graph
+    ///     stat = dag.predict({"x": dagex.normal(0.0, 1.0)})
+    ///
+    ///     # Stop at node labelled "Scale"
+    ///     stat = dag.predict({"x": dagex.normal(0.0, 1.0)}, at_node="Scale")
+    ///
+    ///     # Stop at branch 1
+    ///     stat = dag.predict({"x": dagex.normal(0.0, 1.0)}, at_branch=1)
+    ///
+    ///     # Stop at variant 0
+    ///     stat = dag.predict({"x": dagex.normal(0.0, 1.0)}, at_variant=0)
+    #[pyo3(signature = (inputs, n_samples=1000, at_node=None, at_branch=None, at_variant=None))]
     fn predict(
         &self,
         py: Python,
         inputs: &PyDict,
         n_samples: usize,
+        at_node: Option<String>,
+        at_branch: Option<usize>,
+        at_variant: Option<usize>,
     ) -> PyResult<PyStatResult> {
         // Convert Python dict -> DistContext
         let mut dist_ctx: DistContext = HashMap::new();
         for (key, val) in inputs.iter() {
             let k: String = key.extract()?;
-            // Extract as PyDistribution (works because we implement FromPyObject)
             let cell = val
                 .downcast::<PyCell<PyDistribution>>()
-                .map_err(|_| PyValueError::new_err(format!("Value for key '{}' must be a Distribution (use dagex.normal(), dagex.gamma(), etc.)", k)))?;
+                .map_err(|_| PyValueError::new_err(format!(
+                    "Value for key '{}' must be a Distribution (use dagex.normal(), dagex.gamma(), etc.)",
+                    k
+                )))?;
             dist_ctx.insert(k, cell.borrow().inner.clone());
         }
 
-        let stat = py.allow_threads(|| self.dag.predict(dist_ctx, n_samples));
+        // Build target (at_node > at_branch > at_variant)
+        let target: Option<PredictTarget> = if let Some(label) = at_node {
+            Some(PredictTarget::NodeLabel(label))
+        } else if let Some(bid) = at_branch {
+            Some(PredictTarget::BranchId(bid))
+        } else if let Some(vi) = at_variant {
+            Some(PredictTarget::VariantIndex(vi))
+        } else {
+            None
+        };
+
+        let stat = py.allow_threads(|| {
+            self.dag.predict_at(dist_ctx, n_samples, target.as_ref())
+        });
         Ok(PyStatResult { inner: stat })
     }
 }

@@ -10,6 +10,28 @@ use std::sync::{Arc, Mutex};
 /// Execution context for storing variable values during graph execution
 pub type ExecutionContext = HashMap<String, GraphData>;
 
+// ─── PredictTarget ────────────────────────────────────────────────────────────
+
+/// Specifies where the statistical forward pass should stop.
+///
+/// When a target is given to `Dag::predict_at()`, the forward pass executes
+/// nodes in topological order and stops as soon as every node that matches the
+/// target has been computed.  Nodes *after* the target are never executed,
+/// saving MC work you don't need.
+///
+/// If multiple nodes share the same label / branch / variant (e.g. parallel
+/// branches both labelled "Process"), the pass continues until all of them
+/// have been computed.
+#[derive(Debug, Clone)]
+pub enum PredictTarget {
+    /// Stop after all nodes whose `label` exactly matches this string.
+    NodeLabel(String),
+    /// Stop after all nodes that belong to this branch ID.
+    BranchId(usize),
+    /// Stop after all nodes that carry this variant index.
+    VariantIndex(usize),
+}
+
 /// Execution result that tracks outputs per node and per branch
 #[derive(Debug, Clone)]
 pub struct ExecutionResult {
@@ -404,9 +426,21 @@ impl Dag {
 
     // ── Statistical forward pass ──────────────────────────────────────────────
 
-    /// Forward-propagate distributions through the DAG.
+    /// Forward-propagate distributions through the **entire** DAG.
     ///
-    /// For each node in topological order:
+    /// Equivalent to `predict_at(input_dists, n_samples, None)` — every node
+    /// in topological order is evaluated before the result is returned.
+    ///
+    /// `input_dists` maps **broadcast variable names** to their prior distributions
+    /// (same namespace as `ExecutionContext`).
+    pub fn predict(&self, input_dists: DistContext, n_samples: usize) -> StatResult {
+        self.predict_at(input_dists, n_samples, None)
+    }
+
+    /// Forward-propagate distributions through the DAG, optionally stopping early
+    /// at a specified target node / branch / variant.
+    ///
+    /// For each node processed in topological order:
     ///   1. If the node has a `dist_transfer`, call it analytically.
     ///   2. Else if all inputs are deterministic (or there are no distribution inputs),
     ///      run the node's function once and wrap outputs in `Deterministic`.
@@ -414,12 +448,35 @@ impl Dag {
     ///      node's function that many times, and collect outputs into `Empirical`
     ///      distributions.
     ///
-    /// `input_dists` maps **broadcast variable names** to their prior distributions
-    /// (same namespace as `ExecutionContext`).
-    pub fn predict(&self, input_dists: DistContext, n_samples: usize) -> StatResult {
+    /// When `target` is `None` the full graph is evaluated (same as `predict()`).
+    /// When `target` is `Some(t)`, execution stops as soon as every node matching
+    /// `t` has been computed — downstream nodes are never touched.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Only propagate up to (and including) the "FeatureExtract" node:
+    /// dag.predict_at(inputs, 1000, Some(&PredictTarget::NodeLabel("FeatureExtract".into())));
+    ///
+    /// // Only propagate into branch 2:
+    /// dag.predict_at(inputs, 1000, Some(&PredictTarget::BranchId(2)));
+    ///
+    /// // Only propagate into variant 0:
+    /// dag.predict_at(inputs, 1000, Some(&PredictTarget::VariantIndex(0)));
+    /// ```
+    pub fn predict_at(
+        &self,
+        input_dists: DistContext,
+        n_samples: usize,
+        target: Option<&PredictTarget>,
+    ) -> StatResult {
+        // Resolve the target node IDs up front so we can check for early exit.
+        let target_ids: Option<HashSet<NodeId>> = target.map(|t| self.resolve_target_ids(t));
+
         let mut stat = StatResult::new();
         let mut dist_ctx: DistContext = input_dists;
         let mut rng = rand::thread_rng();
+        let mut satisfied: HashSet<NodeId> = HashSet::new();
 
         for &node_id in &self.execution_order {
             let node = match self.nodes.iter().find(|n| n.id == node_id) {
@@ -476,7 +533,7 @@ impl Dag {
             // ── 4. Write outputs into dist_ctx and StatResult ────────────────
             for (broadcast_var, dist) in output_broadcast {
                 if let Some(bid) = node.branch_id {
-                    let prefixed = format!("__branch_{}__{}" , bid, broadcast_var);
+                    let prefixed = format!("__branch_{}__{}", bid, broadcast_var);
                     dist_ctx.insert(prefixed, dist.clone());
                     stat.branch_dists
                         .entry(bid)
@@ -498,10 +555,36 @@ impl Dag {
                         .insert(broadcast_var.clone(), dist.clone());
                 }
             }
+
+            // ── 5. Early-exit check ──────────────────────────────────────────
+            if let Some(ref tids) = target_ids {
+                if tids.contains(&node_id) {
+                    satisfied.insert(node_id);
+                    if satisfied == *tids {
+                        // All target nodes have been computed — stop the pass.
+                        break;
+                    }
+                }
+            }
         }
 
         stat.dist_context = dist_ctx;
         stat
+    }
+
+    /// Resolve a `PredictTarget` to the set of node IDs it refers to.
+    fn resolve_target_ids(&self, target: &PredictTarget) -> HashSet<NodeId> {
+        self.nodes
+            .iter()
+            .filter(|n| match target {
+                PredictTarget::NodeLabel(label) => {
+                    n.label.as_deref() == Some(label.as_str())
+                }
+                PredictTarget::BranchId(bid) => n.branch_id == Some(*bid),
+                PredictTarget::VariantIndex(vi) => n.variant_index == Some(*vi),
+            })
+            .map(|n| n.id)
+            .collect()
     }
 
     /// Gather input distributions for a node, keyed by **impl_var** names

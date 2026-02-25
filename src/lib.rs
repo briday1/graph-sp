@@ -48,7 +48,7 @@ mod stat_result;
 mod python_bindings;
 
 pub use builder::Graph;
-pub use dag::{Dag, DagStats, ExecutionContext, ExecutionResult};
+pub use dag::{Dag, DagStats, ExecutionContext, ExecutionResult, PredictTarget};
 pub use distribution::{DistContext, DistTransferFn, Distribution, PortSummary};
 pub use graph_data::GraphData;
 pub use stat_result::StatResult;
