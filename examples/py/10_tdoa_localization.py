@@ -316,14 +316,14 @@ def _plot_sigma_sweep(
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
     # ── Left: absolute RMS ────────────────────────────────────────────────────
-    ax1.plot(sigmas, crlb_rms_vals, color="crimson",   linewidth=2.5,
-             linestyle="--", label="CRLB  (theoretical minimum)")
-    ax1.plot(sigmas[ok], emp_rms_vals[ok],  color="steelblue", linewidth=2.0,
-             marker="o", markersize=4, label="Empirical  (particle sim)")
+    ax1.plot(sigmas, crlb_rms_vals, color="crimson", linewidth=2.5,
+             linestyle="--", label="CRLB  (theoretical minimum)", zorder=3)
+    ax1.plot(sigmas[ok], emp_rms_vals[ok], color="steelblue", linewidth=2.0,
+             marker="o", markersize=4, label="Empirical  (particle sim)", zorder=3)
     if diverged.any():
-        ax1.scatter(sigmas[diverged], crlb_rms_vals[diverged],
-                    color="orangered", marker="x", s=60, zorder=5,
-                    label="TLS diverged  (emp >> CRLB)")
+        ax1.scatter(sigmas[diverged], emp_rms_vals[diverged],
+                    color="orangered", marker="^", s=70, zorder=5,
+                    label="TLS diverged")
     ax1.axvline(SIGMA_R, color="gray", linewidth=1.0, linestyle=":",
                 label=f"nominal σ_r = {SIGMA_R} m")
     ax1.set_xscale("log")
@@ -336,11 +336,11 @@ def _plot_sigma_sweep(
 
     # ── Right: (emp/CRLB)² ratio ──────────────────────────────────────────────
     ax2.plot(sigmas[ok], ratio_vals[ok]**2, color="darkorange", linewidth=2.0,
-             marker="o", markersize=4, label="(emp/CRLB)²")
+             marker="o", markersize=4, label="(emp/CRLB)²", zorder=3)
     if diverged.any():
-        ax2.scatter(sigmas[diverged], np.full(diverged.sum(), DIVERGE_THRESH**2),
-                    color="orangered", marker="x", s=80, zorder=5,
-                    label=f"TLS diverged  (clipped at {DIVERGE_THRESH**2:.0f})")
+        ax2.scatter(sigmas[diverged], ratio_vals[diverged]**2,
+                    color="orangered", marker="^", s=70, zorder=5,
+                    label="TLS diverged")
     ax2.axhline(1.0, color="crimson", linewidth=1.5, linestyle="--",
                 label="CRLB limit  (ratio = 1)")
     ax2.axvline(SIGMA_R, color="gray", linewidth=1.0, linestyle=":")
