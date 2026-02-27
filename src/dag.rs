@@ -634,9 +634,11 @@ impl Dag {
             let mut output_cols: HashMap<String, Vec<f64>> = HashMap::new();
 
             // Check whether ALL inputs to this node are deterministic (no stochasticity).
+            // Note: if a node has no declared inputs it might still call random() internally,
+            // so we treat input-free nodes as stochastic in predict_particles (run per-particle).
             let input_dists_impl = Self::gather_impl_dists(node, &dist_ctx);
-            let all_deterministic = input_dists_impl.is_empty()
-                || input_dists_impl.values().all(|d| d.is_deterministic());
+            let all_deterministic = !input_dists_impl.is_empty()
+                && input_dists_impl.values().all(|d| d.is_deterministic());
 
             if all_deterministic {
                 // Deterministic node — run once, broadcast the same value to all particles.
