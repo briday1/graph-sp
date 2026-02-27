@@ -18,11 +18,16 @@ Geometry
 
 Pipeline
 --------
-    [MeasureRDOA]  compute true RDOAs from geometry + add Gaussian noise
-                   → returns list rdoa[0..M-2]   (FloatVec, auto-flattened)
+    input dists:  rdoa_k ~ N(true_rdoa_k, σ_r)   for k = 0 … M-2
+                  (measurement uncertainty — centres on the true geometry,
+                  spread by the noise power σ_r²)
          │
-    [LocalizeTLS]  Taylor-series iterative LS — reconstruct vector from
-                   rdoa[0..M-2] and solve for (x_est, y_est)
+    [LocalizeTLS]  Taylor-series iterative LS — takes scalar rdoa_k inputs,
+                   solves for (x_est, y_est)
+
+    The graph is a standalone algorithm.  predict_particles() propagates the
+    input distribution through it to obtain the output error distribution.
+    The CRLB is the theoretical lower bound on that output covariance.
 
 Produced figures
 ----------------
@@ -102,34 +107,31 @@ def draw_ellipse(ax, cov2, center, n_sigma=1.0, n_pts=200, **kw):
     ax.plot(pts[0] + center[0], pts[1] + center[1], **kw)
 
 
+# ── Helper: true RDOAs from geometry (no noise) ──────────────────────────────
+
+def true_rdoas(x_src, y_src, receivers=RECEIVERS):
+    """Exact range-difference-of-arrival values for a source at (x_src, y_src).
+
+    These become the *means* of the input distributions passed to
+    predict_particles — the noise power goes into the distribution width, not
+    into the graph itself.
+    """
+    r0 = receivers[0]
+    d0 = math.hypot(x_src - r0[0], y_src - r0[1])
+    return [math.hypot(x_src - ri[0], y_src - ri[1]) - d0 for ri in receivers[1:]]
+
+
 # ── Node functions ────────────────────────────────────────────────────────────
 
-def measure_rdoa_node(inputs):
-    """Compute true RDOAs from geometry, adding per-channel noise from inputs.
-
-    Noise components noise_0 … noise_{M-2} are explicit scalar inputs drawn
-    from N(0, σ_r) by predict_particles — this makes uncertainty visible in
-    the graph topology and ensures each particle gets independent noise.
-
-    Returns a plain Python list → stored as rdoa[0], rdoa[1], … in particles.
-    """
-    r0 = RECEIVERS[0]
-    d0 = math.hypot(X_TRUE - r0[0], Y_TRUE - r0[1])
-    rdoas = []
-    for k, si in enumerate(RECEIVERS[1:]):
-        di    = math.hypot(X_TRUE - si[0], Y_TRUE - si[1])
-        noise = inputs.get(f"noise_{k}", 0.0)
-        rdoas.append(di - d0 + noise)
-    return {"rdoa": rdoas}
-
-
 def localize_tls_node(inputs):
-    """Taylor-series iterative LS localization from RDOA vector.
+    """Taylor-series iterative LS localization from scalar RDOA inputs.
 
-    inputs["rdoa"] arrives as a list (FloatVec reconstructed from particle
-    rdoa[0], rdoa[1], … entries by predict_particles).
+    Each RDOA channel arrives as a separate scalar input ``rdoa_k``.  The graph
+    is a pure algorithm — it knows nothing about source geometry or noise power.
+    Those live in the input distributions supplied to predict_particles().
     """
-    rdoa_meas = inputs.get("rdoa") or [0.0] * (len(RECEIVERS) - 1)
+    M = len(RECEIVERS) - 1
+    rdoa_meas = [inputs.get(f"rdoa_{k}", 0.0) for k in range(M)]
 
     r0   = RECEIVERS[0]
     rest = RECEIVERS[1:]
@@ -161,26 +163,30 @@ def localize_tls_node(inputs):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def build_and_run(x_true=X_TRUE, y_true=Y_TRUE, n_samples=N_SAMPLES):
-    """Build graph, run predict_particles, return JointDistribution.
+    """Build the localizer graph, run predict_particles, return JointDistribution.
 
-    Noise components are explicit scalar inputs ~ N(0, σ_r), so predict_particles
-    samples independent noise for each particle.  Modifies module-level X_TRUE /
-    Y_TRUE so the node closures pick up the requested position.
+    The graph is a standalone algorithm (LocalizeTLS only).  The measurement
+    uncertainty is expressed entirely in the input distributions:
+
+        rdoa_k ~ N(true_rdoa_k, σ_r)   for k = 0 … M-2
+
+    predict_particles() propagates those M input distributions through the
+    localizer to obtain the joint distribution over (rdoa_0…rdoa_{M-2},
+    x_est, y_est), from which we read off the empirical error covariance.
     """
-    global X_TRUE, Y_TRUE
-    X_TRUE, Y_TRUE = x_true, y_true
-
-    M = len(RECEIVERS) - 1                          # number of RDOA channels
-    noise_input_spec = [(f"noise_{k}", f"noise_{k}") for k in range(M)]
-    noise_input_dists = {f"noise_{k}": dagex.normal(0.0, SIGMA_R) for k in range(M)}
+    M = len(RECEIVERS) - 1
+    rdoa_means = true_rdoas(x_true, y_true)          # noise-free geometry
+    input_dists = {
+        f"rdoa_{k}": dagex.normal(rdoa_means[k], SIGMA_R)
+        for k in range(M)
+    }
 
     graph = dagex.Graph()
-    graph.add(measure_rdoa_node, label="MeasureRDOA",
-              inputs=noise_input_spec, outputs=[("rdoa", "rdoa")])
     graph.add(localize_tls_node, label="LocalizeTLS",
-              inputs=[("rdoa", "rdoa")], outputs=[("x_est", "x_est"), ("y_est", "y_est")])
+              inputs=[(f"rdoa_{k}", f"rdoa_{k}") for k in range(M)],
+              outputs=[("x_est", "x_est"), ("y_est", "y_est")])
     dag = graph.build()
-    stat = dag.predict_particles(noise_input_dists, n_samples=n_samples)
+    stat = dag.predict_particles(input_dists, n_samples=n_samples)
     return dagex.joint(stat)
 
 
@@ -233,11 +239,9 @@ def main():
     print(f"\n  Efficiency at ({X_TRUE:.0f}, {Y_TRUE:.0f}) m:  {eff:.3f}  {verdict}")
 
     # Print joint summary for the particle variables
-    rdoa_vars = [f"rdoa[{k}]" for k in range(len(RECEIVERS) - 1)]
-    noise_vars = [f"noise_{k}" for k in range(len(RECEIVERS) - 1)]
-    # Use assume_iid on the flattened rdoa outputs (all share same σ_r)
-    jd_iid = jd.assume_iid("rdoa")
-    jd_iid.print_summary(variables=noise_vars + rdoa_vars + ["x_est", "y_est"])
+    # rdoa_k inputs are not iid (different means) — summarise individually
+    rdoa_vars = [f"rdoa_{k}" for k in range(len(RECEIVERS) - 1)]
+    jd.print_summary(variables=rdoa_vars + ["x_est", "y_est"])
 
     # ── Figures ───────────────────────────────────────────────────────────────
     _plot_error_ellipses(jd, P_emp, P_crlb, bias)
@@ -479,11 +483,11 @@ def _plot_efficiency_heatmap(grid_n=22, mc_per_point=600):
 
 
 def _plot_pairs(jd):
-    print_section("Figure 4: Pair plot  (rdoa[0..1], x_est, y_est)")
+    print_section("Figure 4: Pair plot  (rdoa_0..2, x_est, y_est)")
     import matplotlib.pyplot as plt
 
     fig, _ = jd.plot_pairs(
-        variables=["rdoa[0]", "rdoa[1]", "rdoa[2]", "x_est", "y_est"],
+        variables=["rdoa_0", "rdoa_1", "rdoa_2", "x_est", "y_est"],
         title="TDOA particle scatter: measurements → position estimates",
     )
     path = "examples/py/10_tdoa_pairs.png"
