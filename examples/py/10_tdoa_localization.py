@@ -78,8 +78,10 @@ def rdoa_jacobian(px, py, receivers=RECEIVERS):
     return np.array(rows)   # (M-1, 2)
 
 
-def crlb_covariance(px, py, sigma_r=SIGMA_R, receivers=RECEIVERS):
+def crlb_covariance(px, py, sigma_r=None, receivers=RECEIVERS):
     """2×2 CRLB position error covariance at (px, py)."""
+    if sigma_r is None:
+        sigma_r = SIGMA_R
     H = rdoa_jacobian(px, py, receivers)
     fim = (H.T @ H) / sigma_r**2
     try:
@@ -162,22 +164,25 @@ def localize_tls_node(inputs):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def build_and_run(x_true=X_TRUE, y_true=Y_TRUE, n_samples=N_SAMPLES):
+def build_and_run(x_true=X_TRUE, y_true=Y_TRUE, n_samples=N_SAMPLES, sigma_r=SIGMA_R):
     """Build the localizer graph, run predict_particles, return JointDistribution.
 
     The graph is a standalone algorithm (LocalizeTLS only).  The measurement
     uncertainty is expressed entirely in the input distributions:
 
-        rdoa_k ~ N(true_rdoa_k, σ_r)   for k = 0 … M-2
+        rdoa_k ~ N(true_rdoa_k, sigma_r)   for k = 0 … M-2
 
     predict_particles() propagates those M input distributions through the
     localizer to obtain the joint distribution over (rdoa_0…rdoa_{M-2},
     x_est, y_est), from which we read off the empirical error covariance.
+
+    sigma_r can be varied freely — the graph itself is rebuilt each call but
+    the algorithm (LocalizeTLS) is identical; only the input distributions change.
     """
     M = len(RECEIVERS) - 1
     rdoa_means = true_rdoas(x_true, y_true)          # noise-free geometry
     input_dists = {
-        f"rdoa_{k}": dagex.normal(rdoa_means[k], SIGMA_R)
+        f"rdoa_{k}": dagex.normal(rdoa_means[k], sigma_r)
         for k in range(M)
     }
 
@@ -248,6 +253,7 @@ def main():
     _plot_marginal_errors(jd)
     _plot_efficiency_heatmap()
     _plot_pairs(jd)
+    _plot_sigma_sweep()
 
     print()
     print_section("Summary")
@@ -262,6 +268,102 @@ def main():
 
 
 # ── Plot helpers ──────────────────────────────────────────────────────────────
+
+def _plot_sigma_sweep(
+    sigmas=None,
+    n_samples=3_000,
+    x_true=X_TRUE,
+    y_true=Y_TRUE,
+):
+    """Sweep sigma_r and plot empirical RMS vs CRLB RMS, plus (emp/CRLB)² ratio.
+
+    Each point in the sweep is a fresh call to build_and_run() with a different
+    input distribution width.  The graph (LocalizeTLS) is identical every time;
+    only the N(true_rdoa_k, sigma_r) input distributions change.
+    """
+    print_section("Figure 5: Estimator variance vs CRLB across noise power")
+    import matplotlib.pyplot as plt
+
+    if sigmas is None:
+        sigmas = np.logspace(np.log10(0.5), 4, 30)  # 0.5 m → 10 km
+
+    emp_rms_vals   = []
+    crlb_rms_vals  = []
+    ratio_vals     = []
+
+    for s in sigmas:
+        jd = build_and_run(x_true=x_true, y_true=y_true,
+                           n_samples=n_samples, sigma_r=s)
+        P_emp, _  = empirical_mse_matrix(jd, x_true, y_true)
+        P_crlb    = crlb_covariance(x_true, y_true, sigma_r=s)
+        rms_e  = math.sqrt(max(float(np.trace(P_emp)),  0.0))
+        rms_c  = math.sqrt(max(float(np.trace(P_crlb)), 0.0))
+        emp_rms_vals.append(rms_e)
+        crlb_rms_vals.append(rms_c)
+        ratio_vals.append(rms_e / rms_c if rms_c > 0 else float("nan"))
+        print(f"    σ_r = {s:6.2f} m   emp = {rms_e:.3f} m   CRLB = {rms_c:.3f} m   "
+              f"(emp/CRLB)² = {(rms_e/rms_c)**2:.3f}")
+
+    emp_rms_vals  = np.array(emp_rms_vals)
+    crlb_rms_vals = np.array(crlb_rms_vals)
+    ratio_vals    = np.array(ratio_vals)
+
+    # Points where TLS diverges (emp >> CRLB) — physically meaningful breakdown
+    DIVERGE_THRESH = 10.0   # emp/CRLB > 10 → algorithm has broken down
+    ok      = ratio_vals < DIVERGE_THRESH
+    diverged = ~ok
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+    # ── Left: absolute RMS ────────────────────────────────────────────────────
+    ax1.plot(sigmas, crlb_rms_vals, color="crimson",   linewidth=2.5,
+             linestyle="--", label="CRLB  (theoretical minimum)")
+    ax1.plot(sigmas[ok], emp_rms_vals[ok],  color="steelblue", linewidth=2.0,
+             marker="o", markersize=4, label="Empirical  (particle sim)")
+    if diverged.any():
+        ax1.scatter(sigmas[diverged], crlb_rms_vals[diverged],
+                    color="orangered", marker="x", s=60, zorder=5,
+                    label="TLS diverged  (emp >> CRLB)")
+    ax1.axvline(SIGMA_R, color="gray", linewidth=1.0, linestyle=":",
+                label=f"nominal σ_r = {SIGMA_R} m")
+    ax1.set_xscale("log")
+    ax1.set_yscale("log")
+    ax1.set_xlabel("RDOA noise  σ_r  [m]")
+    ax1.set_ylabel("RMS position error  [m]")
+    ax1.set_title("Absolute error vs noise power")
+    ax1.legend(fontsize=9)
+    ax1.grid(True, which="both", alpha=0.3)
+
+    # ── Right: (emp/CRLB)² ratio ──────────────────────────────────────────────
+    ax2.plot(sigmas[ok], ratio_vals[ok]**2, color="darkorange", linewidth=2.0,
+             marker="o", markersize=4, label="(emp/CRLB)²")
+    if diverged.any():
+        ax2.scatter(sigmas[diverged], np.full(diverged.sum(), DIVERGE_THRESH**2),
+                    color="orangered", marker="x", s=80, zorder=5,
+                    label=f"TLS diverged  (clipped at {DIVERGE_THRESH**2:.0f})")
+    ax2.axhline(1.0, color="crimson", linewidth=1.5, linestyle="--",
+                label="CRLB limit  (ratio = 1)")
+    ax2.axvline(SIGMA_R, color="gray", linewidth=1.0, linestyle=":")
+    ax2.set_xscale("log")
+    ax2.set_yscale("log")
+    ax2.set_xlabel("RDOA noise  σ_r  [m]")
+    ax2.set_ylabel("(emp RMS / CRLB RMS)²")
+    ax2.set_title("Sub-optimality ratio vs noise power")
+    ax2.legend(fontsize=9)
+    ax2.grid(True, which="both", alpha=0.3)
+
+    fig.suptitle(
+        f"TDOA TLS localizer — noise power sweep  "
+        f"({len(RECEIVERS)} receivers, source at ({x_true:.0f}, {y_true:.0f}) m)\n"
+        f"n_samples = {n_samples:,} per point,  {len(sigmas)} σ_r values",
+        fontsize=9,
+    )
+    fig.tight_layout()
+    path = "examples/py/10_sigma_sweep.png"
+    fig.savefig(path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved → {path}")
+
 
 def _plot_error_ellipses(jd, P_emp, P_crlb, bias):
     print_section("Figure 1: Error scatter and 1σ ellipses")
