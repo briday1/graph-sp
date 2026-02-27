@@ -232,11 +232,11 @@ def main():
     print(f"  {'1σ ellipse semi-minor [m]':<30s}  {b_emp:12.4f}  {b_crlb:10.4f}")
     print(f"  {'Ellipse azimuth [deg]':<30s}  {ang_emp:12.2f}  {ang_crlb:10.2f}")
     print(f"  {'Bias [x, y] [m]':<30s}  [{bias[0]:+.4f}, {bias[1]:+.4f}]")
-    print(f"  {'RMS efficiency (CRLB/emp)²':<30s}  {(rms_crlb/rms_emp)**2:12.4f}")
+    print(f"  {'RMS degradation (emp/CRLB)²':<30s}  {(rms_emp/rms_crlb)**2:12.4f}")
 
-    eff = (rms_crlb / rms_emp)**2
-    verdict = "✓ near-optimal" if eff > 0.80 else ("△ moderately sub-optimal" if eff > 0.50 else "✗ poor")
-    print(f"\n  Efficiency at ({X_TRUE:.0f}, {Y_TRUE:.0f}) m:  {eff:.3f}  {verdict}")
+    eff = (rms_emp / rms_crlb)**2
+    verdict = "✓ near-optimal" if eff < 1.25 else ("△ moderately sub-optimal" if eff < 2.0 else "✗ poor")
+    print(f"\n  Sub-optimality at ({X_TRUE:.0f}, {Y_TRUE:.0f}) m:  {eff:.3f}  {verdict}")
 
     # Print joint summary for the particle variables
     # rdoa_k inputs are not iid (different means) — summarise individually
@@ -256,8 +256,8 @@ def main():
     print("  • Any estimator bias not visible in the CRLB")
     print("  • Heavier tails near geometry singularities (hyperbola tangencies)")
     print("  • Non-elliptical contours when the linearisation is inaccurate")
-    print("  • The efficiency ratio ρ² = tr(CRLB) / tr(P_emp) — how much of the")
-    print("    available Fisher information the algorithm actually extracts")
+    print("  • The sub-optimality ratio (emp/CRLB)² = tr(P_emp) / tr(CRLB) — how much")
+    print("    the algorithm exceeds the theoretical minimum; 1 = achieves the bound")
     print("  This is always a tighter / more honest bound than the CRLB alone.")
 
 
@@ -301,7 +301,7 @@ def _plot_error_ellipses(jd, P_emp, P_crlb, bias):
         f"TDOA localization error  ({len(RECEIVERS)}-receiver 2D array)\n"
         f"True source: ({X_TRUE:.0f}, {Y_TRUE:.0f}) m  —  σ_RDOA = {SIGMA_R} m\n"
         f"RMS emp = {rms_emp:.2f} m    CRLB = {rms_crlb:.2f} m    "
-        f"eff ρ² = {(rms_crlb/rms_emp)**2:.3f}",
+        f"(emp/CRLB)² = {(rms_emp/rms_crlb)**2:.3f}",
         fontsize=9,
     )
     ax.set_aspect("equal")
@@ -431,8 +431,8 @@ def _plot_efficiency_heatmap(grid_n=22, mc_per_point=600):
                 mse    = np.mean(err_x**2) + np.mean(err_y**2)
                 emp_rms[j, i] = math.sqrt(max(mse, 0.0))
 
-                if emp_rms[j, i] > 0:
-                    efficiency[j, i] = crlb_rms[j, i] / emp_rms[j, i]
+                if crlb_rms[j, i] > 0:
+                    efficiency[j, i] = emp_rms[j, i] / crlb_rms[j, i]
 
             except Exception:
                 pass
@@ -446,11 +446,11 @@ def _plot_efficiency_heatmap(grid_n=22, mc_per_point=600):
     for ax, data, title, cmap, clim in zip(
         axes,
         [crlb_rms, emp_rms, efficiency],
-        ["CRLB σ_pos [m]", "Empirical σ_pos [m]", "Efficiency  σ_CRLB / σ_emp"],
-        ["viridis", "viridis", "RdYlGn"],
+        ["CRLB σ_pos [m]", "Empirical σ_pos [m]", "Sub-optimality  σ_emp / σ_CRLB"],
+        ["viridis", "viridis", "RdYlGn_r"],
         [(0, np.nanpercentile(crlb_rms, 95)),
          (0, np.nanpercentile(emp_rms, 95)),
-         (0, 1.05)],
+         (1.0, max(2.0, np.nanpercentile(efficiency, 95)))],  # type: ignore[arg-type]
     ):
         im = ax.imshow(
             data,
@@ -472,7 +472,7 @@ def _plot_efficiency_heatmap(grid_n=22, mc_per_point=600):
 
     fig.suptitle(
         f"TDOA localizer performance map   ({len(RECEIVERS)} receivers,  σ_RDOA = {SIGMA_R} m)\n"
-        f"Efficiency = 1 → algorithm achieves CRLB;  < 1 → sub-optimal geometry/algorithm",
+        f"Sub-optimality = 1 → algorithm achieves CRLB;  > 1 → excess error vs bound",
         fontsize=9,
     )
     fig.tight_layout()
