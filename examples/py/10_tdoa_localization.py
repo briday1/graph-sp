@@ -309,21 +309,13 @@ def _plot_sigma_sweep(
     ratio_vals    = np.array(ratio_vals)
 
     # Points where TLS diverges (emp >> CRLB) — physically meaningful breakdown
-    DIVERGE_THRESH = 10.0   # emp/CRLB > 10 → algorithm has broken down
-    ok      = ratio_vals < DIVERGE_THRESH
-    diverged = ~ok
-
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
     # ── Left: absolute RMS ────────────────────────────────────────────────────
     ax1.plot(sigmas, crlb_rms_vals, color="crimson", linewidth=2.5,
-             linestyle="--", label="CRLB  (theoretical minimum)", zorder=3)
-    ax1.plot(sigmas[ok], emp_rms_vals[ok], color="steelblue", linewidth=2.0,
-             marker="o", markersize=4, label="Empirical  (particle sim)", zorder=3)
-    if diverged.any():
-        ax1.scatter(sigmas[diverged], emp_rms_vals[diverged],
-                    color="orangered", marker="^", s=70, zorder=5,
-                    label="TLS diverged")
+             linestyle="--", label="CRLB  (theoretical minimum)")
+    ax1.plot(sigmas, emp_rms_vals, color="steelblue", linewidth=2.0,
+             marker="o", markersize=4, label="Empirical  (particle sim)")
     ax1.axvline(SIGMA_R, color="gray", linewidth=1.0, linestyle=":",
                 label=f"nominal σ_r = {SIGMA_R} m")
     ax1.set_xscale("log")
@@ -335,12 +327,8 @@ def _plot_sigma_sweep(
     ax1.grid(True, which="both", alpha=0.3)
 
     # ── Right: (emp/CRLB)² ratio ──────────────────────────────────────────────
-    ax2.plot(sigmas[ok], ratio_vals[ok]**2, color="darkorange", linewidth=2.0,
-             marker="o", markersize=4, label="(emp/CRLB)²", zorder=3)
-    if diverged.any():
-        ax2.scatter(sigmas[diverged], ratio_vals[diverged]**2,
-                    color="orangered", marker="^", s=70, zorder=5,
-                    label="TLS diverged")
+    ax2.plot(sigmas, ratio_vals**2, color="darkorange", linewidth=2.0,
+             marker="o", markersize=4, label="(emp/CRLB)²")
     ax2.axhline(1.0, color="crimson", linewidth=1.5, linestyle="--",
                 label="CRLB limit  (ratio = 1)")
     ax2.axvline(SIGMA_R, color="gray", linewidth=1.0, linestyle=":")
