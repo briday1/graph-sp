@@ -163,6 +163,30 @@ impl PyStatResult {
             .collect();
         format!("StatResult(vars={:?})", keys)
     }
+
+    /// Aligned per-sample trajectories, or `None` when the result came from `predict()`
+    /// rather than `predict_particles()`.
+    ///
+    /// Returns a list of dicts: `particles[i]` maps every broadcast variable name to its
+    /// concrete float value on sample `i`.  All variables in one dict share the same
+    /// random seed, preserving the joint cross-variable distribution structure.
+    #[getter]
+    fn particles(&self, py: Python) -> PyObject {
+        match &self.inner.particles {
+            None => py.None(),
+            Some(parts) => {
+                let py_list = pyo3::types::PyList::empty(py);
+                for particle in parts {
+                    let d = PyDict::new(py);
+                    for (k, v) in particle {
+                        let _ = d.set_item(k, v);
+                    }
+                    let _ = py_list.append(d);
+                }
+                py_list.to_object(py)
+            }
+        }
+    }
 }
 
 /// Convert an optional `&DistContext` into a Python dict of `{str: PyDistribution}`.
@@ -592,6 +616,61 @@ impl PyDag {
         });
         Ok(PyStatResult { inner: stat })
     }
+
+    /// Particle-based forward pass — preserves exact joint distribution structure.
+    ///
+    /// Runs `n_samples` full end-to-end trajectories through the graph so that
+    /// ``stat.particles[i]`` contains the value of every variable from the **same**
+    /// random draw.  Unlike ``predict()``, which runs per-node Monte Carlo (losing
+    /// sample alignment), this method evaluates the node's concrete function for every
+    /// particle — even when a ``dist_transfer`` is attached.  This gives you the exact
+    /// joint (cross-variable) correlation structure.
+    ///
+    /// **Trade-off vs predict()**
+    ///
+    /// * ``predict()`` — fast; uses ``dist_transfer`` shortcuts; marginals are exact;
+    ///   no joint structure.
+    /// * ``predict_particles()`` — slightly slower; always evaluates node functions;
+    ///   marginals AND correlations are exact; use this for joint/marginal PDFs and plots.
+    ///
+    /// Args:
+    ///     inputs (dict[str, Distribution]): Prior distributions keyed by variable name.
+    ///     n_samples (int): Number of full-graph trajectories.  Default: 1000.
+    ///
+    /// Returns:
+    ///     StatResult: Marginal distributions in ``stat_result[var]`` (same as predict()),
+    ///     plus ``stat_result.particles`` (list of dicts) for joint analysis.
+    ///
+    /// Example::
+    ///
+    ///     stat  = dag.predict_particles({"x": dagex.normal(0.0, 1.0)}, n_samples=2000)
+    ///     joint = dagex.joint(stat)          # JointDistribution
+    ///     joint.print_summary()              # table + correlation matrix
+    ///     joint.plot_pairs()                 # pair plot of all variables
+    ///     joint.plot_joint("x", "out")       # 2-D joint PDF
+    #[pyo3(signature = (inputs, n_samples=1000))]
+    fn predict_particles(
+        &self,
+        py: Python,
+        inputs: &PyDict,
+        n_samples: usize,
+    ) -> PyResult<PyStatResult> {
+        let mut dist_ctx: DistContext = HashMap::new();
+        for (key, val) in inputs.iter() {
+            let k: String = key.extract()?;
+            let cell = val
+                .downcast::<PyCell<PyDistribution>>()
+                .map_err(|_| PyValueError::new_err(format!(
+                    "Value for key '{}' must be a Distribution",
+                    k
+                )))?;
+            dist_ctx.insert(k, cell.borrow().inner.clone());
+        }
+        let stat = py.allow_threads(|| {
+            self.dag.predict_particles(dist_ctx, n_samples)
+        });
+        Ok(PyStatResult { inner: stat })
+    }
 }
 
 /// Parse mapping from Python types (list of tuples or dict) to Vec<(String, String)>
@@ -807,9 +886,25 @@ fn graph_data_to_python(py: Python, data: &GraphData) -> PyObject {
 }
 
 /// Convert Python object to GraphData
-/// Now stores Python objects directly without conversion
 fn python_to_graph_data(obj: &PyAny) -> GraphData {
-    // Store as PyObject directly without any conversion
+    // Try numeric scalars first
+    if let Ok(f) = obj.extract::<f64>() {
+        return GraphData::Float(f);
+    }
+    if let Ok(i) = obj.extract::<i64>() {
+        return GraphData::Int(i);
+    }
+    if let Ok(s) = obj.extract::<String>() {
+        return GraphData::String(s);
+    }
+    // Try list-of-floats → FloatVec, list-of-ints → IntVec
+    if let Ok(list) = obj.extract::<Vec<f64>>() {
+        return GraphData::FloatVec(std::sync::Arc::new(list));
+    }
+    if let Ok(list) = obj.extract::<Vec<i64>>() {
+        return GraphData::IntVec(std::sync::Arc::new(list));
+    }
+    // Fall back to opaque PyObject for anything else (dicts, custom types, etc.)
     GraphData::PyObject(obj.to_object(obj.py()))
 }
 

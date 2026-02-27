@@ -25,6 +25,14 @@ pub struct StatResult {
 
     /// Per-variant distribution outputs (variant_index → broadcast_var → Distribution).
     pub variant_dists: HashMap<usize, DistContext>,
+
+    /// Optional aligned per-sample trajectories, populated only by `Dag::predict_particles()`.
+    ///
+    /// `particles[i]` maps every broadcast variable touched during the forward pass to
+    /// the concrete value it took on sample `i`.  Because all entries in a single particle
+    /// come from the same graph execution, the joint distribution across variables is
+    /// preserved — unlike the per-node Monte Carlo in `predict()`, which loses alignment.
+    pub particles: Option<Vec<HashMap<String, f64>>>,
 }
 
 impl StatResult {
@@ -35,6 +43,7 @@ impl StatResult {
             node_dists: HashMap::new(),
             branch_dists: HashMap::new(),
             variant_dists: HashMap::new(),
+            particles: None,
         }
     }
 

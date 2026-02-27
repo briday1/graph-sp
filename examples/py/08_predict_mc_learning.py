@@ -28,7 +28,7 @@ import sys
 sys.path.insert(0, '/home/runner/work/graph-sp/graph-sp/examples/py')
 
 import math
-from benchmark_utils import print_header, print_section, Benchmark
+from benchmark_utils import print_header, print_section, print_dist_table, Benchmark
 import dagex
 
 
@@ -129,10 +129,12 @@ def main():
 
     stat = dag.predict(x_prior, n_samples=3000)
 
+    rows = []
     for var in ["x", "y", "z", "w", "out"]:
         d = stat[var]
-        dist_type = repr(d).split("(")[0]
-        print(f"  {var:5s}  type={dist_type:12s}  {d.summary()}")
+        type_str = repr(d).split("(")[0]
+        rows.append((var, d, "", type_str))
+    print_dist_table(rows, show_type=True)
 
     print()
     print("  Empirical types can be histogrammed:")
@@ -163,6 +165,51 @@ def main():
 
     print()
     print("  As n_samples increases, estimates converge.")
+
+    # ── Joint distribution analysis ───────────────────────────────────────────
+    print_section("Joint Distribution Analysis  (predict_particles)")
+
+    print("  Running predict_particles() — preserves joint structure...")
+    stat_p  = dag.predict_particles(x_prior, n_samples=3000)
+    joint   = dagex.joint(stat_p)
+
+    print()
+    joint.print_summary()
+
+    print()
+    print("  Key observations:")
+    r_xy = joint.correlation("x", "y")
+    r_yz = joint.correlation("y", "z")
+    r_zw = joint.correlation("z", "w")
+    r_wo = joint.correlation("w", "out")
+    print(f"    r(x, y) = {r_xy:.4f}  [x→NonLinear→y: non-monotone Mexican hat, expect moderate r]")
+    print(f"    r(y, z) = {r_yz:.4f}  [y→Rectify→z: z=max(0,y), expect positive r]")
+    print(f"    r(z, w) = {r_zw:.4f}  [z→Scale→w: w = 3z+1 is linear, expect r = 1.000]")
+    print(f"    r(w,out)= {r_wo:.4f}  [w→Square→out: out=w², expect positive r]")
+    print()
+    print("  Note: predict_particles() runs node functions directly (bypasses dist_transfer),")
+    print("  so the analytical Scale node contributes exact correlation just like any other node.")
+
+    # Demonstrate assume_independent: force x ⊥ out
+    joint_indep = joint.assume_independent("x", "out")
+    r_before = joint.correlation("x", "out")
+    r_after  = joint_indep.correlation("x", "out")
+    print()
+    print("  Forcing x ⊥ out (assume_independent):")
+    print(f"    r(x, out) before = {r_before:.4f}")
+    print(f"    r(x, out) after  = {r_after:.4f}  [≈ 0: independence enforced]")
+
+    # Save pair plot
+    import os
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    plot_path = os.path.join(os.path.dirname(__file__), "08_joint_pairs.png")
+    fig, _ = joint.plot_pairs(title="Example 08 — Joint Distribution (predict_particles)")
+    fig.savefig(plot_path, dpi=120, bbox_inches="tight")
+    plt.close(fig)
+    print(f"\n  Pair plot saved → {plot_path}")
 
 
 if __name__ == "__main__":

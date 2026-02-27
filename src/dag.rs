@@ -572,6 +572,177 @@ impl Dag {
         stat
     }
 
+    /// Particle-based forward pass — runs `n_samples` full end-to-end trajectories so
+    /// that every variable in `stat.particles[i]` comes from the **same** random draw.
+    ///
+    /// Unlike `predict()`, which performs per-node Monte Carlo independently (losing
+    /// sample alignment across variables), this method threads each particle through
+    /// the whole graph in topological order.  The returned `StatResult` has:
+    ///
+    /// * `dist_context` — per-variable `Empirical` distributions (same quality as `predict()`).
+    /// * `particles`   — `Vec<HashMap<String,f64>>` with aligned samples for joint analysis.
+    ///
+    /// **Analytical `dist_transfer` nodes**: the node's marginal distribution is still exact,
+    /// but its correlation with upstream MC variables is modelled as *independent* — the
+    /// analytical output is sampled fresh for each particle independently of the inputs.
+    /// This is the correct behaviour when you *assert* a known marginal (you are explicitly
+    /// stating you know the distribution, not deriving it from the inputs particle-by-particle).
+    pub fn predict_particles(&self, input_dists: DistContext, n_samples: usize) -> StatResult {
+        let mut rng = rand::thread_rng();
+
+        // ── 1. Seed particles from input priors ──────────────────────────────
+        // particles[i]: broadcast_var → sample value (same key space as dist_ctx)
+        let mut particles: Vec<HashMap<String, f64>> = (0..n_samples)
+            .map(|_| {
+                let mut p: HashMap<String, f64> = HashMap::new();
+                for (var, dist) in &input_dists {
+                    p.insert(var.clone(), dist.sample_n_with_rng(1, &mut rng)[0]);
+                }
+                p
+            })
+            .collect();
+
+        // dist_ctx mirrors particles as Empirical distributions; updated as nodes run.
+        // (Only used to detect deterministic-only inputs for no-stochastic nodes.)
+        let mut dist_ctx: DistContext = {
+            let mut ctx: DistContext = HashMap::new();
+            for (var, _) in &input_dists {
+                let samples: Vec<f64> = particles
+                    .iter()
+                    .map(|p| p.get(var).copied().unwrap_or(f64::NAN))
+                    .collect();
+                ctx.insert(var.clone(), Distribution::empirical(samples));
+            }
+            ctx
+        };
+
+        let mut stat = StatResult::new();
+
+        for &node_id in &self.execution_order {
+            let node = match self.nodes.iter().find(|n| n.id == node_id) {
+                Some(n) => n,
+                None => continue,
+            };
+
+            // NOTE: dist_transfer is intentionally ignored in predict_particles.
+            // Each node is always evaluated per-particle using the node's concrete
+            // function, so exact joint correlation structure is preserved.
+            // (dist_transfer is an optimization for predict() only, where per-node
+            // MC would lose sample alignment anyway.)
+
+            // output_cols: broadcast_var → one value per particle
+            let mut output_cols: HashMap<String, Vec<f64>> = HashMap::new();
+
+            // Check whether ALL inputs to this node are deterministic (no stochasticity).
+            let input_dists_impl = Self::gather_impl_dists(node, &dist_ctx);
+            let all_deterministic = input_dists_impl.is_empty()
+                || input_dists_impl.values().all(|d| d.is_deterministic());
+
+            if all_deterministic {
+                // Deterministic node — run once, broadcast the same value to all particles.
+                let mini = Self::build_mini_ctx(
+                    node,
+                    &dist_ctx,
+                    None::<&mut rand::rngs::ThreadRng>,
+                );
+                for (broadcast_var, gd) in node.execute(&mini) {
+                    expand_gd_deterministic(&broadcast_var, &gd, n_samples, &mut output_cols);
+                }
+            } else {
+                // Stochastic node — run the node function once per particle.
+                for i in 0..n_samples {
+                    // Build mini context: scalars from particles, or reconstruct
+                    // FloatVec/IntVec from indexed `key[j]` + `__veclen__key` markers.
+                    let mut mini: ExecutionContext = HashMap::new();
+                    for (broadcast_key, _) in &node.input_mapping {
+                        let lookup = broadcast_to_lookup_key(broadcast_key);
+                        if let Some(&val) = particles[i].get(&lookup) {
+                            mini.insert(lookup, GraphData::Float(val));
+                        } else if let Some(&len_f) = particles[i].get(&format!("__veclen__{}", lookup)) {
+                            let len = len_f as usize;
+                            let vec: Vec<f64> = (0..len)
+                                .map(|k| particles[i].get(&format!("{}[{}]", lookup, k)).copied().unwrap_or(f64::NAN))
+                                .collect();
+                            mini.insert(lookup, GraphData::FloatVec(Arc::new(vec)));
+                        }
+                    }
+
+                    for (broadcast_var, gd) in node.execute(&mini) {
+                        expand_gd_stochastic(&broadcast_var, &gd, &mut output_cols);
+                    }
+                }
+            }
+
+            // ── Write output_cols into particles, dist_ctx, and stat ─────────
+            // Pre-scan: for every __veclen__X key, build a sentinel Empirical
+            // for base name X so that downstream gather_impl_dists can detect
+            // the vector as a stochastic input (causing the per-particle path
+            // to run, which correctly reconstructs the FloatVec from particles).
+            let vec_sentinels: Vec<(String, Vec<f64>)> = output_cols
+                .keys()
+                .filter_map(|k| {
+                    k.strip_prefix("__veclen__").and_then(|base| {
+                        output_cols
+                            .get(&format!("{}[0]", base))
+                            .map(|s| (base.to_string(), s.clone()))
+                    })
+                })
+                .collect();
+
+            for (broadcast_var, samples) in output_cols {
+                // Update particles (both bare and branch-prefixed key for merge edges)
+                for (i, &val) in samples.iter().enumerate() {
+                    if i < particles.len() {
+                        particles[i].insert(broadcast_var.clone(), val);
+                    }
+                }
+
+                let dist = Distribution::empirical(samples.clone());
+
+                if let Some(bid) = node.branch_id {
+                    let prefixed = format!("__branch_{}__{}", bid, broadcast_var);
+                    dist_ctx.insert(prefixed.clone(), dist.clone());
+                    // Also store under prefixed key in particles so merge lookups work
+                    for (i, &val) in samples.iter().enumerate() {
+                        if i < particles.len() {
+                            particles[i].insert(prefixed.clone(), val);
+                        }
+                    }
+                    stat.branch_dists
+                        .entry(bid)
+                        .or_default()
+                        .insert(broadcast_var.clone(), dist.clone());
+                } else {
+                    dist_ctx.insert(broadcast_var.clone(), dist.clone());
+                }
+
+                stat.node_dists
+                    .entry(node_id)
+                    .or_default()
+                    .insert(broadcast_var.clone(), dist.clone());
+
+                if let Some(vi) = node.variant_index {
+                    stat.variant_dists
+                        .entry(vi)
+                        .or_default()
+                        .insert(broadcast_var.clone(), dist.clone());
+                }
+            }
+
+            // Insert sentinel distributions for vector base names.
+            // Uses `entry` so we never overwrite a real scalar named the same.
+            for (base, sentinel_samples) in vec_sentinels {
+                dist_ctx
+                    .entry(base)
+                    .or_insert_with(|| Distribution::empirical(sentinel_samples));
+            }
+        } // end node loop
+
+        stat.dist_context = dist_ctx;
+        stat.particles = Some(particles);
+        stat
+    }
+
     /// Resolve a `PredictTarget` to the set of node IDs it refers to.
     fn resolve_target_ids(&self, target: &PredictTarget) -> HashSet<NodeId> {
         self.nodes
@@ -655,6 +826,91 @@ impl Dag {
 /// objects when the `python` feature is enabled.
 fn gd_to_f64(gd: &GraphData) -> Option<f64> {
     gd.as_f64_lossy()
+}
+
+/// Expand one `(broadcast_var, GraphData)` output from a *deterministic* node
+/// into `output_cols` entries (broadcast to all `n_samples` particles).
+///
+/// Scalars → one column.  `FloatVec`/`IntVec` → one column per element named
+/// `"var[0]"`, `"var[1]"`, … plus a `"__veclen__var"` marker column so that
+/// downstream nodes can reconstruct the full vector.
+fn expand_gd_deterministic(
+    broadcast_var: &str,
+    gd: &GraphData,
+    n_samples: usize,
+    output_cols: &mut HashMap<String, Vec<f64>>,
+) {
+    if let Some(f) = gd_to_f64(gd) {
+        output_cols.insert(broadcast_var.to_string(), vec![f; n_samples]);
+        return;
+    }
+    match gd {
+        GraphData::FloatVec(v) => {
+            output_cols.insert(
+                format!("__veclen__{}", broadcast_var),
+                vec![v.len() as f64; n_samples],
+            );
+            for (idx, &val) in v.iter().enumerate() {
+                output_cols.insert(format!("{}[{}]", broadcast_var, idx), vec![val; n_samples]);
+            }
+        }
+        GraphData::IntVec(v) => {
+            output_cols.insert(
+                format!("__veclen__{}", broadcast_var),
+                vec![v.len() as f64; n_samples],
+            );
+            for (idx, &val) in v.iter().enumerate() {
+                output_cols.insert(format!("{}[{}]", broadcast_var, idx), vec![val as f64; n_samples]);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Push one `(broadcast_var, GraphData)` output from a *stochastic* node into
+/// `output_cols`, appending one value per particle call.
+///
+/// Scalars → push to `"var"`.  `FloatVec`/`IntVec` → push to indexed element
+/// columns and push the vector length to the `"__veclen__var"` marker column.
+fn expand_gd_stochastic(
+    broadcast_var: &str,
+    gd: &GraphData,
+    output_cols: &mut HashMap<String, Vec<f64>>,
+) {
+    if let Some(f) = gd_to_f64(gd) {
+        output_cols
+            .entry(broadcast_var.to_string())
+            .or_default()
+            .push(f);
+        return;
+    }
+    match gd {
+        GraphData::FloatVec(v) => {
+            output_cols
+                .entry(format!("__veclen__{}", broadcast_var))
+                .or_default()
+                .push(v.len() as f64);
+            for (idx, &val) in v.iter().enumerate() {
+                output_cols
+                    .entry(format!("{}[{}]", broadcast_var, idx))
+                    .or_default()
+                    .push(val);
+            }
+        }
+        GraphData::IntVec(v) => {
+            output_cols
+                .entry(format!("__veclen__{}", broadcast_var))
+                .or_default()
+                .push(v.len() as f64);
+            for (idx, &val) in v.iter().enumerate() {
+                output_cols
+                    .entry(format!("{}[{}]", broadcast_var, idx))
+                    .or_default()
+                    .push(val as f64);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Return the context lookup key that `Node::execute()` uses internally.
