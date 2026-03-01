@@ -19,6 +19,8 @@ pyo3 = { version = "=0.18.3", optional = true, default-features = false, feature
 ndarray = { version = "0.15", optional = true }
 num-complex = { version = "0.4", optional = true }
 rustfft = { version = "6.1", optional = true }
+rand = "0.8"
+rand_distr = "0.4"
 
 [features]
 python = ["pyo3"]
@@ -51,3 +53,11 @@ path = "examples/rs/05_output_access.rs"
 [[example]]
 name = "06_graphdata_large_payload_arc_or_shared_data"
 path = "examples/rs/06_graphdata_large_payload_arc_or_shared_data.rs"
+
+[[example]]
+name = "07_predict_known_distributions"
+path = "examples/rs/07_predict_known_distributions.rs"
+
+[[example]]
+name = "08_predict_mc_learning"
+path = "examples/rs/08_predict_mc_learning.rs"

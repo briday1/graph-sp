@@ -1,5 +1,6 @@
 //! Node representation and execution
 
+use crate::distribution::DistTransferFn;
 use crate::graph_data::GraphData;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -38,6 +39,13 @@ pub struct Node {
     pub variant_index: Option<usize>,
     /// Variant parameters for this node (param_name -> value)
     pub variant_params: HashMap<String, GraphData>,
+
+    /// Optional analytical distribution transfer.
+    ///
+    /// Receives input distributions keyed by **impl_var** names (same keys the function sees)
+    /// and returns output distributions keyed by **impl_var** output names, or `None` to
+    /// signal that Monte Carlo fallback should be used for this node.
+    pub dist_transfer: Option<DistTransferFn>,
 }
 
 impl Node {
@@ -60,6 +68,7 @@ impl Node {
             is_branch: false,
             variant_index: None,
             variant_params: HashMap::new(),
+            dist_transfer: None,
         }
     }
 
@@ -111,8 +120,7 @@ impl Node {
     /// Get display name for this node
     pub fn display_name(&self) -> String {
         self.label
-            .as_ref()
-            .map(|l| l.clone())
+            .clone()
             .unwrap_or_else(|| format!("Node {}", self.id))
     }
 }

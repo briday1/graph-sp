@@ -1,6 +1,7 @@
 //! Graph builder with implicit connections API
 
 use crate::dag::Dag;
+use crate::distribution::DistTransferFn;
 use crate::graph_data::GraphData;
 use crate::node::{Node, NodeId};
 use std::collections::{HashMap, HashSet};
@@ -22,6 +23,9 @@ pub struct Graph {
     next_branch_id: usize,
     /// Track nodes that should be merged together
     merge_targets: Vec<NodeId>,
+    /// Pending dist_transfers to be applied to nodes by label at `build()` time.
+    /// label -> DistTransferFn
+    dist_transfers: HashMap<String, DistTransferFn>,
 }
 
 impl Graph {
@@ -35,6 +39,7 @@ impl Graph {
             branches: Vec::new(),
             next_branch_id: 1,
             merge_targets: Vec::new(),
+            dist_transfers: HashMap::new(),
         }
     }
 
@@ -166,9 +171,18 @@ impl Graph {
     /// # Returns
     ///
     /// Returns the branch ID for use in merge operations
-    pub fn branch(&mut self, subgraph: Graph) -> usize {
+    pub fn branch(&mut self, mut subgraph: Graph) -> usize {
         // Assign a branch ID to this subgraph (shared for all replicates)
         let branch_id = self.get_branch_id();
+
+        // Apply any pending dist_transfers from the subgraph to its own nodes before copying
+        for node in &mut subgraph.nodes {
+            if let Some(label) = &node.label {
+                if let Some(transfer) = subgraph.dist_transfers.get(label.as_str()) {
+                    node.dist_transfer = Some(Arc::clone(transfer));
+                }
+            }
+        }
 
         // Determine the branch points (could be multiple - frontier / last_branch_point)
         let branch_points: Vec<NodeId> = if let Some(bp_vec) = self.last_branch_point.clone() {
@@ -220,6 +234,9 @@ impl Graph {
 
                 new_node.is_branch = true;
                 new_node.branch_id = Some(branch_id);
+
+                // Preserve the dist_transfer from the source node
+                new_node.dist_transfer = node.dist_transfer.clone();
 
                 self.nodes.push(new_node);
             }
@@ -291,15 +308,13 @@ impl Graph {
 
         // Prepare mappings
         let input_mapping: HashMap<String, String> = inputs
-            .as_ref()
-            .unwrap_or(&vec![])
+            .unwrap_or_default()
             .iter()
             .map(|(broadcast, impl_var)| (broadcast.to_string(), impl_var.to_string()))
             .collect();
 
         let output_mapping: HashMap<String, String> = outputs
-            .as_ref()
-            .unwrap_or(&vec![])
+            .unwrap_or_default()
             .iter()
             .map(|(impl_var, broadcast)| (impl_var.to_string(), broadcast.to_string()))
             .collect();
@@ -326,7 +341,7 @@ impl Graph {
                 if !self.merge_targets.is_empty() {
                     node.dependencies.extend(self.merge_targets.iter().copied());
                     self.merge_targets.clear();
-                } else if let Some(pid) = parent.map(|v| v) {
+                } else if let Some(pid) = *parent {
                     node.dependencies.push(pid);
                     node.is_branch = true;
                 }
@@ -454,6 +469,19 @@ impl Graph {
         self
     }
 
+    /// Attach an analytical distribution transfer to all nodes with the given label.
+    ///
+    /// The transfer function receives distributions keyed by **impl_var** names (the same
+    /// names the node function sees) and returns distributions keyed by **impl_var** output
+    /// names, or `None` to signal that Monte Carlo fallback should be used for this node.
+    ///
+    /// This is optional — nodes without a dist_transfer automatically fall back to Monte
+    /// Carlo sampling through their deterministic function when `Dag::predict()` is called.
+    pub fn set_dist_transfer_for(&mut self, label: &str, transfer: DistTransferFn) -> &mut Self {
+        self.dist_transfers.insert(label.to_string(), transfer);
+        self
+    }
+
     /// Build the final DAG from the graph builder
     ///
     /// This performs the implicit inspection phase:
@@ -471,6 +499,20 @@ impl Graph {
         // Resolve data dependencies based on input/output mappings
         self.resolve_data_dependencies();
 
+        // Apply pending dist_transfers to all matching nodes (by label)
+        let dist_transfers = std::mem::take(&mut self.dist_transfers);
+        for node in &mut self.nodes {
+            if node.dist_transfer.is_some() {
+                // Already set (e.g. copied from a subgraph) — don't overwrite
+                continue;
+            }
+            if let Some(label) = &node.label {
+                if let Some(transfer) = dist_transfers.get(label.as_str()) {
+                    node.dist_transfer = Some(Arc::clone(transfer));
+                }
+            }
+        }
+
         Dag::new(self.nodes)
     }
 
@@ -485,7 +527,7 @@ impl Graph {
         for node in &self.nodes {
             for broadcast_var in node.output_mapping.values() {
                 producers.entry(broadcast_var.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(node.id);
             }
         }
@@ -529,7 +571,6 @@ impl Graph {
     /// Merge a branch builder's nodes into this builder
     fn merge_branch(&mut self, branch: Graph) -> Vec<NodeId> {
         // Determine terminal nodes in the branch (nodes that are not dependencies of any other node within the branch)
-        let _branch_node_ids: HashSet<NodeId> = branch.nodes.iter().map(|n| n.id).collect();
         let branch_deps: HashSet<NodeId> = branch
             .nodes
             .iter()

@@ -127,6 +127,25 @@ impl GraphData {
         }
     }
 
+    /// Try to extract a scalar f64, including Python number objects when the
+    /// `python` feature is enabled.  Used by `Dag::predict()` to collect
+    /// Monte Carlo samples from the outputs of Python node functions.
+    pub fn as_f64_lossy(&self) -> Option<f64> {
+        match self {
+            GraphData::Float(v) => Some(*v),
+            GraphData::Int(v) => Some(*v as f64),
+            #[cfg(feature = "python")]
+            GraphData::PyObject(obj) => {
+                pyo3::Python::with_gil(|py| {
+                    obj.extract::<f64>(py)
+                        .ok()
+                        .or_else(|| obj.extract::<i64>(py).ok().map(|i| i as f64))
+                })
+            }
+            _ => None,
+        }
+    }
+
     /// Try to extract as String reference
     pub fn as_string(&self) -> Option<&str> {
         match self {

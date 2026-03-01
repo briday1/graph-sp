@@ -4,12 +4,14 @@
 use std::time::Instant;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct BenchmarkResult {
     pub duration_ms: f64,
     pub memory_info: MemoryInfo,
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct MemoryInfo {
     pub description: String,
 }
@@ -63,6 +65,7 @@ impl Benchmark {
         }
     }
     
+    #[allow(dead_code)]
     pub fn finish_and_print(self) -> BenchmarkResult {
         let result = self.finish();
         println!("⏱️  Runtime: {:.3}ms", result.duration_ms);
