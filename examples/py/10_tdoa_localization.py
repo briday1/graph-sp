@@ -1,6 +1,6 @@
 """Example 10: TDOA Localization Performance Analysis
 
-Uses predict_particles() to characterise the actual position-error distribution
+Uses predict() to characterise the actual position-error distribution
 of a TDOA-based localizer and compare it to the Cramér-Rao Lower Bound (CRLB).
 
 The CRLB assumes an efficient, unbiased estimator and linearized geometry.
@@ -25,7 +25,7 @@ Pipeline
     [LocalizeTLS]  Taylor-series iterative LS — takes scalar rdoa_k inputs,
                    solves for (x_est, y_est)
 
-    The graph is a standalone algorithm.  predict_particles() propagates the
+    The graph is a standalone algorithm.  predict() propagates the
     input distribution through it to obtain the output error distribution.
     The CRLB is the theoretical lower bound on that output covariance.
 
@@ -115,7 +115,7 @@ def true_rdoas(x_src, y_src, receivers=RECEIVERS):
     """Exact range-difference-of-arrival values for a source at (x_src, y_src).
 
     These become the *means* of the input distributions passed to
-    predict_particles — the noise power goes into the distribution width, not
+    predict — the noise power goes into the distribution width, not
     into the graph itself.
     """
     r0 = receivers[0]
@@ -130,7 +130,7 @@ def localize_tls_node(inputs):
 
     Each RDOA channel arrives as a separate scalar input ``rdoa_k``.  The graph
     is a pure algorithm — it knows nothing about source geometry or noise power.
-    Those live in the input distributions supplied to predict_particles().
+    Those live in the input distributions supplied to predict().
     """
     M = len(RECEIVERS) - 1
     rdoa_meas = [inputs.get(f"rdoa_{k}", 0.0) for k in range(M)]
@@ -165,14 +165,14 @@ def localize_tls_node(inputs):
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def build_and_run(x_true=X_TRUE, y_true=Y_TRUE, n_samples=N_SAMPLES, sigma_r=SIGMA_R):
-    """Build the localizer graph, run predict_particles, return JointDistribution.
+    """Build the localizer graph, run predict, return JointDistribution.
 
     The graph is a standalone algorithm (LocalizeTLS only).  The measurement
     uncertainty is expressed entirely in the input distributions:
 
         rdoa_k ~ N(true_rdoa_k, sigma_r)   for k = 0 … M-2
 
-    predict_particles() propagates those M input distributions through the
+    predict() propagates those M input distributions through the
     localizer to obtain the joint distribution over (rdoa_0…rdoa_{M-2},
     x_est, y_est), from which we read off the empirical error covariance.
 
@@ -191,7 +191,7 @@ def build_and_run(x_true=X_TRUE, y_true=Y_TRUE, n_samples=N_SAMPLES, sigma_r=SIG
               inputs=[(f"rdoa_{k}", f"rdoa_{k}") for k in range(M)],
               outputs=[("x_est", "x_est"), ("y_est", "y_est")])
     dag = graph.build()
-    stat = dag.predict_particles(input_dists, n_samples=n_samples)
+    stat = dag.predict(input_dists, n_samples=n_samples)
     return dagex.joint(stat)
 
 

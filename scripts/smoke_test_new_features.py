@@ -7,7 +7,7 @@ import numpy as np
 import dagex
 from dagex.analysis import JointDistribution
 
-# ── 1. FloatVec flattening in predict_particles ───────────────────────────────
+# ── 1. FloatVec flattening in predict ────────────────────────────────────────
 g = dagex.Graph()
 g.add(
     lambda _: {"weights": [1.0, 2.0, 3.0]},  # plain Python list → FloatVec
@@ -16,7 +16,7 @@ g.add(
     outputs=[("weights", "weights")],
 )
 dag = g.build()
-stat = dag.predict_particles({}, n_samples=200)
+stat = dag.predict({}, n_samples=200)
 part = stat.particles[0]
 assert "weights[0]" in part, f"missing weights[0], got: {sorted(part)}"
 assert "weights[1]" in part
@@ -42,7 +42,7 @@ g2.add(
     outputs=[("v", "v")],
 )
 dag2 = g2.build()
-stat2 = dag2.predict_particles({"x": dagex.normal(3.0, 1.0)}, n_samples=500)
+stat2 = dag2.predict({"x": dagex.normal(3.0, 1.0)}, n_samples=500)
 jd2 = dagex.joint(stat2)
 print(f"  3. vector pipeline vars: {[v for v in jd2.variables if v.startswith('v[')]}")
 

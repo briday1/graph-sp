@@ -308,15 +308,13 @@ impl Graph {
 
         // Prepare mappings
         let input_mapping: HashMap<String, String> = inputs
-            .as_ref()
-            .unwrap_or(&vec![])
+            .unwrap_or_default()
             .iter()
             .map(|(broadcast, impl_var)| (broadcast.to_string(), impl_var.to_string()))
             .collect();
 
         let output_mapping: HashMap<String, String> = outputs
-            .as_ref()
-            .unwrap_or(&vec![])
+            .unwrap_or_default()
             .iter()
             .map(|(impl_var, broadcast)| (impl_var.to_string(), broadcast.to_string()))
             .collect();
@@ -343,7 +341,7 @@ impl Graph {
                 if !self.merge_targets.is_empty() {
                     node.dependencies.extend(self.merge_targets.iter().copied());
                     self.merge_targets.clear();
-                } else if let Some(pid) = parent.map(|v| v) {
+                } else if let Some(pid) = *parent {
                     node.dependencies.push(pid);
                     node.is_branch = true;
                 }
@@ -529,7 +527,7 @@ impl Graph {
         for node in &self.nodes {
             for broadcast_var in node.output_mapping.values() {
                 producers.entry(broadcast_var.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(node.id);
             }
         }
@@ -573,7 +571,6 @@ impl Graph {
     /// Merge a branch builder's nodes into this builder
     fn merge_branch(&mut self, branch: Graph) -> Vec<NodeId> {
         // Determine terminal nodes in the branch (nodes that are not dependencies of any other node within the branch)
-        let _branch_node_ids: HashSet<NodeId> = branch.nodes.iter().map(|n| n.id).collect();
         let branch_deps: HashSet<NodeId> = branch
             .nodes
             .iter()

@@ -124,11 +124,11 @@ impl Dag {
         // Initialize in-degree and adjacency list
         for node in nodes {
             in_degree.entry(node.id).or_insert(0);
-            adj_list.entry(node.id).or_insert_with(Vec::new);
+            adj_list.entry(node.id).or_default();
 
             for &dep in &node.dependencies {
                 *in_degree.entry(node.id).or_insert(0) += 1;
-                adj_list.entry(dep).or_insert_with(Vec::new).push(node.id);
+                adj_list.entry(dep).or_default().push(node.id);
             }
         }
 
@@ -240,7 +240,7 @@ impl Dag {
                         result
                             .branch_outputs
                             .entry(branch_id)
-                            .or_insert_with(HashMap::new)
+                            .or_default()
                             .extend(outputs);
                     }
                 }
@@ -271,7 +271,7 @@ impl Dag {
                             result
                                 .branch_outputs
                                 .entry(branch_id)
-                                .or_insert_with(HashMap::new)
+                                .or_default()
                                 .extend(outputs);
                         }
                     }
@@ -330,7 +330,7 @@ impl Dag {
                             result
                                 .branch_outputs
                                 .entry(*bid)
-                                .or_insert_with(HashMap::new)
+                                .or_default()
                                 .extend(node_outputs.clone());
                         }
                     }
@@ -426,17 +426,6 @@ impl Dag {
 
     // ── Statistical forward pass ──────────────────────────────────────────────
 
-    /// Forward-propagate distributions through the **entire** DAG.
-    ///
-    /// Equivalent to `predict_at(input_dists, n_samples, None)` — every node
-    /// in topological order is evaluated before the result is returned.
-    ///
-    /// `input_dists` maps **broadcast variable names** to their prior distributions
-    /// (same namespace as `ExecutionContext`).
-    pub fn predict(&self, input_dists: DistContext, n_samples: usize) -> StatResult {
-        self.predict_at(input_dists, n_samples, None)
-    }
-
     /// Forward-propagate distributions through the DAG, optionally stopping early
     /// at a specified target node / branch / variant.
     ///
@@ -448,26 +437,33 @@ impl Dag {
     ///      node's function that many times, and collect outputs into `Empirical`
     ///      distributions.
     ///
-    /// When `target` is `None` the full graph is evaluated (same as `predict()`).
+    /// `n_samples` is only used when a node lacks an analytical `dist_transfer` and its
+    /// inputs are stochastic (MC fallback).  For fully analytical graphs it may be omitted
+    /// (`None`) — passing `None` to a graph that requires MC will panic with a clear message.
+    ///
+    /// When `target` is `None` the full graph is fully evaluated.
     /// When `target` is `Some(t)`, execution stops as soon as every node matching
     /// `t` has been computed — downstream nodes are never touched.
     ///
     /// # Example
     ///
     /// ```ignore
-    /// // Only propagate up to (and including) the "FeatureExtract" node:
-    /// dag.predict_at(inputs, 1000, Some(&PredictTarget::NodeLabel("FeatureExtract".into())));
+    /// // Fully analytical — no sampling needed:
+    /// dag.predict_at(inputs, None, None);
+    ///
+    /// // MC fallback nodes present — supply a sample count:
+    /// dag.predict_at(inputs, Some(1000), Some(&PredictTarget::NodeLabel("FeatureExtract".into())));
     ///
     /// // Only propagate into branch 2:
-    /// dag.predict_at(inputs, 1000, Some(&PredictTarget::BranchId(2)));
+    /// dag.predict_at(inputs, Some(1000), Some(&PredictTarget::BranchId(2)));
     ///
     /// // Only propagate into variant 0:
-    /// dag.predict_at(inputs, 1000, Some(&PredictTarget::VariantIndex(0)));
+    /// dag.predict_at(inputs, Some(1000), Some(&PredictTarget::VariantIndex(0)));
     /// ```
     pub fn predict_at(
         &self,
         input_dists: DistContext,
-        n_samples: usize,
+        n_samples: Option<usize>,
         target: Option<&PredictTarget>,
     ) -> StatResult {
         // Resolve the target node IDs up front so we can check for early exit.
@@ -515,8 +511,12 @@ impl Dag {
                     .collect()
             } else {
                 // MC fallback
+                let n = n_samples.expect(
+                    "n_samples is required for nodes without an analytical dist_transfer. \
+                     Pass Some(n) to predict_at(), or add a dist_transfer to every node."
+                );
                 let mut sample_vecs: HashMap<String, Vec<f64>> = HashMap::new();
-                for _ in 0..n_samples {
+                for _ in 0..n {
                     let mini = Self::build_mini_ctx(node, &dist_ctx, Some(&mut rng));
                     for (k, v) in node.execute(&mini) {
                         if let Some(f) = gd_to_f64(&v) {
@@ -579,7 +579,7 @@ impl Dag {
     /// sample alignment across variables), this method threads each particle through
     /// the whole graph in topological order.  The returned `StatResult` has:
     ///
-    /// * `dist_context` — per-variable `Empirical` distributions (same quality as `predict()`).
+    /// * `dist_context` — per-variable `Empirical` distributions.
     /// * `particles`   — `Vec<HashMap<String,f64>>` with aligned samples for joint analysis.
     ///
     /// **Analytical `dist_transfer` nodes**: the node's marginal distribution is still exact,
@@ -587,7 +587,7 @@ impl Dag {
     /// analytical output is sampled fresh for each particle independently of the inputs.
     /// This is the correct behaviour when you *assert* a known marginal (you are explicitly
     /// stating you know the distribution, not deriving it from the inputs particle-by-particle).
-    pub fn predict_particles(&self, input_dists: DistContext, n_samples: usize) -> StatResult {
+    pub fn predict(&self, input_dists: DistContext, n_samples: usize) -> StatResult {
         let mut rng = rand::thread_rng();
 
         // ── 1. Seed particles from input priors ──────────────────────────────
@@ -624,10 +624,10 @@ impl Dag {
                 None => continue,
             };
 
-            // NOTE: dist_transfer is intentionally ignored in predict_particles.
+            // NOTE: dist_transfer is intentionally ignored in predict().
             // Each node is always evaluated per-particle using the node's concrete
             // function, so exact joint correlation structure is preserved.
-            // (dist_transfer is an optimization for predict() only, where per-node
+            // (dist_transfer is an optimization for predict_at() only, where per-node
             // MC would lose sample alignment anyway.)
 
             // output_cols: broadcast_var → one value per particle
@@ -635,7 +635,7 @@ impl Dag {
 
             // Check whether ALL inputs to this node are deterministic (no stochasticity).
             // Note: if a node has no declared inputs it might still call random() internally,
-            // so we treat input-free nodes as stochastic in predict_particles (run per-particle).
+            // so we treat input-free nodes as stochastic in predict() (run per-particle).
             let input_dists_impl = Self::gather_impl_dists(node, &dist_ctx);
             let all_deterministic = !input_dists_impl.is_empty()
                 && input_dists_impl.values().all(|d| d.is_deterministic());

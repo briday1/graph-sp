@@ -1,12 +1,12 @@
 """dagex.analysis — joint distribution analysis for StatResult particles.
 
-Works with the output of ``dag.predict_particles()``, which stores full
+Works with the output of ``dag.predict()``, which stores full
 per-sample trajectories so that all variables at index ``i`` come from the
 **same** random draw through the graph.
 
 Typical usage::
 
-    stat  = dag.predict_particles({"x": dagex.normal(0.0, 1.0)}, n_samples=3000)
+    stat  = dag.predict({"x": dagex.normal(0.0, 1.0)}, n_samples=3000)
     joint = dagex.joint(stat)          # JointDistribution over all variables
 
     joint.print_summary()
@@ -593,7 +593,7 @@ def joint_from_stat(
     Parameters
     ----------
     stat_result:
-        The return value of ``dag.predict_particles()``.  Must have
+        The return value of ``dag.predict()``.  Must have
         ``stat_result.particles`` populated (not ``None``).
     variables:
         Subset of variable names to include.  Defaults to all non-internal
@@ -602,14 +602,13 @@ def joint_from_stat(
     Raises
     ------
     ValueError
-        If the result has no particles — use ``dag.predict_particles()`` instead
+        If the result has no particles — use ``dag.predict()`` instead
         of ``dag.predict()``.
     """
     parts = stat_result.particles
     if parts is None:
         raise ValueError(
             "StatResult has no particles. "
-            "Call dag.predict_particles() instead of dag.predict() "
-            "to enable joint distribution analysis."
+            "Call dag.predict() to enable joint distribution analysis."
         )
     return JointDistribution(parts, variables)

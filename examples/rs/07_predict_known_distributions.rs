@@ -126,20 +126,17 @@ fn main() {
     println!("{}", dag.to_mermaid());
 
     // ── Full predict pass ─────────────────────────────────────────────────────
-    print_section("Full predict() — analytical + MC fallback for Clip");
+    print_section("Full predict_at() — analytical + MC fallback for Clip");
 
-    let input_dists = HashMap::from([(
-        "x".to_string(),
-        Distribution::normal(10.0, 2.0),
-    )]);
+    let input_dists = HashMap::from([("x".to_string(), Distribution::normal(10.0, 2.0))]);
 
-    let bm = Benchmark::start("predict");
-    let stat = dag.predict(input_dists.clone(), 2000);
+    let bm = Benchmark::start("predict_at");
+    let stat = dag.predict_at(input_dists.clone(), None, None);
     let result = bm.finish();
     println!("  Time: {:.1} ms\n", result.duration_ms);
 
-    // ── Verify analytical results ─────────────────────────────────────────────
-    print_section("Verification — theory vs. predict()");
+    // ── Verify analytical results ──────────────────────────────────────────────
+    print_section("Verification — theory vs. predict_at()");
 
     let expected = [
         ("y",   35.0_f64,  6.0_f64),
@@ -188,7 +185,7 @@ fn main() {
     print_section("predict_at(NodeLabel=\"AddNoise\") — stop before Clip");
 
     let target = PredictTarget::NodeLabel("AddNoise".to_string());
-    let stat_early = dag.predict_at(input_dists.clone(), 2000, Some(&target));
+    let stat_early = dag.predict_at(input_dists.clone(), None, Some(&target));
 
     println!("  'w' present:   {}", stat_early.contains("w"));
     println!("  'out' present: {}", stat_early.contains("out"));

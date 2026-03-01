@@ -108,7 +108,7 @@ def main():
     print_section("Analytical prediction (mixed-mode)")
 
     x_input = {"x": dagex.normal(mean=10.0, std=2.0)}
-    stat = dag.predict(x_input, n_samples=5000)
+    stat = dag.predict_at(x_input, n_samples=5000)
 
     print("  Input: x ~ Normal(μ=10, σ=2)\n")
     print_dist_table([
@@ -144,7 +144,7 @@ def main():
     # ── Targeted prediction (early stop) ─────────────────────────────────────
     print_section("Targeted prediction — stop at AddNoise")
 
-    stat_partial = dag.predict(x_input, n_samples=1000, at_node="AddNoise")
+    stat_partial = dag.predict_at(x_input, n_samples=1000, at_node="AddNoise")
     print("  Keys after stopping at AddNoise:", stat_partial.keys())
     print("  'output' present:", stat_partial.get("output") is not None)
     print("  w:", stat_partial["w"].summary())
@@ -155,10 +155,10 @@ def main():
     print("  ", [f"{s:.2f}" for s in samples])
 
     # ── Joint distribution analysis ───────────────────────────────────────────
-    print_section("Joint Distribution Analysis  (predict_particles)")
+    print_section("Joint Distribution Analysis  (predict)")
 
-    print("  Running predict_particles() — full end-to-end trajectories...")
-    stat_p = dag.predict_particles(x_input, n_samples=8000)
+    print("  Running predict() — full end-to-end trajectories...")
+    stat_p = dag.predict(x_input, n_samples=8000)
     joint  = dagex.joint(stat_p)
 
     print()
@@ -175,8 +175,8 @@ def main():
     print(f"    r(x, w)      = {r_xw:.4f}  [expected <1.000 — AddNoise adds noise: w = z + ε]")
     print(f"    r(x, output) = {r_xo:.4f}  [expected <1.000 — Clip is non-linear; noise dominates]")
     print()
-    print("  Note: predict_particles() always runs node functions directly.")
-    print("  dist_transfer shortcuts (used by predict()) are bypassed, so")
+    print("  Note: predict() always runs node functions directly.")
+    print("  dist_transfer shortcuts (used by predict_at()) are bypassed, so")
     print("  exact joint structure is preserved through ALL nodes.")
 
     # ── Analytical joint vs empirical ─────────────────────────────────────────
@@ -232,7 +232,7 @@ def main():
         print(row)
 
     print()
-    print("  Empirical correlation matrix (predict_particles, n=8000):")
+    print("  Empirical correlation matrix (predict, n=8000):")
     print(header)
     print("  " + "─" * (len(header) - 2))
     max_err = 0.0

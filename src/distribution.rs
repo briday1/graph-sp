@@ -307,6 +307,161 @@ impl std::fmt::Display for Distribution {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── Constructors & helpers ────────────────────────────────────────────────
+
+    #[test]
+    fn test_deterministic_moments() {
+        let d = Distribution::deterministic(5.0);
+        assert_eq!(d.mean(), 5.0);
+        assert_eq!(d.variance(), 0.0);
+        assert_eq!(d.std(), 0.0);
+        assert_eq!(d.percentile(0.5), 5.0);
+        assert!(d.is_deterministic());
+        assert!(!d.is_empirical());
+        assert_eq!(d.as_deterministic(), Some(5.0));
+        assert!(d.as_samples().is_none());
+    }
+
+    #[test]
+    fn test_normal_moments() {
+        let d = Distribution::normal(2.0, 3.0);
+        assert_eq!(d.mean(), 2.0);
+        assert!((d.variance() - 9.0).abs() < 1e-10);
+        assert!((d.std() - 3.0).abs() < 1e-10);
+        assert!(!d.is_deterministic());
+    }
+
+    #[test]
+    fn test_uniform_moments() {
+        let d = Distribution::uniform(0.0, 4.0);
+        assert_eq!(d.mean(), 2.0);
+        // Var = (high - low)^2 / 12
+        assert!((d.variance() - 16.0 / 12.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_beta_moments() {
+        // Beta(2, 2): mean = 0.5, var = 2*2 / (4^2 * 5) = 4/80 = 0.05
+        let d = Distribution::beta(2.0, 2.0);
+        assert!((d.mean() - 0.5).abs() < 1e-10);
+        assert!((d.variance() - 0.05).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_gamma_moments() {
+        // Gamma(shape=2, rate=0.5): mean = 4, var = 2 / 0.25 = 8
+        let d = Distribution::gamma(2.0, 0.5);
+        assert!((d.mean() - 4.0).abs() < 1e-10);
+        assert!((d.variance() - 8.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_lognormal_moments() {
+        // LogNormal(mu=0, sigma=0): mean = e^0 = 1, var = 0
+        let d = Distribution::lognormal(0.0, 0.0);
+        assert!((d.mean() - 1.0).abs() < 1e-10);
+        assert_eq!(d.variance(), 0.0);
+    }
+
+    #[test]
+    fn test_empirical_moments() {
+        let samples = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+        let d = Distribution::empirical(samples);
+        assert!((d.mean() - 3.0).abs() < 1e-10);
+        // Sample variance of [1,2,3,4,5] = 2.5
+        assert!((d.variance() - 2.5).abs() < 1e-10);
+        assert!(!d.is_deterministic());
+        assert!(d.is_empirical());
+        assert_eq!(d.as_samples().unwrap().len(), 5);
+    }
+
+    #[test]
+    fn test_empirical_empty() {
+        let d = Distribution::empirical(vec![]);
+        assert!(d.mean().is_nan());
+        assert_eq!(d.variance(), 0.0);
+        assert_eq!(d.percentile(0.5).is_nan(), true);
+    }
+
+    // ── Sampling ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_sample_n_count() {
+        for d in [
+            Distribution::deterministic(1.0),
+            Distribution::normal(0.0, 1.0),
+            Distribution::uniform(0.0, 1.0),
+            Distribution::beta(1.0, 1.0),
+            Distribution::gamma(1.0, 1.0),
+            Distribution::lognormal(0.0, 1.0),
+            Distribution::empirical(vec![1.0, 2.0, 3.0]),
+        ] {
+            assert_eq!(d.sample_n(20).len(), 20);
+        }
+    }
+
+    #[test]
+    fn test_deterministic_sample_is_constant() {
+        let d = Distribution::deterministic(42.0);
+        let s = d.sample_n(50);
+        assert!(s.iter().all(|&v| v == 42.0));
+    }
+
+    #[test]
+    fn test_sample_one() {
+        let d = Distribution::normal(5.0, 0.0001);
+        let v = d.sample_one();
+        assert!((v - 5.0).abs() < 1.0); // just must be finite
+    }
+
+    // ── Percentile ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_empirical_percentile() {
+        // [0,1,2,...,99], p50 should be 49 or 50
+        let d = Distribution::empirical((0..100).map(|x| x as f64).collect());
+        let p50 = d.percentile(0.5);
+        assert!((p50 - 49.5).abs() <= 1.0);
+        let p0 = d.percentile(0.0);
+        assert_eq!(p0, 0.0);
+        let p100 = d.percentile(1.0);
+        assert_eq!(p100, 99.0);
+    }
+
+    // ── Display ───────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_display() {
+        assert_eq!(format!("{}", Distribution::deterministic(1.0)), "Deterministic(1)");
+        assert!(format!("{}", Distribution::normal(0.0, 1.0)).contains("Normal"));
+        assert!(format!("{}", Distribution::uniform(0.0, 1.0)).contains("Uniform"));
+        assert!(format!("{}", Distribution::beta(1.0, 1.0)).contains("Beta"));
+        assert!(format!("{}", Distribution::gamma(1.0, 1.0)).contains("Gamma"));
+        assert!(format!("{}", Distribution::lognormal(0.0, 1.0)).contains("LogNormal"));
+        let emp = Distribution::empirical(vec![1.0, 2.0]);
+        assert!(format!("{}", emp).contains("Empirical"));
+    }
+
+    // ── PortSummary ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_port_summary_fields() {
+        let d = Distribution::deterministic(7.0);
+        let s = d.summary();
+        assert_eq!(s.mean, 7.0);
+        assert_eq!(s.std, 0.0);
+        assert_eq!(s.variance, 0.0);
+        assert_eq!(s.p5, 7.0);
+        assert_eq!(s.p50, 7.0);
+        assert_eq!(s.p95, 7.0);
+        assert!(format!("{}", s).contains("mean=7"));
+    }
+}
+
 // ─── Port summary ─────────────────────────────────────────────────────────────
 
 /// Summary statistics for a single scalar output port.

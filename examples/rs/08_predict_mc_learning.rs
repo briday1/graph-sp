@@ -88,7 +88,7 @@ fn main() {
     let dag_plain = graph_plain.build();
 
     let bm = Benchmark::start("MC n=500");
-    let stat_plain = dag_plain.predict(x_prior.clone(), 500);
+    let stat_plain = dag_plain.predict_at(x_prior.clone(), Some(500), None);
     let r = bm.finish();
     let s = stat_plain.summary("out").unwrap();
     println!("  out: mean={:.4}  std={:.4}  ({:.0} ms)", s.mean, s.std, r.duration_ms);
@@ -114,8 +114,8 @@ fn main() {
     let dag = graph.build();
 
     for n in [200_usize, 1000, 5000] {
-        let bm = Benchmark::start("predict");
-        let stat = dag.predict(x_prior.clone(), n);
+        let bm = Benchmark::start("predict_at");
+        let stat = dag.predict_at(x_prior.clone(), Some(n), None);
         let r = bm.finish();
         let s_out = stat.summary("out").unwrap();
         let s_w   = stat.summary("w").unwrap();
@@ -137,7 +137,7 @@ fn main() {
     // ── Inspect intermediate distributions ────────────────────────────────────
     print_section("Inspecting all intermediate distributions (n_samples=3000)");
 
-    let stat = dag.predict(x_prior.clone(), 3000);
+    let stat = dag.predict_at(x_prior.clone(), Some(3000), None);
 
     for var in ["x", "y", "z", "w", "out"] {
         if let Some(d) = stat.get(var) {
@@ -166,7 +166,7 @@ fn main() {
     print_section("predict_at(NodeLabel=\"Rectify\") — early stop");
 
     let target = PredictTarget::NodeLabel("Rectify".to_string());
-    let stat_early = dag.predict_at(x_prior.clone(), 2000, Some(&target));
+    let stat_early = dag.predict_at(x_prior.clone(), Some(2000), Some(&target));
 
     println!("  'z' present:   {}", stat_early.contains("z"));
     println!("  'w' present:   {}", stat_early.contains("w"));
@@ -181,7 +181,7 @@ fn main() {
     println!("  n_samples   out.mean   out.std");
     println!("  {}", "-".repeat(34));
     for n in [50_usize, 200, 1000, 5000] {
-        let s = dag.predict(x_prior.clone(), n).summary("out").unwrap();
+        let s = dag.predict_at(x_prior.clone(), Some(n), None).summary("out").unwrap();
         println!("  {n:8}   {:.4}   {:.4}", s.mean, s.std);
     }
     println!("\n  Estimates converge as n_samples increases.");

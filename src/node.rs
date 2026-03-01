@@ -120,8 +120,7 @@ impl Node {
     /// Get display name for this node
     pub fn display_name(&self) -> String {
         self.label
-            .as_ref()
-            .map(|l| l.clone())
+            .clone()
             .unwrap_or_else(|| format!("Node {}", self.id))
     }
 }

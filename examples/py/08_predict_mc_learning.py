@@ -102,7 +102,7 @@ def main():
     dag_plain = graph_plain.build()
 
     with Benchmark("MC n=500") as bm:
-        stat_plain = dag_plain.predict(x_prior, n_samples=500)
+        stat_plain = dag_plain.predict_at(x_prior, n_samples=500)
     print(f"  Time: {bm.result.duration_ms:.1f} ms")
     print(f"  out:  {stat_plain['out'].summary()}")
 
@@ -111,7 +111,7 @@ def main():
 
     for n in [200, 1000, 5000]:
         with Benchmark(f"n={n}") as bm:
-            stat = dag.predict(x_prior, n_samples=n)
+            stat = dag.predict_at(x_prior, n_samples=n)
         d_out = stat["out"]
         d_w   = stat["w"]
         print(f"  n={n:5d}  out: mean={d_out.mean:.4f}  std={d_out.std:.4f}"
@@ -127,7 +127,7 @@ def main():
     # ── Inspecting individual distributions ───────────────────────────────────
     print_section("Inspecting intermediate distributions (n_samples=3000)")
 
-    stat = dag.predict(x_prior, n_samples=3000)
+    stat = dag.predict_at(x_prior, n_samples=3000)
 
     rows = []
     for var in ["x", "y", "z", "w", "out"]:
@@ -147,7 +147,7 @@ def main():
     # ── Early stop: only compute up to Rectify ───────────────────────────────
     print_section("at_node='Rectify' — early stop before Scale and Square")
 
-    stat_early = dag.predict(x_prior, n_samples=2000, at_node="Rectify")
+    stat_early = dag.predict_at(x_prior, n_samples=2000, at_node="Rectify")
     print("  Keys:", stat_early.keys())
     print("  'w' present:   ", stat_early.get("w")   is not None)
     print("  'out' present: ", stat_early.get("out") is not None)
@@ -159,7 +159,7 @@ def main():
     print("  n_samples   out.mean   out.std")
     print("  " + "-" * 35)
     for n in [50, 200, 1000, 5000]:
-        s = dag.predict(x_prior, n_samples=n)
+        s = dag.predict_at(x_prior, n_samples=n)
         d = s["out"]
         print(f"  {n:8d}   {d.mean:8.4f}   {d.std:8.4f}")
 
@@ -167,10 +167,10 @@ def main():
     print("  As n_samples increases, estimates converge.")
 
     # ── Joint distribution analysis ───────────────────────────────────────────
-    print_section("Joint Distribution Analysis  (predict_particles)")
+    print_section("Joint Distribution Analysis  (predict)")
 
-    print("  Running predict_particles() — preserves joint structure...")
-    stat_p  = dag.predict_particles(x_prior, n_samples=3000)
+    print("  Running predict() — preserves joint structure...")
+    stat_p  = dag.predict(x_prior, n_samples=3000)
     joint   = dagex.joint(stat_p)
 
     print()
@@ -187,7 +187,7 @@ def main():
     print(f"    r(z, w) = {r_zw:.4f}  [z→Scale→w: w = 3z+1 is linear, expect r = 1.000]")
     print(f"    r(w,out)= {r_wo:.4f}  [w→Square→out: out=w², expect positive r]")
     print()
-    print("  Note: predict_particles() runs node functions directly (bypasses dist_transfer),")
+    print("  Note: predict() runs node functions directly (bypasses dist_transfer),")
     print("  so the analytical Scale node contributes exact correlation just like any other node.")
 
     # Demonstrate assume_independent: force x ⊥ out
@@ -206,7 +206,7 @@ def main():
     import matplotlib.pyplot as plt
 
     plot_path = os.path.join(os.path.dirname(__file__), "08_joint_pairs.png")
-    fig, _ = joint.plot_pairs(title="Example 08 — Joint Distribution (predict_particles)")
+    fig, _ = joint.plot_pairs(title="Example 08 — Joint Distribution (predict)")
     fig.savefig(plot_path, dpi=120, bbox_inches="tight")
     plt.close(fig)
     print(f"\n  Pair plot saved → {plot_path}")

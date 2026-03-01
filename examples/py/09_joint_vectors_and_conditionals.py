@@ -65,7 +65,7 @@ def fuse(inputs):
     """fused = mean(obs)  — arithmetic sensor fusion.
 
     inputs["obs"] arrives as a Python list (reconstructed from the FloatVec
-    particle entries by predict_particles()).
+    particle entries by predict()).
     """
     obs = inputs.get("obs") or [0.0]
     return {"fused": sum(obs) / len(obs)}
@@ -93,7 +93,7 @@ def main():
     # ── Particle forward pass ─────────────────────────────────────────────────
     print_section(f"Particle forward pass  (n = {N_SAMPLES:,})")
     x_input = {"x": dagex.normal(0.0, 1.0)}
-    stat    = dag.predict_particles(x_input, n_samples=N_SAMPLES)
+    stat    = dag.predict(x_input, n_samples=N_SAMPLES)
     jd      = dagex.joint(stat)
 
     obs_vars = [f"obs[{k}]" for k in range(N_SENSORS)]

@@ -165,7 +165,7 @@ impl PyStatResult {
     }
 
     /// Aligned per-sample trajectories, or `None` when the result came from `predict()`
-    /// rather than `predict_particles()`.
+    /// rather than `predict()`.
     ///
     /// Returns a list of dicts: `particles[i]` maps every broadcast variable name to its
     /// concrete float value on sample `i`.  All variables in one dict share the same
@@ -567,22 +567,22 @@ impl PyDag {
     /// Example::
     ///
     ///     # Full graph
-    ///     stat = dag.predict({"x": dagex.normal(0.0, 1.0)})
+    ///     stat = dag.predict_at({"x": dagex.normal(0.0, 1.0)})
     ///
     ///     # Stop at node labelled "Scale"
-    ///     stat = dag.predict({"x": dagex.normal(0.0, 1.0)}, at_node="Scale")
+    ///     stat = dag.predict_at({"x": dagex.normal(0.0, 1.0)}, at_node="Scale")
     ///
     ///     # Stop at branch 1
-    ///     stat = dag.predict({"x": dagex.normal(0.0, 1.0)}, at_branch=1)
+    ///     stat = dag.predict_at({"x": dagex.normal(0.0, 1.0)}, at_branch=1)
     ///
     ///     # Stop at variant 0
-    ///     stat = dag.predict({"x": dagex.normal(0.0, 1.0)}, at_variant=0)
-    #[pyo3(signature = (inputs, n_samples=1000, at_node=None, at_branch=None, at_variant=None))]
-    fn predict(
+    ///     stat = dag.predict_at({"x": dagex.normal(0.0, 1.0)}, at_variant=0)
+    #[pyo3(signature = (inputs, n_samples=None, at_node=None, at_branch=None, at_variant=None))]
+    fn predict_at(
         &self,
         py: Python,
         inputs: &PyDict,
-        n_samples: usize,
+        n_samples: Option<usize>,
         at_node: Option<String>,
         at_branch: Option<usize>,
         at_variant: Option<usize>,
@@ -630,7 +630,7 @@ impl PyDag {
     ///
     /// * ``predict()`` — fast; uses ``dist_transfer`` shortcuts; marginals are exact;
     ///   no joint structure.
-    /// * ``predict_particles()`` — slightly slower; always evaluates node functions;
+    /// * ``predict()`` — slightly slower; always evaluates node functions;
     ///   marginals AND correlations are exact; use this for joint/marginal PDFs and plots.
     ///
     /// Args:
@@ -643,13 +643,13 @@ impl PyDag {
     ///
     /// Example::
     ///
-    ///     stat  = dag.predict_particles({"x": dagex.normal(0.0, 1.0)}, n_samples=2000)
+    ///     stat  = dag.predict({"x": dagex.normal(0.0, 1.0)}, n_samples=2000)
     ///     joint = dagex.joint(stat)          # JointDistribution
     ///     joint.print_summary()              # table + correlation matrix
     ///     joint.plot_pairs()                 # pair plot of all variables
     ///     joint.plot_joint("x", "out")       # 2-D joint PDF
     #[pyo3(signature = (inputs, n_samples=1000))]
-    fn predict_particles(
+    fn predict(
         &self,
         py: Python,
         inputs: &PyDict,
@@ -667,7 +667,7 @@ impl PyDag {
             dist_ctx.insert(k, cell.borrow().inner.clone());
         }
         let stat = py.allow_threads(|| {
-            self.dag.predict_particles(dist_ctx, n_samples)
+            self.dag.predict(dist_ctx, n_samples)
         });
         Ok(PyStatResult { inner: stat })
     }
