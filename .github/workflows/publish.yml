@@ -33,44 +33,42 @@ jobs:
           # Get current year
           YEAR=$(date +'%Y')
           
-          # Fetch existing versions from PyPI and find next version number
+          # Fetch existing versions from PyPI *and* crates.io, take the max
           NEXT_VERSION=$(python3 << 'PYTHON_EOF'
           import requests
           import re
           import sys
           from datetime import datetime
-          
+
           year = datetime.now().year
-          package_name = "dagex"
-          
+          year_pattern = re.compile(rf'^{year}\.(\d+)')
+          nums = []
+
+          # Check PyPI
           try:
-              response = requests.get(f'https://pypi.org/pypi/{package_name}/json', timeout=10)
-              if response.status_code == 200:
-                  data = response.json()
-                  versions = list(data['releases'].keys())
-                  
-                  # Filter versions for current year (format: YYYY.v where v is a number)
-                  year_pattern = re.compile(rf'^{year}\.(\d+)$')
-                  year_versions = []
-                  for v in versions:
-                      match = year_pattern.match(v)
-                      if match:
-                          version_num = int(match.group(1))
-                          year_versions.append(version_num)
-                  
-                  # Get next version
-                  if year_versions:
-                      next_num = max(year_versions) + 1
-                  else:
-                      next_num = 1
-                  
-                  print(f"{year}.{next_num}")
-              else:
-                  print(f"{year}.1", file=sys.stderr)
-                  print(f"{year}.1")
+              r = requests.get('https://pypi.org/pypi/dagex/json', timeout=10)
+              if r.status_code == 200:
+                  for v in r.json().get('releases', {}).keys():
+                      m = year_pattern.match(v)
+                      if m:
+                          nums.append(int(m.group(1)))
           except Exception as e:
-              print(f"Error: {e}", file=sys.stderr)
-              print(f"{year}.1")
+              print(f"PyPI check failed: {e}", file=sys.stderr)
+
+          # Check crates.io (version format is YYYY.N.0)
+          try:
+              headers = {'User-Agent': 'dagex-publish-workflow/1.0'}
+              r = requests.get('https://crates.io/api/v1/crates/dagex', timeout=10, headers=headers)
+              if r.status_code == 200:
+                  for v in r.json().get('versions', []):
+                      m = year_pattern.match(v.get('num', ''))
+                      if m:
+                          nums.append(int(m.group(1)))
+          except Exception as e:
+              print(f"crates.io check failed: {e}", file=sys.stderr)
+
+          next_num = max(nums) + 1 if nums else 1
+          print(f"{year}.{next_num}")
           PYTHON_EOF
           )
           
@@ -272,6 +270,12 @@ jobs:
       
       - name: Publish to crates.io
         env:
-          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
         run: |
-          cargo publish --allow-dirty --token $CRATES_IO_TOKEN
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://crates.io/api/v1/crates/dagex/$VERSION")
+          if [ "$STATUS" = "200" ]; then
+            echo "dagex@$VERSION already published on crates.io, skipping."
+          else
+            cargo publish --allow-dirty
+          fi
