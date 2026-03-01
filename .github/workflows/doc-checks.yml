@@ -25,7 +25,7 @@ jobs:
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
       - name: cargo test
-        run: cargo test --all --locked --verbose
+        run: cargo test --all --verbose
 
   python-doc-check:
     name: Python doc checks (example run)
