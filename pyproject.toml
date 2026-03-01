@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "dagex"
-version = "2026.18"
+version = "2026.19"
 readme = "README_PYPI.md"
 requires-python = ">=3.8"
 
