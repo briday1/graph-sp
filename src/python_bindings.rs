@@ -935,13 +935,7 @@ fn execution_result_to_python(py: Python, result: &ExecutionResult) -> PyResult<
         let status_dict = PyDict::new(py);
         status_dict.set_item("hit", status.hit)?;
         status_dict.set_item("stored", status.stored)?;
-        status_dict.set_item(
-            "reason",
-            status
-                .reason
-                .map(|reason| reason.to_string())
-                .unwrap_or_else(|| "hit".to_string()),
-        )?;
+        status_dict.set_item("reason", status.reason.map(|reason| reason.to_string()))?;
         status_dict.set_item("category", node_cache_category(status))?;
         status_dict.set_item("cache_key", status.cache_key.clone())?;
         node_cache.set_item(*node_id, status_dict)?;
