@@ -1,5 +1,10 @@
 //! DAG representation with execution and visualization support
 
+use crate::cache::{
+    build_cache_entry, build_cache_lookup, dependency_signature, normalize_inputs,
+    CacheBackend, CacheBackendStats, CacheDepth, CacheLookupResult,
+    CacheMissReason, CacheOptions, CacheRunStats,
+};
 use crate::distribution::{DistContext, Distribution};
 use crate::graph_data::GraphData;
 use crate::node::{Node, NodeId};
@@ -41,6 +46,19 @@ pub struct ExecutionResult {
     pub node_outputs: HashMap<NodeId, HashMap<String, GraphData>>,
     /// Outputs per branch (branch_id -> HashMap of output variables)
     pub branch_outputs: HashMap<usize, HashMap<String, GraphData>>,
+    /// Per-run cache hit/miss/store statistics.
+    pub cache_stats: CacheRunStats,
+    /// Per-node cache status for debugging.
+    pub node_cache_status: HashMap<NodeId, NodeCacheStatus>,
+}
+
+/// Debug status for a node cache lookup during an execution.
+#[derive(Debug, Clone)]
+pub struct NodeCacheStatus {
+    pub hit: bool,
+    pub stored: bool,
+    pub reason: Option<CacheMissReason>,
+    pub cache_key: Option<String>,
 }
 
 impl ExecutionResult {
@@ -50,6 +68,8 @@ impl ExecutionResult {
             context: HashMap::new(),
             node_outputs: HashMap::new(),
             branch_outputs: HashMap::new(),
+            cache_stats: CacheRunStats::default(),
+            node_cache_status: HashMap::new(),
         }
     }
 
@@ -96,6 +116,8 @@ pub struct Dag {
     execution_order: Vec<NodeId>,
     /// Levels for parallel execution (nodes at same level can run in parallel)
     execution_levels: Vec<Vec<NodeId>>,
+    /// Shared cache backend for node execution results.
+    cache_backend: Arc<dyn CacheBackend>,
 }
 
 impl Dag {
@@ -105,7 +127,7 @@ impl Dag {
     /// - Validates the graph is acyclic
     /// - Determines optimal execution order
     /// - Identifies parallelizable operations
-    pub fn new(nodes: Vec<Node>) -> Self {
+    pub fn new(nodes: Vec<Node>, cache_backend: Arc<dyn CacheBackend>) -> Self {
         let execution_order = Self::topological_sort(&nodes);
         let execution_levels = Self::compute_execution_levels(&nodes, &execution_order);
 
@@ -113,6 +135,7 @@ impl Dag {
             nodes,
             execution_order,
             execution_levels,
+            cache_backend,
         }
     }
 
@@ -202,7 +225,18 @@ impl Dag {
     /// * `parallel` - If true, execute nodes at the same level concurrently
     /// * `max_threads` - Optional maximum number of threads to use per level (None = unlimited)
     pub fn execute(&self, parallel: bool, max_threads: Option<usize>) -> ExecutionContext {
-        self.execute_detailed(parallel, max_threads).context
+        self.execute_with_options(parallel, max_threads, CacheOptions::default())
+    }
+
+    /// Execute the DAG with explicit cache controls.
+    pub fn execute_with_options(
+        &self,
+        parallel: bool,
+        max_threads: Option<usize>,
+        cache_options: CacheOptions,
+    ) -> ExecutionContext {
+        self.execute_detailed_with_options(parallel, max_threads, cache_options)
+            .context
     }
 
     /// Execute the DAG with detailed per-node and per-branch tracking
@@ -213,36 +247,33 @@ impl Dag {
     /// * `parallel` - If true, execute nodes at the same level concurrently
     /// * `max_threads` - Optional maximum number of threads to use per level (None = unlimited)
     pub fn execute_detailed(&self, parallel: bool, max_threads: Option<usize>) -> ExecutionResult {
+        self.execute_detailed_with_options(parallel, max_threads, CacheOptions::default())
+    }
+
+    /// Execute the DAG with detailed tracking and explicit cache controls.
+    pub fn execute_detailed_with_options(
+        &self,
+        parallel: bool,
+        max_threads: Option<usize>,
+        cache_options: CacheOptions,
+    ) -> ExecutionResult {
         let mut result = ExecutionResult::new();
+        let mut node_signatures: HashMap<NodeId, String> = HashMap::new();
 
         if !parallel {
             // Sequential execution
             for &node_id in &self.execution_order {
                 if let Some(node) = self.nodes.iter().find(|n| n.id == node_id) {
-                    let outputs = node.execute(&result.context);
-
-                    // Store outputs in global context
-                    // For branch nodes, prefix keys with branch_id to avoid conflicts
-                    if let Some(branch_id) = node.branch_id {
-                        for (key, value) in &outputs {
-                            let prefixed_key = format!("__branch_{}__{}",  branch_id, key);
-                            result.context.insert(prefixed_key, value.clone());
-                        }
-                    } else {
-                        result.context.extend(outputs.clone());
-                    }
-
-                    // Store outputs per node (using broadcast variable names from output_mapping)
-                    result.node_outputs.insert(node_id, outputs.clone());
-
-                    // Store outputs per branch if this node belongs to a branch
-                    if let Some(branch_id) = node.branch_id {
-                        result
-                            .branch_outputs
-                            .entry(branch_id)
-                            .or_default()
-                            .extend(outputs);
-                    }
+                    let (outputs, signature, status) = self.execute_node_with_cache(
+                        node,
+                        &result.context,
+                        &node_signatures,
+                        &cache_options,
+                        &mut result.cache_stats,
+                    );
+                    Self::apply_outputs(&mut result, node, node_id, outputs);
+                    node_signatures.insert(node_id, signature);
+                    result.node_cache_status.insert(node_id, status);
                 }
             }
         } else {
@@ -253,31 +284,23 @@ impl Dag {
                     // Single node - no need for threading overhead
                     let node_id = level[0];
                     if let Some(node) = self.nodes.iter().find(|n| n.id == node_id) {
-                        let outputs = node.execute(&result.context);
-
-                        // For branch nodes, prefix keys to avoid conflicts
-                        if let Some(branch_id) = node.branch_id {
-                            for (key, value) in &outputs {
-                                let prefixed_key = format!("__branch_{}__{}",  branch_id, key);
-                                result.context.insert(prefixed_key, value.clone());
-                            }
-                        } else {
-                            result.context.extend(outputs.clone());
-                        }
-                        
-                        result.node_outputs.insert(node_id, outputs.clone());
-
-                        if let Some(branch_id) = node.branch_id {
-                            result
-                                .branch_outputs
-                                .entry(branch_id)
-                                .or_default()
-                                .extend(outputs);
-                        }
+                        let (outputs, signature, status) = self.execute_node_with_cache(
+                            node,
+                            &result.context,
+                            &node_signatures,
+                            &cache_options,
+                            &mut result.cache_stats,
+                        );
+                        Self::apply_outputs(&mut result, node, node_id, outputs);
+                        node_signatures.insert(node_id, signature);
+                        result.node_cache_status.insert(node_id, status);
                     }
                 } else {
                     // Multiple nodes - execute in parallel using scoped threads
                     let context = Arc::new(result.context.clone());
+                    let dependency_signatures = Arc::new(node_signatures.clone());
+                    let cache_options = cache_options.clone();
+                    let cache_backend = Arc::clone(&self.cache_backend);
                     let nodes_to_execute: Vec<_> = level
                         .iter()
                         .filter_map(|&node_id| self.nodes.iter().find(|n| n.id == node_id))
@@ -297,14 +320,28 @@ impl Dag {
                         std::thread::scope(|s| {
                             for node in chunk {
                                 let context = Arc::clone(&context);
+                                let dependency_signatures = Arc::clone(&dependency_signatures);
                                 let outputs = Arc::clone(&outputs);
+                                let cache_backend = Arc::clone(&cache_backend);
+                                let cache_options = cache_options.clone();
 
                                 s.spawn(move || {
-                                    let node_outputs = node.execute(&context);
+                                    let mut cache_stats = CacheRunStats::default();
+                                    let (node_outputs, signature, status) = execute_node_with_cache_backend(
+                                        &cache_backend,
+                                        node,
+                                        &context,
+                                        &dependency_signatures,
+                                        &cache_options,
+                                        &mut cache_stats,
+                                    );
                                     outputs.lock().unwrap().push((
                                         node.id,
                                         node.branch_id,
                                         node_outputs,
+                                        signature,
+                                        status,
+                                        cache_stats,
                                     ));
                                 });
                             }
@@ -313,25 +350,22 @@ impl Dag {
 
                     // Collect outputs from all parallel executions
                     let collected_outputs = outputs.lock().unwrap();
-                    for (node_id, branch_id, node_outputs) in collected_outputs.iter() {
-                        // For branch nodes, prefix keys to avoid conflicts
-                        if let Some(bid) = branch_id {
-                            for (key, value) in node_outputs {
-                                let prefixed_key = format!("__branch_{}__{}",  bid, key);
-                                result.context.insert(prefixed_key, value.clone());
-                            }
-                        } else {
-                            result.context.extend(node_outputs.clone());
+                    for (node_id, _branch_id, node_outputs, signature, status, cache_stats) in collected_outputs.iter() {
+                        result.cache_stats.hits += cache_stats.hits;
+                        result.cache_stats.misses += cache_stats.misses;
+                        result.cache_stats.stores += cache_stats.stores;
+                        for (reason, count) in &cache_stats.reason_counts {
+                            *result
+                                .cache_stats
+                                .reason_counts
+                                .entry(*reason)
+                                .or_insert(0) += *count;
                         }
-                        
-                        result.node_outputs.insert(*node_id, node_outputs.clone());
 
-                        if let Some(bid) = branch_id {
-                            result
-                                .branch_outputs
-                                .entry(*bid)
-                                .or_default()
-                                .extend(node_outputs.clone());
+                        if let Some(node) = self.nodes.iter().find(|n| n.id == *node_id) {
+                            Self::apply_outputs(&mut result, node, *node_id, node_outputs.clone());
+                            node_signatures.insert(*node_id, signature.clone());
+                            result.node_cache_status.insert(*node_id, status.clone());
                         }
                     }
                 }
@@ -339,6 +373,50 @@ impl Dag {
         }
 
         result
+    }
+
+    fn execute_node_with_cache(
+        &self,
+        node: &Node,
+        context: &ExecutionContext,
+        dependency_signatures: &HashMap<NodeId, String>,
+        cache_options: &CacheOptions,
+        cache_stats: &mut CacheRunStats,
+    ) -> (HashMap<String, GraphData>, String, NodeCacheStatus) {
+        execute_node_with_cache_backend(
+            &self.cache_backend,
+            node,
+            context,
+            dependency_signatures,
+            cache_options,
+            cache_stats,
+        )
+    }
+
+    fn apply_outputs(
+        result: &mut ExecutionResult,
+        node: &Node,
+        node_id: NodeId,
+        outputs: HashMap<String, GraphData>,
+    ) {
+        if let Some(branch_id) = node.branch_id {
+            for (key, value) in &outputs {
+                let prefixed_key = format!("__branch_{}__{}", branch_id, key);
+                result.context.insert(prefixed_key, value.clone());
+            }
+        } else {
+            result.context.extend(outputs.clone());
+        }
+
+        result.node_outputs.insert(node_id, outputs.clone());
+
+        if let Some(branch_id) = node.branch_id {
+            result
+                .branch_outputs
+                .entry(branch_id)
+                .or_default()
+                .extend(outputs);
+        }
     }
 
     /// Generate a Mermaid diagram for visualization with port mappings
@@ -817,11 +895,104 @@ impl Dag {
                 .max()
                 .map(|max| max + 1)
                 .unwrap_or(0),
+            cache: self.cache_backend.stats(),
         }
+    }
+
+    /// Clear every cached node result across all namespaces for this DAG's backend.
+    pub fn clear_cache(&self) {
+        self.cache_backend.clear_all();
+    }
+
+    /// Clear cached node results for a specific cache namespace.
+    pub fn clear_cache_namespace(&self, namespace: &str) {
+        self.cache_backend.clear_namespace(namespace);
     }
 }
 
 // ─── Free helpers used by Dag::predict ───────────────────────────────────────
+
+fn execute_node_with_cache_backend(
+    cache_backend: &Arc<dyn CacheBackend>,
+    node: &Node,
+    context: &ExecutionContext,
+    dependency_signatures: &HashMap<NodeId, String>,
+    cache_options: &CacheOptions,
+    cache_stats: &mut CacheRunStats,
+) -> (HashMap<String, GraphData>, String, NodeCacheStatus) {
+    let inputs = node.gather_inputs(context);
+    let run_without_cache = !cache_options.enabled || cache_options.depth == CacheDepth::None;
+    if run_without_cache {
+        cache_stats.record_miss(CacheMissReason::Disabled);
+        let outputs = node.execute_with_inputs(&inputs);
+        return (
+            outputs,
+            format!("disabled:{}", node.id),
+            NodeCacheStatus {
+                hit: false,
+                stored: false,
+                reason: Some(CacheMissReason::Disabled),
+                cache_key: None,
+            },
+        );
+    }
+
+    if !node.cacheable {
+        cache_stats.record_miss(CacheMissReason::NonCacheable);
+        let outputs = node.execute_with_inputs(&inputs);
+        return (
+            outputs,
+            format!("non-cacheable:{}", node.id),
+            NodeCacheStatus {
+                hit: false,
+                stored: false,
+                reason: Some(CacheMissReason::NonCacheable),
+                cache_key: None,
+            },
+        );
+    }
+
+    let normalized_input = normalize_inputs(&inputs);
+
+    let dependency_signature = dependency_signature(cache_options.depth, node, dependency_signatures);
+    let lookup = build_cache_lookup(node, &normalized_input, &dependency_signature);
+    match cache_backend.get(&cache_options.namespace, &lookup) {
+        CacheLookupResult::Hit(outputs) => {
+            cache_stats.record_hit();
+            let signature = lookup.key.clone();
+            (
+                outputs,
+                signature,
+                NodeCacheStatus {
+                    hit: true,
+                    stored: false,
+                    reason: None,
+                    cache_key: Some(lookup.key.clone()),
+                },
+            )
+        }
+        CacheLookupResult::Miss(reason) => {
+            cache_stats.record_miss(reason);
+            let outputs = node.execute_with_inputs(&inputs);
+            cache_backend.put(
+                &cache_options.namespace,
+                lookup.key.clone(),
+                build_cache_entry(&lookup, outputs.clone()),
+            );
+            cache_stats.record_store();
+            (
+                outputs,
+                lookup.key.clone(),
+                NodeCacheStatus {
+                    hit: false,
+                    stored: true,
+                    reason: Some(reason),
+                    cache_key: Some(lookup.key.clone()),
+                },
+            )
+        }
+    }
+}
 
 /// Convert a `GraphData` value to `f64` if it is numeric.
 /// Delegates to `GraphData::as_f64_lossy()` which also unwraps Python number
@@ -942,6 +1113,8 @@ pub struct DagStats {
     pub branch_count: usize,
     /// Number of variants
     pub variant_count: usize,
+    /// Aggregate cache backend statistics.
+    pub cache: CacheBackendStats,
 }
 
 impl DagStats {
@@ -953,12 +1126,22 @@ impl DagStats {
              - Depth: {} levels\n\
              - Max Parallelism: {} nodes\n\
              - Branches: {}\n\
-             - Variants: {}",
+             - Variants: {}\n\
+             - Cache Entries: {}\n\
+             - Cache Hits: {}\n\
+             - Cache Misses: {}\n\
+             - Cache Evictions: {}\n\
+             - Cache Expirations: {}",
             self.node_count,
             self.depth,
             self.max_parallelism,
             self.branch_count,
-            self.variant_count
+            self.variant_count,
+            self.cache.entries,
+            self.cache.hits,
+            self.cache.misses,
+            self.cache.evictions,
+            self.cache.expirations
         )
     }
 }

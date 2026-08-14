@@ -38,6 +38,7 @@
 //! ```
 
 mod builder;
+mod cache;
 mod dag;
 mod distribution;
 mod graph_data;
@@ -48,7 +49,11 @@ mod stat_result;
 mod python_bindings;
 
 pub use builder::Graph;
-pub use dag::{Dag, DagStats, ExecutionContext, ExecutionResult, PredictTarget};
+pub use cache::{
+    CacheBackend, CacheBackendStats, CacheDepth, CacheMissReason, CacheOptions, CacheRunStats,
+    FileCacheBackend, MemoryCacheBackend, MemoryCacheConfig,
+};
+pub use dag::{Dag, DagStats, ExecutionContext, ExecutionResult, NodeCacheStatus, PredictTarget};
 pub use distribution::{DistContext, DistTransferFn, Distribution, PortSummary};
 pub use graph_data::GraphData;
 pub use stat_result::StatResult;
