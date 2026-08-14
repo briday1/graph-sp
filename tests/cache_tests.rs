@@ -6,6 +6,8 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
+use std::thread;
+use std::time::Duration;
 
 fn output_int(key: &str, value: i64) -> HashMap<String, GraphData> {
     HashMap::from([(key.to_string(), GraphData::int(value))])
@@ -25,6 +27,8 @@ fn repeated_runs_reuse_cached_outputs() {
     let process_runs = Arc::new(AtomicUsize::new(0));
 
     let mut graph = Graph::new();
+    graph.set_cache_version_for("Source", "source-v1");
+    graph.set_cache_version_for("Process", "process-v1");
 
     let source_counter = Arc::clone(&source_runs);
     graph.add(
@@ -70,6 +74,7 @@ fn repeated_runs_reuse_cached_outputs() {
 fn cache_depth_none_disables_reuse() {
     let runs = Arc::new(AtomicUsize::new(0));
     let mut graph = Graph::new();
+    graph.set_cache_version_for("Source", "source-v1");
     let counter = Arc::clone(&runs);
 
     graph.add(
@@ -93,6 +98,171 @@ fn cache_depth_none_disables_reuse() {
     assert_eq!(runs.load(Ordering::SeqCst), 2);
     assert_eq!(first.cache_stats.hits, 0);
     assert_eq!(second.cache_stats.hits, 0);
+}
+
+#[test]
+fn nodes_without_explicit_version_tokens_are_not_cached() {
+    let runs = Arc::new(AtomicUsize::new(0));
+    let mut graph = Graph::new();
+    let counter = Arc::clone(&runs);
+
+    graph.add(
+        move |_| {
+            counter.fetch_add(1, Ordering::SeqCst);
+            output_int("value", 5)
+        },
+        Some("Versionless"),
+        None,
+        Some(vec![("value", "value")]),
+    );
+
+    let dag = graph.build();
+    let options = CacheOptions::default().with_namespace("versionless");
+
+    let first = dag.execute_detailed_with_options(false, None, options.clone());
+    let second = dag.execute_detailed_with_options(false, None, options);
+
+    assert_eq!(runs.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        first
+            .node_cache_status
+            .values()
+            .next()
+            .and_then(|status| status.reason),
+        Some(dagex::CacheMissReason::MissingVersion)
+    );
+    assert_eq!(
+        second
+            .node_cache_status
+            .values()
+            .next()
+            .and_then(|status| status.reason),
+        Some(dagex::CacheMissReason::MissingVersion)
+    );
+}
+
+#[test]
+fn clear_cache_namespace_forces_reexecution() {
+    let runs = Arc::new(AtomicUsize::new(0));
+    let mut graph = Graph::new();
+    graph.set_cache_version_for("Source", "source-v1");
+    let counter = Arc::clone(&runs);
+
+    graph.add(
+        move |_| {
+            counter.fetch_add(1, Ordering::SeqCst);
+            output_int("value", 11)
+        },
+        Some("Source"),
+        None,
+        Some(vec![("value", "value")]),
+    );
+
+    let dag = graph.build();
+    let options = CacheOptions::default().with_namespace("clear-me");
+
+    let first = dag.execute_detailed_with_options(false, None, options.clone());
+    let second = dag.execute_detailed_with_options(false, None, options.clone());
+    dag.clear_cache_namespace("clear-me");
+    let third = dag.execute_detailed_with_options(false, None, options);
+
+    assert_eq!(first.cache_stats.hits, 0);
+    assert_eq!(second.cache_stats.hits, 1);
+    assert_eq!(third.cache_stats.hits, 0);
+    assert_eq!(runs.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn cache_key_input_subset_allows_revision_based_reuse_for_large_inputs() {
+    let consume_runs = Arc::new(AtomicUsize::new(0));
+    let mut graph = Graph::new();
+    graph.set_cache_version_for("Source", "source-v1");
+    graph.set_cache_version_for("Consumer", "consumer-v1");
+    graph.set_cache_key_inputs_for("Consumer", vec!["revision"]);
+
+    graph.add(
+        |_| {
+            let mut outputs = HashMap::new();
+            outputs.insert("data".to_string(), GraphData::int_vec(vec![1, 2, 3, 4]));
+            outputs.insert("revision".to_string(), GraphData::string("rev-1"));
+            outputs
+        },
+        Some("Source"),
+        None,
+        Some(vec![("data", "data"), ("revision", "revision")]),
+    );
+
+    let consume_counter = Arc::clone(&consume_runs);
+    graph.add(
+        move |inputs: &HashMap<String, GraphData>| {
+            consume_counter.fetch_add(1, Ordering::SeqCst);
+            let revision = inputs
+                .get("revision")
+                .and_then(|data| data.as_string())
+                .unwrap_or_default();
+            let len = inputs
+                .get("data")
+                .and_then(|data| data.as_int_vec())
+                .map(|values| values.len())
+                .unwrap_or_default() as i64;
+            output_int("result", len + revision.len() as i64)
+        },
+        Some("Consumer"),
+        Some(vec![("data", "data"), ("revision", "revision")]),
+        Some(vec![("result", "result")]),
+    );
+
+    let dag = graph.build();
+    let options = CacheOptions::default().with_namespace("revision-inputs");
+
+    let first = dag.execute_detailed_with_options(false, None, options.clone());
+    let second = dag.execute_detailed_with_options(false, None, options);
+
+    assert_eq!(first.get("result").and_then(|data| data.as_int()), Some(9));
+    assert_eq!(second.get("result").and_then(|data| data.as_int()), Some(9));
+    assert_eq!(consume_runs.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn non_cacheable_nodes_always_execute() {
+    let runs = Arc::new(AtomicUsize::new(0));
+    let mut graph = Graph::new();
+    graph.set_cacheable_for("SideEffect", false);
+    let counter = Arc::clone(&runs);
+
+    graph.add(
+        move |_| {
+            counter.fetch_add(1, Ordering::SeqCst);
+            output_int("value", 7)
+        },
+        Some("SideEffect"),
+        None,
+        Some(vec![("value", "value")]),
+    );
+
+    let dag = graph.build();
+    let options = CacheOptions::default().with_namespace("non-cacheable");
+
+    let first = dag.execute_detailed_with_options(false, None, options.clone());
+    let second = dag.execute_detailed_with_options(false, None, options);
+
+    assert_eq!(runs.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        first
+            .node_cache_status
+            .values()
+            .next()
+            .and_then(|status| status.reason),
+        Some(dagex::CacheMissReason::NonCacheable)
+    );
+    assert_eq!(
+        second
+            .node_cache_status
+            .values()
+            .next()
+            .and_then(|status| status.reason),
+        Some(dagex::CacheMissReason::NonCacheable)
+    );
 }
 
 fn build_depth_graph(
@@ -218,6 +388,7 @@ fn repeated_variant_sweeps_skip_reexecution() {
     let variant_c_runs = Arc::new(AtomicUsize::new(0));
 
     let mut graph = Graph::new();
+    graph.set_cache_version_for("Source", "source-v1");
     let source_counter = Arc::clone(&source_runs);
     graph.add(
         move |_| {
@@ -246,6 +417,9 @@ fn repeated_variant_sweeps_skip_reexecution() {
         Some(vec![("seed", "x")]),
         Some(vec![("scaled", "scaled")]),
     );
+    graph.set_cache_version_for("Sweep (v0)", "sweep-v0");
+    graph.set_cache_version_for("Sweep (v1)", "sweep-v1");
+    graph.set_cache_version_for("Sweep (v2)", "sweep-v2");
 
     let dag = graph.build();
     let options = CacheOptions::default().with_namespace("sweep");
@@ -256,4 +430,43 @@ fn repeated_variant_sweeps_skip_reexecution() {
     assert_eq!(variant_a_runs.load(Ordering::SeqCst), 1);
     assert_eq!(variant_b_runs.load(Ordering::SeqCst), 1);
     assert_eq!(variant_c_runs.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn concurrent_execute_calls_share_inflight_computation() {
+    let runs = Arc::new(AtomicUsize::new(0));
+    let mut graph = Graph::new();
+    graph.set_cache_version_for("SlowSource", "slow-v1");
+    let counter = Arc::clone(&runs);
+
+    graph.add(
+        move |_| {
+            counter.fetch_add(1, Ordering::SeqCst);
+            thread::sleep(Duration::from_millis(50));
+            output_int("value", 99)
+        },
+        Some("SlowSource"),
+        None,
+        Some(vec![("value", "value")]),
+    );
+
+    let dag = Arc::new(graph.build());
+    let options = CacheOptions::default().with_namespace("inflight");
+
+    let dag_a = Arc::clone(&dag);
+    let options_a = options.clone();
+    let first = thread::spawn(move || dag_a.execute_with_options(false, None, options_a));
+
+    let dag_b = Arc::clone(&dag);
+    let second = thread::spawn(move || dag_b.execute_with_options(false, None, options));
+
+    assert_eq!(
+        first.join().unwrap().get("value").and_then(|data| data.as_int()),
+        Some(99)
+    );
+    assert_eq!(
+        second.join().unwrap().get("value").and_then(|data| data.as_int()),
+        Some(99)
+    );
+    assert_eq!(runs.load(Ordering::SeqCst), 1);
 }

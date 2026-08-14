@@ -3,7 +3,7 @@
 
 mod benchmark_utils;
 
-use dagex::{Graph, GraphData};
+use dagex::{CacheOptions, Graph, GraphData};
 use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
@@ -64,6 +64,11 @@ fn main() {
         Some(vec![("x", "x")]),
         Some(vec![("result", "results")])
     );
+    graph.set_cache_version_for("DataSource", "v1");
+    graph.set_cache_version_for("Multiplier (v0)", "v1");
+    graph.set_cache_version_for("Multiplier (v1)", "v1");
+    graph.set_cache_version_for("Multiplier (v2)", "v1");
+    graph.set_cache_version_for("Multiplier (v3)", "v1");
     
     let dag = graph.build();
     
@@ -109,6 +114,13 @@ fn main() {
     }
     
     println!("\n✅ All {} variants executed successfully!", factors.len());
+
+    print_section("Cached Re-run");
+    let cache_options = CacheOptions::default().with_namespace("example-04-sweep");
+    let cold = dag.execute_detailed_with_options(true, Some(4), cache_options.clone());
+    let warm = dag.execute_detailed_with_options(true, Some(4), cache_options);
+    println!("  Cold run: {}", cold.cache_stats.summary());
+    println!("  Warm run: {}", warm.cache_stats.summary());
     
     println!();
 }

@@ -10,6 +10,7 @@ use crate::graph_data::GraphData;
 use crate::node::{Node, NodeId};
 use crate::stat_result::StatResult;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::panic::{self, AssertUnwindSafe};
 use std::sync::{Arc, Mutex};
 
 /// Execution context for storing variable values during graph execution
@@ -952,44 +953,109 @@ fn execute_node_with_cache_backend(
         );
     }
 
-    let normalized_input = normalize_inputs(&inputs);
+    if !node.has_explicit_cache_version {
+        cache_stats.record_miss(CacheMissReason::MissingVersion);
+        let outputs = node.execute_with_inputs(&inputs);
+        return (
+            outputs,
+            format!("missing-version:{}", node.id),
+            NodeCacheStatus {
+                hit: false,
+                stored: false,
+                reason: Some(CacheMissReason::MissingVersion),
+                cache_key: None,
+            },
+        );
+    }
 
-    let dependency_signature = dependency_signature(cache_options.depth, node, dependency_signatures);
-    let lookup = build_cache_lookup(node, &normalized_input, &dependency_signature);
-    match cache_backend.get(&cache_options.namespace, &lookup) {
-        CacheLookupResult::Hit(outputs) => {
-            cache_stats.record_hit();
-            let signature = lookup.key.clone();
-            (
-                outputs,
-                signature,
-                NodeCacheStatus {
-                    hit: true,
-                    stored: false,
-                    reason: None,
-                    cache_key: Some(lookup.key.clone()),
-                },
-            )
-        }
-        CacheLookupResult::Miss(reason) => {
-            cache_stats.record_miss(reason);
+    let cache_inputs = node.cache_key_inputs(&inputs);
+    let normalized_input = match normalize_inputs(&cache_inputs) {
+        Ok(normalized) => normalized,
+        Err(_) => {
+            cache_stats.record_miss(CacheMissReason::UnsupportedInput);
             let outputs = node.execute_with_inputs(&inputs);
-            cache_backend.put(
-                &cache_options.namespace,
-                lookup.key.clone(),
-                build_cache_entry(&lookup, outputs.clone()),
-            );
-            cache_stats.record_store();
-            (
+            return (
                 outputs,
-                lookup.key.clone(),
+                format!("unsupported-input:{}", node.id),
                 NodeCacheStatus {
                     hit: false,
-                    stored: true,
-                    reason: Some(reason),
-                    cache_key: Some(lookup.key.clone()),
+                    stored: false,
+                    reason: Some(CacheMissReason::UnsupportedInput),
+                    cache_key: None,
                 },
-            )
+            );
+        }
+    };
+    let dependency_signature = dependency_signature(cache_options.depth, node, dependency_signatures);
+    let lookup = build_cache_lookup(node, &normalized_input, &dependency_signature);
+
+    loop {
+        match cache_backend.get(&cache_options.namespace, &lookup) {
+            CacheLookupResult::Hit(outputs) => {
+                cache_stats.record_hit();
+                let signature = lookup.key.clone();
+                return (
+                    outputs,
+                    signature,
+                    NodeCacheStatus {
+                        hit: true,
+                        stored: false,
+                        reason: None,
+                        cache_key: Some(lookup.key.clone()),
+                    },
+                );
+            }
+            CacheLookupResult::Miss(reason) => {
+                if !cache_backend.begin_compute(&cache_options.namespace, &lookup.key) {
+                    cache_backend.wait_for_compute(&cache_options.namespace, &lookup.key);
+                    continue;
+                }
+
+                if let CacheLookupResult::Hit(outputs) =
+                    cache_backend.get(&cache_options.namespace, &lookup)
+                {
+                    cache_backend.finish_compute(&cache_options.namespace, &lookup.key);
+                    cache_stats.record_hit();
+                    return (
+                        outputs,
+                        lookup.key.clone(),
+                        NodeCacheStatus {
+                            hit: true,
+                            stored: false,
+                            reason: None,
+                            cache_key: Some(lookup.key.clone()),
+                        },
+                    );
+                }
+
+                cache_stats.record_miss(reason);
+                let execution = panic::catch_unwind(AssertUnwindSafe(|| node.execute_with_inputs(&inputs)));
+                match execution {
+                    Ok(outputs) => {
+                        cache_backend.put(
+                            &cache_options.namespace,
+                            lookup.key.clone(),
+                            build_cache_entry(&lookup, outputs.clone()),
+                        );
+                        cache_backend.finish_compute(&cache_options.namespace, &lookup.key);
+                        cache_stats.record_store();
+                        return (
+                            outputs,
+                            lookup.key.clone(),
+                            NodeCacheStatus {
+                                hit: false,
+                                stored: true,
+                                reason: Some(reason),
+                                cache_key: Some(lookup.key.clone()),
+                            },
+                        );
+                    }
+                    Err(err) => {
+                        cache_backend.finish_compute(&cache_options.namespace, &lookup.key);
+                        panic::resume_unwind(err);
+                    }
+                }
+            }
         }
     }
 }

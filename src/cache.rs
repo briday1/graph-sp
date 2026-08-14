@@ -11,10 +11,10 @@
 
 use crate::graph_data::GraphData;
 use crate::node::Node;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 /// Configures how aggressively node results may be reused.
@@ -99,6 +99,7 @@ impl CacheOptions {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CacheMissReason {
     Disabled,
+    MissingVersion,
     NonCacheable,
     NotFound,
     Expired,
@@ -112,6 +113,7 @@ impl fmt::Display for CacheMissReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Disabled => write!(f, "disabled"),
+            Self::MissingVersion => write!(f, "missing_version"),
             Self::NonCacheable => write!(f, "non_cacheable"),
             Self::NotFound => write!(f, "not_found"),
             Self::Expired => write!(f, "expired"),
@@ -234,12 +236,18 @@ pub trait CacheBackend: Send + Sync {
     fn clear_all(&self);
 
     fn clear_namespace(&self, namespace: &str);
+
+    fn begin_compute(&self, namespace: &str, key: &str) -> bool;
+
+    fn wait_for_compute(&self, namespace: &str, key: &str);
+
+    fn finish_compute(&self, namespace: &str, key: &str);
 }
 
 /// LRU/TTL in-memory backend.
 #[derive(Debug, Clone)]
 pub struct MemoryCacheBackend {
-    inner: Arc<Mutex<MemoryCacheState>>,
+    inner: Arc<(Mutex<MemoryCacheState>, Condvar)>,
 }
 
 #[derive(Debug)]
@@ -248,6 +256,7 @@ struct MemoryCacheState {
     entries: HashMap<String, StoredEntry>,
     identity_index: HashMap<(String, String), IdentityFingerprint>,
     lru: VecDeque<(u64, String)>,
+    pending: HashSet<String>,
     access_clock: u64,
     stats: CacheBackendStats,
 }
@@ -271,7 +280,7 @@ impl MemoryCacheBackend {
     pub fn new(config: MemoryCacheConfig) -> Self {
         let max_entries = config.max_entries.max(1);
         Self {
-            inner: Arc::new(Mutex::new(MemoryCacheState {
+            inner: Arc::new((Mutex::new(MemoryCacheState {
                 stats: CacheBackendStats {
                     max_entries,
                     ..CacheBackendStats::default()
@@ -283,8 +292,9 @@ impl MemoryCacheBackend {
                 entries: HashMap::new(),
                 identity_index: HashMap::new(),
                 lru: VecDeque::new(),
+                pending: HashSet::new(),
                 access_clock: 0,
-            })),
+            }), Condvar::new())),
         }
     }
 
@@ -343,7 +353,8 @@ impl CacheBackend for MemoryCacheBackend {
         lookup: &CacheLookup,
     ) -> CacheLookupResult {
         let storage_key = Self::storage_key(namespace, &lookup.key);
-        let mut state = self.inner.lock().unwrap();
+        let (lock, _) = &*self.inner;
+        let mut state = lock.lock().unwrap();
 
         let expired = state
             .entries
@@ -372,7 +383,8 @@ impl CacheBackend for MemoryCacheBackend {
 
         state.stats.misses += 1;
         let identity_key = (namespace.to_string(), lookup.node_identity.clone());
-        let reason = match state.identity_index.get(&identity_key) {
+        let indexed = state.identity_index.get(&identity_key).cloned();
+        let reason = match indexed {
             Some(identity) if identity.storage_key != storage_key => {
                 if identity.code_fingerprint != lookup.code_fingerprint {
                     CacheMissReason::CodeChanged
@@ -396,7 +408,8 @@ impl CacheBackend for MemoryCacheBackend {
 
     fn put(&self, namespace: &str, key: String, entry: CacheEntry) {
         let storage_key = Self::storage_key(namespace, &key);
-        let mut state = self.inner.lock().unwrap();
+        let (lock, _) = &*self.inner;
+        let mut state = lock.lock().unwrap();
         let token = state.next_access_token();
         let expires_at = state.config.ttl.map(|ttl| Instant::now() + ttl);
         let identity_key = (namespace.to_string(), entry.node_identity.clone());
@@ -422,19 +435,24 @@ impl CacheBackend for MemoryCacheBackend {
     }
 
     fn stats(&self) -> CacheBackendStats {
-        self.inner.lock().unwrap().stats.clone()
+        let (lock, _) = &*self.inner;
+        lock.lock().unwrap().stats.clone()
     }
 
     fn clear_all(&self) {
-        let mut state = self.inner.lock().unwrap();
+        let (lock, cv) = &*self.inner;
+        let mut state = lock.lock().unwrap();
         state.entries.clear();
         state.identity_index.clear();
         state.lru.clear();
+        state.pending.clear();
         state.stats.entries = 0;
+        cv.notify_all();
     }
 
     fn clear_namespace(&self, namespace: &str) {
-        let mut state = self.inner.lock().unwrap();
+        let (lock, cv) = &*self.inner;
+        let mut state = lock.lock().unwrap();
         let prefix = format!("{namespace}::");
         let keys: Vec<String> = state
             .entries
@@ -446,11 +464,45 @@ impl CacheBackend for MemoryCacheBackend {
             state.remove_entry(&key);
         }
         state.lru.retain(|(_, key)| !key.starts_with(&prefix));
+        state.pending.retain(|key| !key.starts_with(&prefix));
         state.stats.entries = state.entries.len();
+        cv.notify_all();
+    }
+
+    fn begin_compute(&self, namespace: &str, key: &str) -> bool {
+        let storage_key = Self::storage_key(namespace, key);
+        let (lock, _) = &*self.inner;
+        let mut state = lock.lock().unwrap();
+        if state.pending.contains(&storage_key) {
+            false
+        } else {
+            state.pending.insert(storage_key);
+            true
+        }
+    }
+
+    fn wait_for_compute(&self, namespace: &str, key: &str) {
+        let storage_key = Self::storage_key(namespace, key);
+        let (lock, cv) = &*self.inner;
+        let mut state = lock.lock().unwrap();
+        while state.pending.contains(&storage_key) {
+            state = cv.wait(state).unwrap();
+        }
+    }
+
+    fn finish_compute(&self, namespace: &str, key: &str) {
+        let storage_key = Self::storage_key(namespace, key);
+        let (lock, cv) = &*self.inner;
+        let mut state = lock.lock().unwrap();
+        state.pending.remove(&storage_key);
+        cv.notify_all();
     }
 }
 
 /// Minimal disk-backed scaffold kept separate from the in-memory implementation.
+///
+/// This is currently only a placeholder for a future persistent backend. Reads always miss
+/// and writes are intentionally ignored.
 #[derive(Debug, Clone)]
 pub struct FileCacheBackend {
     root: PathBuf,
@@ -487,6 +539,27 @@ impl CacheBackend for FileCacheBackend {
     fn clear_all(&self) {}
 
     fn clear_namespace(&self, _namespace: &str) {}
+
+    fn begin_compute(&self, _namespace: &str, _key: &str) -> bool {
+        true
+    }
+
+    fn wait_for_compute(&self, _namespace: &str, _key: &str) {}
+
+    fn finish_compute(&self, _namespace: &str, _key: &str) {}
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CacheNormalizeError {
+    UnsupportedType(&'static str),
+}
+
+impl fmt::Display for CacheNormalizeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedType(kind) => write!(f, "unsupported cache normalization type: {kind}"),
+        }
+    }
 }
 
 pub(crate) fn build_cache_lookup(
@@ -525,7 +598,7 @@ pub(crate) fn build_cache_entry(
 
 pub(crate) fn normalize_inputs(
     inputs: &HashMap<String, GraphData>,
-) -> String {
+) -> Result<String, CacheNormalizeError> {
     normalize_named_payload(inputs)
 }
 
@@ -559,7 +632,8 @@ fn build_node_identity(node: &Node) -> String {
     let label = node.label.clone().unwrap_or_else(|| format!("node-{}", node.id));
     let inputs = normalize_string_map(&node.input_mapping);
     let outputs = normalize_string_map(&node.output_mapping);
-    let variant_params = normalize_graph_data_map(&node.variant_params);
+    let variant_params =
+        normalize_graph_data_map(&node.variant_params).unwrap_or_else(|_| "{}".to_string());
     format!(
         "id={};label={};branch={:?};variant={:?};is_branch={};inputs={};outputs={};variant_params={}",
         node.id,
@@ -591,13 +665,13 @@ fn normalize_string_map(map: &HashMap<String, String>) -> String {
 
 fn normalize_named_payload(
     payload: &HashMap<String, GraphData>,
-) -> String {
+) -> Result<String, CacheNormalizeError> {
     normalize_graph_data_map(payload)
 }
 
 fn normalize_graph_data_map(
     payload: &HashMap<String, GraphData>,
-) -> String {
+) -> Result<String, CacheNormalizeError> {
     let mut entries: Vec<_> = payload.iter().collect();
     entries.sort_by(|(left, _), (right, _)| left.cmp(right));
 
@@ -608,33 +682,38 @@ fn normalize_graph_data_map(
         }
         result.push_str(key);
         result.push('=');
-        result.push_str(&normalize_graph_data(value));
+        result.push_str(&normalize_graph_data(value)?);
     }
     result.push('}');
-    result
+    Ok(result)
 }
 
-pub(crate) fn normalize_graph_data(value: &GraphData) -> String {
+/// Normalize cache-key-relevant `GraphData` values.
+///
+/// Vector/array/Python-object inputs intentionally return `UnsupportedType` unless callers
+/// route an explicit lightweight revision token through `set_cache_key_inputs_for(...)`.
+/// This avoids accidentally hashing very large or opaque payloads into cache keys.
+pub(crate) fn normalize_graph_data(value: &GraphData) -> Result<String, CacheNormalizeError> {
     match value {
-        GraphData::Int(v) => format!("i:{v}"),
-        GraphData::Float(v) => format!("f:{:016x}", v.to_bits()),
-        GraphData::String(v) => format!("s:{v:?}"),
-        GraphData::FloatVec(values) => format!("fv:len={}", values.len()),
-        GraphData::IntVec(values) => format!("iv:len={}", values.len()),
-        GraphData::Map(values) => format!("m:{}", normalize_graph_data_map(values)),
-        GraphData::None => "none".to_string(),
+        GraphData::Int(v) => Ok(format!("i:{v}")),
+        GraphData::Float(v) => Ok(format!("f:{:016x}", v.to_bits())),
+        GraphData::String(v) => Ok(format!("s:{v:?}")),
+        GraphData::FloatVec(_) => Err(CacheNormalizeError::UnsupportedType("float_vec")),
+        GraphData::IntVec(_) => Err(CacheNormalizeError::UnsupportedType("int_vec")),
+        GraphData::Map(values) => Ok(format!("m:{}", normalize_graph_data_map(values)?)),
+        GraphData::None => Ok("none".to_string()),
         #[cfg(feature = "radar_examples")]
-        GraphData::Complex(value) => format!(
+        GraphData::Complex(value) => Ok(format!(
             "c:{:016x}:{:016x}",
             value.re.to_bits(),
             value.im.to_bits()
-        ),
+        )),
         #[cfg(feature = "radar_examples")]
-        GraphData::FloatArray(values) => format!("fa:len={}", values.len()),
+        GraphData::FloatArray(_) => Err(CacheNormalizeError::UnsupportedType("float_array")),
         #[cfg(feature = "radar_examples")]
-        GraphData::ComplexArray(values) => format!("ca:len={}", values.len()),
+        GraphData::ComplexArray(_) => Err(CacheNormalizeError::UnsupportedType("complex_array")),
         #[cfg(feature = "python")]
-        GraphData::PyObject(_) => "py:ref".to_string(),
+        GraphData::PyObject(_) => Err(CacheNormalizeError::UnsupportedType("pyobject")),
     }
 }
 
@@ -663,7 +742,7 @@ mod tests {
             ("b".to_string(), GraphData::int(2)),
         ]);
 
-        assert_eq!(normalize_inputs(&left), normalize_inputs(&right));
+        assert_eq!(normalize_inputs(&left).unwrap(), normalize_inputs(&right).unwrap());
     }
 
     #[test]

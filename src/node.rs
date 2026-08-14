@@ -27,8 +27,12 @@ pub struct Node {
     pub function: NodeFunction,
     /// Explicit node implementation/version token used for execution-result caching
     pub code_fingerprint: String,
+    /// Whether the version token was explicitly provided by the caller
+    pub has_explicit_cache_version: bool,
     /// Whether this node is eligible for execution-result caching
     pub cacheable: bool,
+    /// Optional subset of impl-var inputs to include in the cache key
+    pub cache_key_inputs: Option<Vec<String>>,
     /// Input mapping: broadcast_var -> impl_var (what the function sees)
     pub input_mapping: HashMap<String, String>,
     /// Output mapping: impl_var -> broadcast_var (where function output goes in context)
@@ -67,7 +71,9 @@ impl Node {
             label,
             function,
             code_fingerprint,
+            has_explicit_cache_version: false,
             cacheable: true,
+            cache_key_inputs: None,
             input_mapping,
             output_mapping,
             branch_id: None,
@@ -134,6 +140,20 @@ impl Node {
     pub fn execute(&self, context: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
         let inputs = self.gather_inputs(context);
         self.execute_with_inputs(&inputs)
+    }
+
+    /// Restrict cache-key inputs to the configured impl-var subset when present.
+    pub fn cache_key_inputs(
+        &self,
+        inputs: &HashMap<String, GraphData>,
+    ) -> HashMap<String, GraphData> {
+        match &self.cache_key_inputs {
+            Some(keys) => keys
+                .iter()
+                .filter_map(|key| inputs.get(key).cloned().map(|value| (key.clone(), value)))
+                .collect(),
+            None => inputs.clone(),
+        }
     }
 
     /// Get display name for this node

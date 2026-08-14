@@ -461,6 +461,17 @@ impl PyGraph {
         Ok(())
     }
 
+    /// Restrict cache-key fingerprinting to the given impl-var inputs for nodes with this label.
+    fn set_cache_key_inputs(&mut self, label: String, impl_vars: Vec<String>) -> PyResult<()> {
+        let graph = self
+            .graph
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("Graph has already been built or consumed"))?;
+        let refs: Vec<&str> = impl_vars.iter().map(String::as_str).collect();
+        graph.set_cache_key_inputs_for(&label, refs);
+        Ok(())
+    }
+
     /// Attach an analytical distribution transfer to all nodes with the given label.
     ///
     /// The `transfer_fn` must be a Python callable with signature:
@@ -504,7 +515,7 @@ impl PyDag {
     ///
     /// Returns:
     ///     Dictionary containing the execution context
-    #[pyo3(signature = (parallel=false, max_threads=None, cache=true, cache_depth="transitive", cache_namespace="default".to_string()))]
+    #[pyo3(signature = (parallel=false, max_threads=None, cache=true, cache_depth="transitive", cache_namespace="default"))]
     fn execute(
         &self,
         py: Python,
@@ -512,7 +523,7 @@ impl PyDag {
         max_threads: Option<usize>,
         cache: bool,
         cache_depth: &str,
-        cache_namespace: String,
+        cache_namespace: &str,
     ) -> PyResult<PyObject> {
         let depth = CacheDepth::parse(cache_depth).ok_or_else(|| {
             PyValueError::new_err("cache_depth must be one of: none, shallow, transitive")
@@ -553,16 +564,16 @@ impl PyDag {
     }
 
     /// Return aggregate cache backend stats for this DAG.
-    fn cache_stats(&self, py: Python) -> PyObject {
+    fn cache_stats(&self, py: Python) -> PyResult<PyObject> {
         let stats = self.dag.stats().cache;
         let dict = PyDict::new(py);
-        let _ = dict.set_item("entries", stats.entries);
-        let _ = dict.set_item("max_entries", stats.max_entries);
-        let _ = dict.set_item("hits", stats.hits);
-        let _ = dict.set_item("misses", stats.misses);
-        let _ = dict.set_item("evictions", stats.evictions);
-        let _ = dict.set_item("expirations", stats.expirations);
-        dict.to_object(py)
+        dict.set_item("entries", stats.entries)?;
+        dict.set_item("max_entries", stats.max_entries)?;
+        dict.set_item("hits", stats.hits)?;
+        dict.set_item("misses", stats.misses)?;
+        dict.set_item("evictions", stats.evictions)?;
+        dict.set_item("expirations", stats.expirations)?;
+        Ok(dict.to_object(py))
     }
 
     /// Clear all cached node results from the attached backend.
