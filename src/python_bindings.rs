@@ -12,8 +12,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::builder::Graph;
-use crate::cache::{CacheDepth, CacheOptions, MemoryCacheConfig};
-use crate::dag::{Dag, PredictTarget};
+use crate::cache::{
+    CacheBackend, CacheDepth, CacheMissReason, CacheOptions, MemoryCacheBackend, MemoryCacheConfig,
+};
+use crate::dag::{Dag, ExecutionResult, NodeCacheStatus, PredictTarget};
 use crate::distribution::{DistContext, Distribution};
 use crate::graph_data::GraphData;
 use crate::stat_result::StatResult;
@@ -110,7 +112,10 @@ impl PyStatResult {
     /// `result["var"]` → `Distribution`.
     fn __getitem__(&self, py: Python, key: &str) -> PyResult<PyObject> {
         match self.inner.get(key) {
-            Some(dist) => Ok(PyDistribution { inner: dist.clone() }.into_py(py)),
+            Some(dist) => Ok(PyDistribution {
+                inner: dist.clone(),
+            }
+            .into_py(py)),
             None => Err(PyValueError::new_err(format!(
                 "Variable '{}' not found in StatResult",
                 key
@@ -121,7 +126,10 @@ impl PyStatResult {
     /// `result.get("var")` → `Distribution | None`.
     fn get(&self, py: Python, key: &str) -> PyObject {
         match self.inner.get(key) {
-            Some(dist) => PyDistribution { inner: dist.clone() }.into_py(py),
+            Some(dist) => PyDistribution {
+                inner: dist.clone(),
+            }
+            .into_py(py),
             None => py.None(),
         }
     }
@@ -201,21 +209,102 @@ fn dist_context_to_py_dict(py: Python, ctx: Option<&DistContext>) -> PyObject {
     dict.to_object(py)
 }
 
+/// Python-accessible shared in-memory cache backend.
+#[pyclass(name = "MemoryCache")]
+#[derive(Clone)]
+struct PyMemoryCache {
+    backend: Arc<MemoryCacheBackend>,
+    namespace: String,
+}
+
+impl PyMemoryCache {
+    fn as_backend(&self) -> Arc<dyn CacheBackend> {
+        self.backend.clone()
+    }
+
+    fn namespace_or_default(&self) -> String {
+        self.namespace.clone()
+    }
+}
+
+#[pymethods]
+impl PyMemoryCache {
+    #[new]
+    #[pyo3(signature = (max_entries=None, ttl_seconds=None, namespace="default"))]
+    fn new(max_entries: Option<usize>, ttl_seconds: Option<u64>, namespace: &str) -> Self {
+        let config = MemoryCacheConfig {
+            max_entries: max_entries.unwrap_or(1_024),
+            ttl: ttl_seconds.map(std::time::Duration::from_secs),
+        };
+        Self {
+            backend: Arc::new(MemoryCacheBackend::new(config)),
+            namespace: namespace.to_string(),
+        }
+    }
+
+    #[getter]
+    fn namespace(&self) -> String {
+        self.namespace.clone()
+    }
+
+    #[setter]
+    fn set_namespace(&mut self, namespace: String) {
+        self.namespace = namespace;
+    }
+
+    fn clear(&self) {
+        self.backend.clear_all();
+    }
+
+    fn clear_namespace(&self, namespace: String) {
+        self.backend.clear_namespace(&namespace);
+    }
+
+    #[pyo3(signature = (node_id, version=None, namespace=None))]
+    fn clear_node(&self, node_id: usize, version: Option<String>, namespace: Option<String>) {
+        let namespace = namespace.unwrap_or_else(|| self.namespace_or_default());
+        self.backend
+            .clear_node(&namespace, node_id, version.as_deref());
+    }
+
+    fn stats(&self, py: Python) -> PyResult<PyObject> {
+        let stats = self.backend.stats();
+        let dict = PyDict::new(py);
+        dict.set_item("entries", stats.entries)?;
+        dict.set_item("max_entries", stats.max_entries)?;
+        dict.set_item("hits", stats.hits)?;
+        dict.set_item("misses", stats.misses)?;
+        dict.set_item("evictions", stats.evictions)?;
+        dict.set_item("expirations", stats.expirations)?;
+        Ok(dict.to_object(py))
+    }
+}
+
 // ─── Python wrapper for Graph builder ─────────────────────────────────────
 
 /// Python wrapper for Graph builder
 #[pyclass(name = "Graph")]
 struct PyGraph {
     graph: Option<Graph>,
+    cache_namespace_hint: Option<String>,
 }
 
 #[pymethods]
 impl PyGraph {
     /// Create a new graph builder
     #[new]
-    fn new() -> Self {
+    #[pyo3(signature = (cache_backend=None))]
+    fn new(cache_backend: Option<PyRef<PyMemoryCache>>) -> Self {
+        let mut graph = Graph::new();
+        let cache_namespace_hint = cache_backend
+            .as_ref()
+            .map(|backend| backend.namespace_or_default());
+        if let Some(cache_backend) = cache_backend {
+            graph.with_cache_backend(cache_backend.as_backend());
+        }
         PyGraph {
-            graph: Some(Graph::new()),
+            graph: Some(graph),
+            cache_namespace_hint,
         }
     }
 
@@ -413,13 +502,24 @@ impl PyGraph {
     ///
     /// Returns:
     ///     PyDag instance ready for execution
-    fn build(&mut self) -> PyResult<PyDag> {
+    #[pyo3(signature = (cache_backend=None))]
+    fn build(&mut self, cache_backend: Option<PyRef<PyMemoryCache>>) -> PyResult<PyDag> {
         let graph = self
             .graph
             .take()
             .ok_or_else(|| PyValueError::new_err("Graph has already been built"))?;
-
-        Ok(PyDag { dag: graph.build() })
+        let (dag, default_cache_namespace) = if let Some(cache_backend) = cache_backend {
+            (
+                graph.build_with_cache_backend(cache_backend.as_backend()),
+                Some(cache_backend.namespace_or_default()),
+            )
+        } else {
+            (graph.build(), self.cache_namespace_hint.clone())
+        };
+        Ok(PyDag {
+            dag,
+            default_cache_namespace,
+        })
     }
 
     /// Configure the built-in in-memory execution cache before building the DAG.
@@ -438,6 +538,17 @@ impl PyGraph {
             max_entries: max_entries.unwrap_or(1_024),
             ttl: ttl_seconds.map(std::time::Duration::from_secs),
         });
+        Ok(())
+    }
+
+    /// Attach a shared MemoryCache backend to this Graph.
+    fn set_cache_backend(&mut self, cache_backend: PyRef<PyMemoryCache>) -> PyResult<()> {
+        let graph = self
+            .graph
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("Graph has already been built or consumed"))?;
+        graph.with_cache_backend(cache_backend.as_backend());
+        self.cache_namespace_hint = Some(cache_backend.namespace_or_default());
         Ok(())
     }
 
@@ -503,6 +614,7 @@ impl PyGraph {
 #[pyclass(name = "Dag")]
 struct PyDag {
     dag: Dag,
+    default_cache_namespace: Option<String>,
 }
 
 #[pymethods]
@@ -515,7 +627,7 @@ impl PyDag {
     ///
     /// Returns:
     ///     Dictionary containing the execution context
-    #[pyo3(signature = (parallel=false, max_threads=None, cache=true, cache_depth="transitive", cache_namespace="default"))]
+    #[pyo3(signature = (parallel=false, max_threads=None, cache=true, cache_depth="transitive", cache_namespace=None, cache_backend=None, detailed=false))]
     fn execute(
         &self,
         py: Python,
@@ -523,25 +635,47 @@ impl PyDag {
         max_threads: Option<usize>,
         cache: bool,
         cache_depth: &str,
-        cache_namespace: &str,
+        cache_namespace: Option<String>,
+        cache_backend: Option<PyRef<PyMemoryCache>>,
+        detailed: bool,
     ) -> PyResult<PyObject> {
         let depth = CacheDepth::parse(cache_depth).ok_or_else(|| {
             PyValueError::new_err("cache_depth must be one of: none, shallow, transitive")
         })?;
+        let backend_override = cache_backend.as_ref().map(|backend| backend.as_backend());
+        let namespace = cache_namespace.unwrap_or_else(|| {
+            cache_backend
+                .as_ref()
+                .map(|backend| backend.namespace_or_default())
+                .or_else(|| self.default_cache_namespace.clone())
+                .unwrap_or_else(|| "default".to_string())
+        });
         let cache_options = CacheOptions::default()
             .with_enabled(cache)
             .with_depth(depth)
-            .with_namespace(cache_namespace);
+            .with_namespace(namespace);
 
         // Release GIL during Rust execution
-        let context = py.allow_threads(|| {
-            self.dag
-                .execute_with_options(parallel, max_threads, cache_options)
+        let execution = py.allow_threads(|| {
+            if let Some(cache_backend) = backend_override {
+                self.dag.execute_detailed_with_backend_options(
+                    parallel,
+                    max_threads,
+                    cache_options,
+                    cache_backend,
+                )
+            } else {
+                self.dag
+                    .execute_detailed_with_options(parallel, max_threads, cache_options)
+            }
         });
 
-        // Convert HashMap<String, GraphData> to Python dict
+        if detailed {
+            return execution_result_to_python(py, &execution);
+        }
+
         let py_dict = PyDict::new(py);
-        for (key, value) in context.iter() {
+        for (key, value) in execution.context.iter() {
             py_dict.set_item(key, graph_data_to_python(py, value))?;
         }
         Ok(py_dict.to_object(py))
@@ -584,6 +718,12 @@ impl PyDag {
     /// Clear cached node results for a specific namespace.
     fn clear_cache_namespace(&self, namespace: String) {
         self.dag.clear_cache_namespace(&namespace);
+    }
+
+    #[pyo3(signature = (namespace, node_id, version=None))]
+    fn clear_cache_node(&self, namespace: String, node_id: usize, version: Option<String>) {
+        self.dag
+            .clear_cache_node(&namespace, node_id, version.as_deref());
     }
 
     /// Return a sorted list of unique node labels present in the DAG.
@@ -699,9 +839,7 @@ impl PyDag {
             None
         };
 
-        let stat = py.allow_threads(|| {
-            self.dag.predict_at(dist_ctx, n_samples, target.as_ref())
-        });
+        let stat = py.allow_threads(|| self.dag.predict_at(dist_ctx, n_samples, target.as_ref()));
         Ok(PyStatResult { inner: stat })
     }
 
@@ -737,28 +875,74 @@ impl PyDag {
     ///     joint.plot_pairs()                 # pair plot of all variables
     ///     joint.plot_joint("x", "out")       # 2-D joint PDF
     #[pyo3(signature = (inputs, n_samples=1000))]
-    fn predict(
-        &self,
-        py: Python,
-        inputs: &PyDict,
-        n_samples: usize,
-    ) -> PyResult<PyStatResult> {
+    fn predict(&self, py: Python, inputs: &PyDict, n_samples: usize) -> PyResult<PyStatResult> {
         let mut dist_ctx: DistContext = HashMap::new();
         for (key, val) in inputs.iter() {
             let k: String = key.extract()?;
-            let cell = val
-                .downcast::<PyCell<PyDistribution>>()
-                .map_err(|_| PyValueError::new_err(format!(
-                    "Value for key '{}' must be a Distribution",
-                    k
-                )))?;
+            let cell = val.downcast::<PyCell<PyDistribution>>().map_err(|_| {
+                PyValueError::new_err(format!("Value for key '{}' must be a Distribution", k))
+            })?;
             dist_ctx.insert(k, cell.borrow().inner.clone());
         }
-        let stat = py.allow_threads(|| {
-            self.dag.predict(dist_ctx, n_samples)
-        });
+        let stat = py.allow_threads(|| self.dag.predict(dist_ctx, n_samples));
         Ok(PyStatResult { inner: stat })
     }
+}
+
+fn node_cache_category(status: &NodeCacheStatus) -> &'static str {
+    if status.hit {
+        "hit"
+    } else {
+        match status.reason {
+            Some(
+                CacheMissReason::CodeChanged
+                | CacheMissReason::InputChanged
+                | CacheMissReason::DependencyChanged
+                | CacheMissReason::Invalidated,
+            ) => "invalidation",
+            Some(
+                CacheMissReason::MissingVersion
+                | CacheMissReason::NonCacheable
+                | CacheMissReason::UnsupportedInput,
+            ) => "incompatibility",
+            _ => "miss",
+        }
+    }
+}
+
+fn execution_result_to_python(py: Python, result: &ExecutionResult) -> PyResult<PyObject> {
+    let out = PyDict::new(py);
+
+    let context = PyDict::new(py);
+    for (key, value) in result.context.iter() {
+        context.set_item(key, graph_data_to_python(py, value))?;
+    }
+    out.set_item("context", context)?;
+
+    let cache_stats = PyDict::new(py);
+    cache_stats.set_item("hits", result.cache_stats.hits)?;
+    cache_stats.set_item("misses", result.cache_stats.misses)?;
+    cache_stats.set_item("stores", result.cache_stats.stores)?;
+    let reason_counts = PyDict::new(py);
+    for (reason, count) in &result.cache_stats.reason_counts {
+        reason_counts.set_item(reason.to_string(), count)?;
+    }
+    cache_stats.set_item("reason_counts", reason_counts)?;
+    out.set_item("cache_stats", cache_stats)?;
+
+    let node_cache = PyDict::new(py);
+    for (node_id, status) in &result.node_cache_status {
+        let status_dict = PyDict::new(py);
+        status_dict.set_item("hit", status.hit)?;
+        status_dict.set_item("stored", status.stored)?;
+        status_dict.set_item("reason", status.reason.map(|reason| reason.to_string()))?;
+        status_dict.set_item("category", node_cache_category(status))?;
+        status_dict.set_item("cache_key", status.cache_key.clone())?;
+        node_cache.set_item(*node_id, status_dict)?;
+    }
+    out.set_item("node_cache", node_cache)?;
+
+    Ok(out.to_object(py))
 }
 
 /// Parse mapping from Python types (list of tuples or dict) to Vec<(String, String)>
@@ -793,10 +977,7 @@ fn parse_mapping(obj: &PyAny) -> PyResult<Vec<(String, String)>> {
 /// when calling the Python function.
 fn create_python_node_function(
     py_func: PyObject,
-) -> impl Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
-       + Send
-       + Sync
-       + 'static {
+) -> impl Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData> + Send + Sync + 'static {
     // Wrap in Arc to make it cloneable and shareable
     let py_func = Arc::new(py_func);
 
@@ -1010,7 +1191,9 @@ fn create_python_dist_transfer(
             // Build input dict of {str: PyDistribution}
             let py_dict = PyDict::new(py);
             for (key, dist) in input_dists {
-                let d = PyDistribution { inner: dist.clone() };
+                let d = PyDistribution {
+                    inner: dist.clone(),
+                };
                 py_dict.set_item(key, d.into_py(py)).ok()?;
             }
 
@@ -1110,6 +1293,7 @@ fn empirical(samples: Vec<f64>) -> PyDistribution {
 #[pymodule]
 fn dagex(_py: Python, m: &PyModule) -> PyResult<()> {
     // PyO3 0.18.3 with auto-initialize feature handles multi-threading initialization automatically
+    m.add_class::<PyMemoryCache>()?;
     m.add_class::<PyGraph>()?;
     m.add_class::<PyDag>()?;
     m.add_class::<PyDistribution>()?;

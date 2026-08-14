@@ -43,7 +43,7 @@ pip install dagex
 Here's a minimal example showing the core concepts:
 
 ```rust
-use dagex::{CacheDepth, CacheOptions, Graph, GraphData, MemoryCacheConfig};
+use dagex::{CacheDepth, CacheOptions, Graph, GraphData, MemoryCacheBackend, MemoryCacheConfig};
 use std::collections::HashMap;
 
 fn main() {
@@ -595,6 +595,16 @@ graph.with_memory_cache_config(MemoryCacheConfig {
 let dag = graph.build();
 let context = dag.execute(parallel, max_threads);
 
+// Or inject a shared backend during build/execute
+let shared_backend = std::sync::Arc::new(MemoryCacheBackend::new(MemoryCacheConfig::default()));
+let dag = graph.build_with_cache_backend(shared_backend.clone());
+let context = dag.execute_with_backend_options(
+    parallel,
+    max_threads,
+    CacheOptions::default().with_namespace("shared"),
+    shared_backend,
+);
+
 // Or execute with explicit cache controls
 let context = dag.execute_with_options(
     parallel,
@@ -660,7 +670,7 @@ Important semantics:
 3. **Large arrays / opaque objects are not hashed by default.** Instead, pass a companion revision input such as `weights_revision`, `caf_revision`, or `blob_etag`, and optionally restrict cache-key fingerprinting to those lightweight inputs with `graph.set_cache_key_inputs_for("NodeLabel", vec!["weights_revision"])`.
 4. **Nondeterministic or side-effecting nodes** should be marked non-cacheable with `graph.set_cacheable_for(label, false)`.
 5. **Python objects** are preserved by reference on in-memory cache hits because cached outputs store the original `GraphData` values directly.
-6. **Invalidation controls**: `dag.clear_cache()` clears all namespaces for the attached backend, and `dag.clear_cache_namespace("name")` clears one sweep/group.
+6. **Invalidation controls**: `dag.clear_cache()` clears all namespaces for the attached backend, `dag.clear_cache_namespace("name")` clears one sweep/group, and `dag.clear_cache_node("name", node_id, Some("version-token"))` invalidates one node.
 
 For parameter sweeps, a common workflow is:
 
