@@ -60,6 +60,9 @@ def main():
         inputs=[("x", "x")],
         outputs=[("result", "results")]
     )
+    graph.set_cache_version("DataSource", "v1")
+    for idx in range(len(factors)):
+        graph.set_cache_version(f"Multiplier (v{idx})", "v1")
     
     dag = graph.build()
     
@@ -108,6 +111,10 @@ def main():
         print(f"  Variant {i} (×{factor}): {expected}")
     
     print(f"\n✅ All {len(factors)} variants executed successfully!")
+    print_section("Cached Re-run")
+    dag.execute(parallel=True, max_threads=4, cache=True, cache_depth="transitive", cache_namespace="example-04-sweep")
+    dag.execute(parallel=True, max_threads=4, cache=True, cache_depth="transitive", cache_namespace="example-04-sweep")
+    print(f"  Cache stats: {dag.cache_stats()}")
     
     print()
 

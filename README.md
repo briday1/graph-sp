@@ -43,7 +43,7 @@ pip install dagex
 Here's a minimal example showing the core concepts:
 
 ```rust
-use dagex::{Graph, GraphData};
+use dagex::{CacheDepth, CacheOptions, Graph, GraphData, MemoryCacheConfig};
 use std::collections::HashMap;
 
 fn main() {
@@ -583,9 +583,26 @@ graph.variants(
     Some(vec![("output", "results")])
 );
 
+// Optional cache controls
+graph.set_cache_version_for("NodeLabel", "v2");      // bump when implementation changes
+graph.set_cacheable_for("RandomSampler", false);     // opt out for nondeterministic / side-effecting nodes
+graph.with_memory_cache_config(MemoryCacheConfig {
+    max_entries: 2048,
+    ttl: None,
+});
+
 // Build and execute
 let dag = graph.build();
 let context = dag.execute(parallel, max_threads);
+
+// Or execute with explicit cache controls
+let context = dag.execute_with_options(
+    parallel,
+    max_threads,
+    CacheOptions::default()
+        .with_namespace("sweep-a")
+        .with_depth(CacheDepth::Transitive),
+);
 ```
 
 ### GraphData Types
@@ -611,6 +628,52 @@ let exec_result = dag.execute_detailed(parallel, max_threads);
 let final_context = exec_result.context;
 let node_outputs = exec_result.node_outputs;
 let branch_outputs = exec_result.branch_outputs;
+
+// Cache-aware execution
+let exec_result = dag.execute_detailed_with_options(
+    parallel,
+    max_threads,
+    CacheOptions::default()
+        .with_namespace("experiment-42")
+        .with_depth(CacheDepth::Transitive),
+);
+println!("{}", exec_result.cache_stats.summary());
+for (node_id, status) in &exec_result.node_cache_status {
+    println!("node {node_id}: hit={}, reason={:?}", status.hit, status.reason);
+}
+```
+
+### Execution Cache / Memoization
+
+`dagex` caches **per-node** results, not whole DAG runs.
+
+- **Cache key inputs**: stable node id + explicit node version token + normalized direct inputs
+- **Transitive safety**: `CacheDepth::Transitive` (default) also folds in upstream dependency signatures
+- **Storage**: in-memory backend by default, pluggable backend interface for future persistent/external stores
+- **Eviction**: bounded LRU with optional TTL on the in-memory backend
+- **Debugging**: `ExecutionResult.cache_stats` and `ExecutionResult.node_cache_status`
+
+Important semantics:
+
+1. **Use explicit node version tokens** via `graph.set_cache_version_for(...)`. Nodes without an explicit version token are conservatively treated as non-cacheable.
+2. **Avoid hidden captured state** for cache-sensitive behavior. Runtime settings that affect outputs should be passed as normal graph inputs.
+3. **Large arrays / opaque objects are not hashed by default.** Instead, pass a companion revision input such as `weights_revision`, `caf_revision`, or `blob_etag`, and optionally restrict cache-key fingerprinting to those lightweight inputs with `graph.set_cache_key_inputs_for("NodeLabel", vec!["weights_revision"])`.
+4. **Nondeterministic or side-effecting nodes** should be marked non-cacheable with `graph.set_cacheable_for(label, false)`.
+5. **Python objects** are preserved by reference on in-memory cache hits because cached outputs store the original `GraphData` values directly.
+6. **Invalidation controls**: `dag.clear_cache()` clears all namespaces for the attached backend, and `dag.clear_cache_namespace("name")` clears one sweep/group.
+
+For parameter sweeps, a common workflow is:
+
+```rust
+let options = CacheOptions::default()
+    .with_namespace("hyperparam-sweep")
+    .with_depth(CacheDepth::Transitive);
+
+let first = dag.execute_detailed_with_options(true, Some(8), options.clone());
+let second = dag.execute_detailed_with_options(true, Some(8), options);
+
+assert_eq!(first.cache_stats.hits, 0);
+assert!(second.cache_stats.hits > 0); // unchanged upstream nodes were skipped
 ```
 
 ## 🐍 Python Usage

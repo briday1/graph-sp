@@ -1,5 +1,6 @@
 //! Graph builder with implicit connections API
 
+use crate::cache::{CacheBackend, MemoryCacheBackend, MemoryCacheConfig};
 use crate::dag::Dag;
 use crate::distribution::DistTransferFn;
 use crate::graph_data::GraphData;
@@ -26,6 +27,16 @@ pub struct Graph {
     /// Pending dist_transfers to be applied to nodes by label at `build()` time.
     /// label -> DistTransferFn
     dist_transfers: HashMap<String, DistTransferFn>,
+    /// Explicit cache version tokens to apply to nodes by label at build time.
+    cache_versions: HashMap<String, String>,
+    /// Cacheability overrides to apply to nodes by label at build time.
+    cacheability_overrides: HashMap<String, bool>,
+    /// Optional impl-var subsets to use for cache-key input fingerprinting by label.
+    cache_key_inputs: HashMap<String, Vec<String>>,
+    /// Optional cache backend override for the built DAG.
+    cache_backend: Option<Arc<dyn CacheBackend>>,
+    /// Configuration for the default in-memory cache backend.
+    memory_cache_config: MemoryCacheConfig,
 }
 
 impl Graph {
@@ -40,7 +51,50 @@ impl Graph {
             next_branch_id: 1,
             merge_targets: Vec::new(),
             dist_transfers: HashMap::new(),
+            cache_versions: HashMap::new(),
+            cacheability_overrides: HashMap::new(),
+            cache_key_inputs: HashMap::new(),
+            cache_backend: None,
+            memory_cache_config: MemoryCacheConfig::default(),
         }
+    }
+
+    /// Configure the built-in in-memory execution cache used by the built DAG.
+    pub fn with_memory_cache_config(&mut self, config: MemoryCacheConfig) -> &mut Self {
+        self.memory_cache_config = config;
+        self
+    }
+
+    /// Override the cache backend used by the built DAG.
+    pub fn with_cache_backend(&mut self, backend: Arc<dyn CacheBackend>) -> &mut Self {
+        self.cache_backend = Some(backend);
+        self
+    }
+
+    /// Set an explicit cache version token for all nodes with the given label.
+    pub fn set_cache_version_for(&mut self, label: &str, version: impl Into<String>) -> &mut Self {
+        self.cache_versions.insert(label.to_string(), version.into());
+        self
+    }
+
+    /// Mark all nodes with the given label as cacheable or non-cacheable.
+    pub fn set_cacheable_for(&mut self, label: &str, cacheable: bool) -> &mut Self {
+        self.cacheability_overrides
+            .insert(label.to_string(), cacheable);
+        self
+    }
+
+    /// Restrict cache-key fingerprinting to the given impl-var inputs for nodes with this label.
+    pub fn set_cache_key_inputs_for(
+        &mut self,
+        label: &str,
+        impl_vars: Vec<&str>,
+    ) -> &mut Self {
+        self.cache_key_inputs.insert(
+            label.to_string(),
+            impl_vars.into_iter().map(|value| value.to_string()).collect(),
+        );
+        self
     }
 
     /// Get a unique branch ID for tracking branches
@@ -129,6 +183,7 @@ impl Graph {
             let mut node = Node::new(
                 id,
                 Arc::clone(&func_arc),
+                format!("node-{id}-version-unset"),
                 label.map(|s| s.to_string()),
                 input_mapping.clone(),
                 output_mapping.clone(),
@@ -215,6 +270,7 @@ impl Graph {
                 let mut new_node = Node::new(
                     new_id,
                     node.function.clone(),
+                    node.code_fingerprint.clone(),
                     node.label.clone(),
                     node.input_mapping.clone(),
                     node.output_mapping.clone(),
@@ -320,7 +376,6 @@ impl Graph {
             .collect();
 
         let mut created_ids: Vec<NodeId> = Vec::new();
-
         for (idx, node_fn) in functions.into_iter().enumerate() {
             // Automatically wrap each function in Arc and cast to trait object
             let node_fn_arc: crate::node::NodeFunction = Arc::new(node_fn);
@@ -331,6 +386,7 @@ impl Graph {
                 let mut node = Node::new(
                     id,
                     Arc::clone(&node_fn_arc),
+                    format!("node-{id}-version-unset"),
                     label.map(|s| format!("{} (v{})", s, idx)),
                     input_mapping.clone(),
                     output_mapping.clone(),
@@ -451,6 +507,7 @@ impl Graph {
         let mut node = Node::new(
             id,
             Arc::new(merge_fn),
+            format!("node-{id}-version-unset"),
             label.map(|s| s.to_string()),
             input_mapping,
             output_mapping,
@@ -501,19 +558,34 @@ impl Graph {
 
         // Apply pending dist_transfers to all matching nodes (by label)
         let dist_transfers = std::mem::take(&mut self.dist_transfers);
+        let cache_versions = std::mem::take(&mut self.cache_versions);
+        let cacheability_overrides = std::mem::take(&mut self.cacheability_overrides);
+        let cache_key_inputs = std::mem::take(&mut self.cache_key_inputs);
         for node in &mut self.nodes {
-            if node.dist_transfer.is_some() {
-                // Already set (e.g. copied from a subgraph) — don't overwrite
-                continue;
-            }
             if let Some(label) = &node.label {
-                if let Some(transfer) = dist_transfers.get(label.as_str()) {
-                    node.dist_transfer = Some(Arc::clone(transfer));
+                if node.dist_transfer.is_none() {
+                    if let Some(transfer) = dist_transfers.get(label.as_str()) {
+                        node.dist_transfer = Some(Arc::clone(transfer));
+                    }
+                }
+                if let Some(version) = cache_versions.get(label.as_str()) {
+                    node.code_fingerprint = version.clone();
+                    node.has_explicit_cache_version = true;
+                }
+                if let Some(cacheable) = cacheability_overrides.get(label.as_str()) {
+                    node.cacheable = *cacheable;
+                }
+                if let Some(keys) = cache_key_inputs.get(label.as_str()) {
+                    node.cache_key_inputs = Some(keys.clone());
                 }
             }
         }
 
-        Dag::new(self.nodes)
+        let cache_backend = self
+            .cache_backend
+            .unwrap_or_else(|| Arc::new(MemoryCacheBackend::new(self.memory_cache_config.clone())));
+
+        Dag::new(self.nodes, cache_backend)
     }
 
     /// Resolve dependencies based on data flow (input/output mappings)

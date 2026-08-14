@@ -25,6 +25,14 @@ pub struct Node {
     pub label: Option<String>,
     /// Function to execute
     pub function: NodeFunction,
+    /// Explicit node implementation/version token used for execution-result caching
+    pub code_fingerprint: String,
+    /// Whether the version token was explicitly provided by the caller
+    pub has_explicit_cache_version: bool,
+    /// Whether this node is eligible for execution-result caching
+    pub cacheable: bool,
+    /// Optional subset of impl-var inputs to include in the cache key
+    pub cache_key_inputs: Option<Vec<String>>,
     /// Input mapping: broadcast_var -> impl_var (what the function sees)
     pub input_mapping: HashMap<String, String>,
     /// Output mapping: impl_var -> broadcast_var (where function output goes in context)
@@ -53,6 +61,7 @@ impl Node {
     pub fn new(
         id: NodeId,
         function: NodeFunction,
+        code_fingerprint: String,
         label: Option<String>,
         input_mapping: HashMap<String, String>,
         output_mapping: HashMap<String, String>,
@@ -61,6 +70,10 @@ impl Node {
             id,
             label,
             function,
+            code_fingerprint,
+            has_explicit_cache_version: false,
+            cacheable: true,
+            cache_key_inputs: None,
             input_mapping,
             output_mapping,
             branch_id: None,
@@ -72,12 +85,12 @@ impl Node {
         }
     }
 
-    /// Execute this node with the given context
-    pub fn execute(&self, context: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+    /// Gather this node's inputs using impl-var names.
+    pub fn gather_inputs(&self, context: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
         // Map broadcast context vars to impl vars using input_mapping
         // input_mapping: broadcast_var -> impl_var
         // Special case: For merge nodes, broadcast_var may be "branch_id:var_name"
-        let inputs: HashMap<String, GraphData> = self
+        self
             .input_mapping
             .iter()
             .filter_map(|(broadcast_key, impl_var)| {
@@ -100,10 +113,16 @@ impl Node {
                         .map(|val| (impl_var.clone(), val.clone()))
                 }
             })
-            .collect();
+            .collect()
+    }
 
+    /// Execute this node with pre-resolved impl-var inputs.
+    pub fn execute_with_inputs(
+        &self,
+        inputs: &HashMap<String, GraphData>,
+    ) -> HashMap<String, GraphData> {
         // Execute function with inputs
-        let func_outputs = (self.function)(&inputs);
+        let func_outputs = (self.function)(inputs);
 
         // Map function outputs to broadcast vars using output_mapping
         // output_mapping: impl_var -> broadcast_var
@@ -115,6 +134,26 @@ impl Node {
         }
 
         context_outputs
+    }
+
+    /// Execute this node with the given context
+    pub fn execute(&self, context: &HashMap<String, GraphData>) -> HashMap<String, GraphData> {
+        let inputs = self.gather_inputs(context);
+        self.execute_with_inputs(&inputs)
+    }
+
+    /// Restrict cache-key inputs to the configured impl-var subset when present.
+    pub fn cache_key_inputs(
+        &self,
+        inputs: &HashMap<String, GraphData>,
+    ) -> HashMap<String, GraphData> {
+        match &self.cache_key_inputs {
+            Some(keys) => keys
+                .iter()
+                .filter_map(|key| inputs.get(key).cloned().map(|value| (key.clone(), value)))
+                .collect(),
+            None => inputs.clone(),
+        }
     }
 
     /// Get display name for this node

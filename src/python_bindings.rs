@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::builder::Graph;
+use crate::cache::{CacheDepth, CacheOptions, MemoryCacheConfig};
 use crate::dag::{Dag, PredictTarget};
 use crate::distribution::{DistContext, Distribution};
 use crate::graph_data::GraphData;
@@ -421,6 +422,56 @@ impl PyGraph {
         Ok(PyDag { dag: graph.build() })
     }
 
+    /// Configure the built-in in-memory execution cache before building the DAG.
+    #[pyo3(signature = (max_entries=None, ttl_seconds=None))]
+    fn configure_memory_cache(
+        &mut self,
+        max_entries: Option<usize>,
+        ttl_seconds: Option<u64>,
+    ) -> PyResult<()> {
+        let graph = self
+            .graph
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("Graph has already been built or consumed"))?;
+
+        graph.with_memory_cache_config(MemoryCacheConfig {
+            max_entries: max_entries.unwrap_or(1_024),
+            ttl: ttl_seconds.map(std::time::Duration::from_secs),
+        });
+        Ok(())
+    }
+
+    /// Set an explicit cache version token for all nodes with the given label.
+    fn set_cache_version(&mut self, label: String, version: String) -> PyResult<()> {
+        let graph = self
+            .graph
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("Graph has already been built or consumed"))?;
+        graph.set_cache_version_for(&label, version);
+        Ok(())
+    }
+
+    /// Mark all nodes with the given label as cacheable or non-cacheable.
+    fn set_cacheable(&mut self, label: String, cacheable: bool) -> PyResult<()> {
+        let graph = self
+            .graph
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("Graph has already been built or consumed"))?;
+        graph.set_cacheable_for(&label, cacheable);
+        Ok(())
+    }
+
+    /// Restrict cache-key fingerprinting to the given impl-var inputs for nodes with this label.
+    fn set_cache_key_inputs(&mut self, label: String, impl_vars: Vec<String>) -> PyResult<()> {
+        let graph = self
+            .graph
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("Graph has already been built or consumed"))?;
+        let refs: Vec<&str> = impl_vars.iter().map(String::as_str).collect();
+        graph.set_cache_key_inputs_for(&label, refs);
+        Ok(())
+    }
+
     /// Attach an analytical distribution transfer to all nodes with the given label.
     ///
     /// The `transfer_fn` must be a Python callable with signature:
@@ -464,15 +515,29 @@ impl PyDag {
     ///
     /// Returns:
     ///     Dictionary containing the execution context
-    #[pyo3(signature = (parallel=false, max_threads=None))]
+    #[pyo3(signature = (parallel=false, max_threads=None, cache=true, cache_depth="transitive", cache_namespace="default"))]
     fn execute(
         &self,
         py: Python,
         parallel: bool,
         max_threads: Option<usize>,
+        cache: bool,
+        cache_depth: &str,
+        cache_namespace: &str,
     ) -> PyResult<PyObject> {
+        let depth = CacheDepth::parse(cache_depth).ok_or_else(|| {
+            PyValueError::new_err("cache_depth must be one of: none, shallow, transitive")
+        })?;
+        let cache_options = CacheOptions::default()
+            .with_enabled(cache)
+            .with_depth(depth)
+            .with_namespace(cache_namespace);
+
         // Release GIL during Rust execution
-        let context = py.allow_threads(|| self.dag.execute(parallel, max_threads));
+        let context = py.allow_threads(|| {
+            self.dag
+                .execute_with_options(parallel, max_threads, cache_options)
+        });
 
         // Convert HashMap<String, GraphData> to Python dict
         let py_dict = PyDict::new(py);
@@ -496,6 +561,29 @@ impl PyDag {
     ///     Number of nodes
     fn node_count(&self) -> usize {
         self.dag.nodes().len()
+    }
+
+    /// Return aggregate cache backend stats for this DAG.
+    fn cache_stats(&self, py: Python) -> PyResult<PyObject> {
+        let stats = self.dag.stats().cache;
+        let dict = PyDict::new(py);
+        dict.set_item("entries", stats.entries)?;
+        dict.set_item("max_entries", stats.max_entries)?;
+        dict.set_item("hits", stats.hits)?;
+        dict.set_item("misses", stats.misses)?;
+        dict.set_item("evictions", stats.evictions)?;
+        dict.set_item("expirations", stats.expirations)?;
+        Ok(dict.to_object(py))
+    }
+
+    /// Clear all cached node results from the attached backend.
+    fn clear_cache(&self) {
+        self.dag.clear_cache();
+    }
+
+    /// Clear cached node results for a specific namespace.
+    fn clear_cache_namespace(&self, namespace: String) {
+        self.dag.clear_cache_namespace(&namespace);
     }
 
     /// Return a sorted list of unique node labels present in the DAG.
