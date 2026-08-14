@@ -1,9 +1,8 @@
 //! DAG representation with execution and visualization support
 
 use crate::cache::{
-    build_cache_entry, build_cache_lookup, dependency_signature, normalize_inputs,
-    CacheBackend, CacheBackendStats, CacheDepth, CacheLookupResult,
-    CacheMissReason, CacheOptions, CacheRunStats,
+    build_cache_entry, build_cache_lookup, dependency_signature, normalize_inputs, CacheBackend,
+    CacheBackendStats, CacheDepth, CacheLookupResult, CacheMissReason, CacheOptions, CacheRunStats,
 };
 use crate::distribution::{DistContext, Distribution};
 use crate::graph_data::GraphData;
@@ -240,6 +239,19 @@ impl Dag {
             .context
     }
 
+    /// Execute with explicit cache controls and an explicit backend override.
+    pub fn execute_with_backend_options(
+        &self,
+        parallel: bool,
+        max_threads: Option<usize>,
+        cache_options: CacheOptions,
+        cache_backend: Arc<dyn CacheBackend>,
+    ) -> ExecutionContext {
+        Dag::new(self.nodes.clone(), cache_backend)
+            .execute_detailed_with_options(parallel, max_threads, cache_options)
+            .context
+    }
+
     /// Execute the DAG with detailed per-node and per-branch tracking
     ///
     /// Runs all nodes in topological order and tracks outputs per node and per branch.
@@ -328,14 +340,15 @@ impl Dag {
 
                                 s.spawn(move || {
                                     let mut cache_stats = CacheRunStats::default();
-                                    let (node_outputs, signature, status) = execute_node_with_cache_backend(
-                                        &cache_backend,
-                                        node,
-                                        &context,
-                                        &dependency_signatures,
-                                        &cache_options,
-                                        &mut cache_stats,
-                                    );
+                                    let (node_outputs, signature, status) =
+                                        execute_node_with_cache_backend(
+                                            &cache_backend,
+                                            node,
+                                            &context,
+                                            &dependency_signatures,
+                                            &cache_options,
+                                            &mut cache_stats,
+                                        );
                                     outputs.lock().unwrap().push((
                                         node.id,
                                         node.branch_id,
@@ -351,16 +364,14 @@ impl Dag {
 
                     // Collect outputs from all parallel executions
                     let collected_outputs = outputs.lock().unwrap();
-                    for (node_id, _branch_id, node_outputs, signature, status, cache_stats) in collected_outputs.iter() {
+                    for (node_id, _branch_id, node_outputs, signature, status, cache_stats) in
+                        collected_outputs.iter()
+                    {
                         result.cache_stats.hits += cache_stats.hits;
                         result.cache_stats.misses += cache_stats.misses;
                         result.cache_stats.stores += cache_stats.stores;
                         for (reason, count) in &cache_stats.reason_counts {
-                            *result
-                                .cache_stats
-                                .reason_counts
-                                .entry(*reason)
-                                .or_insert(0) += *count;
+                            *result.cache_stats.reason_counts.entry(*reason).or_insert(0) += *count;
                         }
 
                         if let Some(node) = self.nodes.iter().find(|n| n.id == *node_id) {
@@ -374,6 +385,21 @@ impl Dag {
         }
 
         result
+    }
+
+    /// Execute with detailed tracking, explicit cache controls, and backend override.
+    pub fn execute_detailed_with_backend_options(
+        &self,
+        parallel: bool,
+        max_threads: Option<usize>,
+        cache_options: CacheOptions,
+        cache_backend: Arc<dyn CacheBackend>,
+    ) -> ExecutionResult {
+        Dag::new(self.nodes.clone(), cache_backend).execute_detailed_with_options(
+            parallel,
+            max_threads,
+            cache_options,
+        )
     }
 
     fn execute_node_with_cache(
@@ -583,7 +609,8 @@ impl Dag {
                 || input_dists_impl.values().all(|d| d.is_deterministic())
             {
                 // All inputs known — run once, wrap outputs as Deterministic
-                let mini = Self::build_mini_ctx(node, &dist_ctx, None::<&mut rand::rngs::ThreadRng>);
+                let mini =
+                    Self::build_mini_ctx(node, &dist_ctx, None::<&mut rand::rngs::ThreadRng>);
                 node.execute(&mini)
                     .into_iter()
                     .filter_map(|(k, v)| gd_to_f64(&v).map(|f| (k, Distribution::deterministic(f))))
@@ -592,7 +619,7 @@ impl Dag {
                 // MC fallback
                 let n = n_samples.expect(
                     "n_samples is required for nodes without an analytical dist_transfer. \
-                     Pass Some(n) to predict_at(), or add a dist_transfer to every node."
+                     Pass Some(n) to predict_at(), or add a dist_transfer to every node.",
                 );
                 let mut sample_vecs: HashMap<String, Vec<f64>> = HashMap::new();
                 for _ in 0..n {
@@ -721,11 +748,8 @@ impl Dag {
 
             if all_deterministic {
                 // Deterministic node — run once, broadcast the same value to all particles.
-                let mini = Self::build_mini_ctx(
-                    node,
-                    &dist_ctx,
-                    None::<&mut rand::rngs::ThreadRng>,
-                );
+                let mini =
+                    Self::build_mini_ctx(node, &dist_ctx, None::<&mut rand::rngs::ThreadRng>);
                 for (broadcast_var, gd) in node.execute(&mini) {
                     expand_gd_deterministic(&broadcast_var, &gd, n_samples, &mut output_cols);
                 }
@@ -739,10 +763,17 @@ impl Dag {
                         let lookup = broadcast_to_lookup_key(broadcast_key);
                         if let Some(&val) = particles[i].get(&lookup) {
                             mini.insert(lookup, GraphData::Float(val));
-                        } else if let Some(&len_f) = particles[i].get(&format!("__veclen__{}", lookup)) {
+                        } else if let Some(&len_f) =
+                            particles[i].get(&format!("__veclen__{}", lookup))
+                        {
                             let len = len_f as usize;
                             let vec: Vec<f64> = (0..len)
-                                .map(|k| particles[i].get(&format!("{}[{}]", lookup, k)).copied().unwrap_or(f64::NAN))
+                                .map(|k| {
+                                    particles[i]
+                                        .get(&format!("{}[{}]", lookup, k))
+                                        .copied()
+                                        .unwrap_or(f64::NAN)
+                                })
                                 .collect();
                             mini.insert(lookup, GraphData::FloatVec(Arc::new(vec)));
                         }
@@ -829,9 +860,7 @@ impl Dag {
         self.nodes
             .iter()
             .filter(|n| match target {
-                PredictTarget::NodeLabel(label) => {
-                    n.label.as_deref() == Some(label.as_str())
-                }
+                PredictTarget::NodeLabel(label) => n.label.as_deref() == Some(label.as_str()),
                 PredictTarget::BranchId(bid) => n.branch_id == Some(*bid),
                 PredictTarget::VariantIndex(vi) => n.variant_index == Some(*vi),
             })
@@ -846,9 +875,7 @@ impl Dag {
             .iter()
             .filter_map(|(broadcast_key, impl_var)| {
                 let lookup = broadcast_to_lookup_key(broadcast_key);
-                dist_ctx
-                    .get(&lookup)
-                    .map(|d| (impl_var.clone(), d.clone()))
+                dist_ctx.get(&lookup).map(|d| (impl_var.clone(), d.clone()))
             })
             .collect()
     }
@@ -908,6 +935,13 @@ impl Dag {
     /// Clear cached node results for a specific cache namespace.
     pub fn clear_cache_namespace(&self, namespace: &str) {
         self.cache_backend.clear_namespace(namespace);
+    }
+
+    /// Clear cached node results for one node ID in a namespace.
+    ///
+    /// If `version` is provided, only entries whose explicit version token matches are cleared.
+    pub fn clear_cache_node(&self, namespace: &str, node_id: NodeId, version: Option<&str>) {
+        self.cache_backend.clear_node(namespace, node_id, version);
     }
 }
 
@@ -986,7 +1020,8 @@ fn execute_node_with_cache_backend(
             );
         }
     };
-    let dependency_signature = dependency_signature(cache_options.depth, node, dependency_signatures);
+    let dependency_signature =
+        dependency_signature(cache_options.depth, node, dependency_signatures);
     let lookup = build_cache_lookup(node, &normalized_input, &dependency_signature);
 
     loop {
@@ -1029,7 +1064,8 @@ fn execute_node_with_cache_backend(
                 }
 
                 cache_stats.record_miss(reason);
-                let execution = panic::catch_unwind(AssertUnwindSafe(|| node.execute_with_inputs(&inputs)));
+                let execution =
+                    panic::catch_unwind(AssertUnwindSafe(|| node.execute_with_inputs(&inputs)));
                 match execution {
                     Ok(outputs) => {
                         cache_backend.put(
@@ -1099,7 +1135,10 @@ fn expand_gd_deterministic(
                 vec![v.len() as f64; n_samples],
             );
             for (idx, &val) in v.iter().enumerate() {
-                output_cols.insert(format!("{}[{}]", broadcast_var, idx), vec![val as f64; n_samples]);
+                output_cols.insert(
+                    format!("{}[{}]", broadcast_var, idx),
+                    vec![val as f64; n_samples],
+                );
             }
         }
         _ => {}
@@ -1162,7 +1201,7 @@ fn broadcast_to_lookup_key(broadcast_key: &str) -> String {
         let mut parts = broadcast_key.splitn(2, ':');
         let id = parts.next().unwrap_or("");
         let var = parts.next().unwrap_or("");
-        format!("__branch_{}__{}" , id, var)
+        format!("__branch_{}__{}", id, var)
     } else {
         broadcast_key.to_string()
     }

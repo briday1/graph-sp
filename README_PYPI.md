@@ -508,7 +508,8 @@ Memory benefit: Data shared by reference, not copied
 import dagex
 
 # Create graph
-graph = dagex.Graph()
+cache = dagex.MemoryCache(namespace="pipeline-a", max_entries=2048)
+graph = dagex.Graph(cache_backend=cache)
 
 # Add a node
 graph.add(
@@ -542,8 +543,8 @@ graph.variants(
     outputs=[("output", "results")]
 )
 
-# Build and execute
-dag = graph.build()
+# Build and execute (cache can also be passed to build()/execute())
+dag = graph.build(cache_backend=cache)
 context = dag.execute(parallel=False)
 context = dag.execute(parallel=True, max_threads=4)
 ```
@@ -576,10 +577,14 @@ context = dag.execute(parallel=True, max_threads=4)  # Parallel
 result = context.get("output_name")
 
 # Detailed execution
-result = dag.execute_detailed(parallel=True, max_threads=4)
-final_context = result.context
-node_outputs = result.node_outputs
-branch_outputs = result.branch_outputs
+report = dag.execute(parallel=True, max_threads=4, detailed=True)
+final_context = report["context"]
+cache_stats = report["cache_stats"]
+node_cache = report["node_cache"]   # per-node hit/miss/invalidation/incompatibility categories
+
+# Invalidation
+cache.clear_namespace("pipeline-a")
+cache.clear_node(node_id=3, version="caf-v1")
 ```
 
 ## 📄 License

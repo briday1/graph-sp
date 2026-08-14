@@ -63,7 +63,10 @@ fn repeated_runs_reuse_cached_outputs() {
     let second = dag.execute_detailed_with_options(false, None, options);
 
     assert_eq!(first.get("result").and_then(|data| data.as_int()), Some(30));
-    assert_eq!(second.get("result").and_then(|data| data.as_int()), Some(30));
+    assert_eq!(
+        second.get("result").and_then(|data| data.as_int()),
+        Some(30)
+    );
     assert_eq!(source_runs.load(Ordering::SeqCst), 1);
     assert_eq!(process_runs.load(Ordering::SeqCst), 1);
     assert_eq!(first.cache_stats.hits, 0);
@@ -278,27 +281,20 @@ fn build_depth_graph(
 
     if source_variant == 1 {
         graph.set_cache_version_for("Source", "source-v1");
-        graph.add(
-            source_one,
-            Some("Source"),
-            None,
-            Some(vec![("raw", "raw")]),
-        );
+        graph.add(source_one, Some("Source"), None, Some(vec![("raw", "raw")]));
     } else {
         graph.set_cache_version_for("Source", "source-v2");
-        graph.add(
-            source_two,
-            Some("Source"),
-            None,
-            Some(vec![("raw", "raw")]),
-        );
+        graph.add(source_two, Some("Source"), None, Some(vec![("raw", "raw")]));
     }
 
     let normalize_counter = Arc::clone(&normalize_runs);
     graph.add(
         move |inputs: &HashMap<String, GraphData>| {
             normalize_counter.fetch_add(1, Ordering::SeqCst);
-            let _ = inputs.get("raw").and_then(|data| data.as_int()).unwrap_or_default();
+            let _ = inputs
+                .get("raw")
+                .and_then(|data| data.as_int())
+                .unwrap_or_default();
             output_int("normalized", 42)
         },
         Some("Normalize"),
@@ -400,16 +396,23 @@ fn repeated_variant_sweeps_skip_reexecution() {
         Some(vec![("seed", "seed")]),
     );
 
-    let variant_functions: Vec<_> = [(2, Arc::clone(&variant_a_runs)), (3, Arc::clone(&variant_b_runs)), (4, Arc::clone(&variant_c_runs))]
-        .into_iter()
-        .map(|(multiplier, counter)| {
-            move |inputs: &HashMap<String, GraphData>| {
-                counter.fetch_add(1, Ordering::SeqCst);
-                let value = inputs.get("x").and_then(|data| data.as_int()).unwrap_or_default();
-                output_int("scaled", value * multiplier)
-            }
-        })
-        .collect();
+    let variant_functions: Vec<_> = [
+        (2, Arc::clone(&variant_a_runs)),
+        (3, Arc::clone(&variant_b_runs)),
+        (4, Arc::clone(&variant_c_runs)),
+    ]
+    .into_iter()
+    .map(|(multiplier, counter)| {
+        move |inputs: &HashMap<String, GraphData>| {
+            counter.fetch_add(1, Ordering::SeqCst);
+            let value = inputs
+                .get("x")
+                .and_then(|data| data.as_int())
+                .unwrap_or_default();
+            output_int("scaled", value * multiplier)
+        }
+    })
+    .collect();
 
     graph.variants(
         variant_functions,
@@ -461,12 +464,200 @@ fn concurrent_execute_calls_share_inflight_computation() {
     let second = thread::spawn(move || dag_b.execute_with_options(false, None, options));
 
     assert_eq!(
-        first.join().unwrap().get("value").and_then(|data| data.as_int()),
+        first
+            .join()
+            .unwrap()
+            .get("value")
+            .and_then(|data| data.as_int()),
         Some(99)
     );
     assert_eq!(
-        second.join().unwrap().get("value").and_then(|data| data.as_int()),
+        second
+            .join()
+            .unwrap()
+            .get("value")
+            .and_then(|data| data.as_int()),
         Some(99)
     );
     assert_eq!(runs.load(Ordering::SeqCst), 1);
+}
+
+fn build_caf_cfar_graph(
+    backend: Arc<dyn CacheBackend>,
+    source_runs: Arc<AtomicUsize>,
+    caf_runs: Arc<AtomicUsize>,
+    cfar_runs: Arc<AtomicUsize>,
+    cfar_version: &str,
+    cfar_offset: i64,
+) -> dagex::Dag {
+    let mut graph = Graph::new();
+    graph.with_cache_backend(backend);
+    graph.set_cache_version_for("Source", "source-v1");
+    graph.set_cache_version_for("CAF", "caf-v1");
+    graph.set_cache_version_for("CFAR", cfar_version);
+
+    let source_counter = Arc::clone(&source_runs);
+    graph.add(
+        move |_| {
+            source_counter.fetch_add(1, Ordering::SeqCst);
+            output_int("raw", 10)
+        },
+        Some("Source"),
+        None,
+        Some(vec![("raw", "raw")]),
+    );
+
+    let caf_counter = Arc::clone(&caf_runs);
+    graph.add(
+        move |inputs: &HashMap<String, GraphData>| {
+            caf_counter.fetch_add(1, Ordering::SeqCst);
+            let raw = inputs
+                .get("x")
+                .and_then(|value| value.as_int())
+                .unwrap_or_default();
+            output_int("caf", raw * 2)
+        },
+        Some("CAF"),
+        Some(vec![("raw", "x")]),
+        Some(vec![("caf", "caf")]),
+    );
+
+    let cfar_counter = Arc::clone(&cfar_runs);
+    graph.add(
+        move |inputs: &HashMap<String, GraphData>| {
+            cfar_counter.fetch_add(1, Ordering::SeqCst);
+            let caf = inputs
+                .get("x")
+                .and_then(|value| value.as_int())
+                .unwrap_or_default();
+            output_int("det", caf + cfar_offset)
+        },
+        Some("CFAR"),
+        Some(vec![("caf", "x")]),
+        Some(vec![("det", "det")]),
+    );
+
+    graph.build()
+}
+
+#[test]
+fn equivalent_rebuilt_graphs_share_backend_and_reuse_upstream_nodes() {
+    let backend: Arc<dyn CacheBackend> =
+        Arc::new(MemoryCacheBackend::new(MemoryCacheConfig::default()));
+    let source_runs = Arc::new(AtomicUsize::new(0));
+    let caf_runs = Arc::new(AtomicUsize::new(0));
+    let cfar_runs = Arc::new(AtomicUsize::new(0));
+
+    let first = build_caf_cfar_graph(
+        Arc::clone(&backend),
+        Arc::clone(&source_runs),
+        Arc::clone(&caf_runs),
+        Arc::clone(&cfar_runs),
+        "cfar-v1",
+        1,
+    );
+    let second = build_caf_cfar_graph(
+        Arc::clone(&backend),
+        Arc::clone(&source_runs),
+        Arc::clone(&caf_runs),
+        Arc::clone(&cfar_runs),
+        "cfar-v2",
+        2,
+    );
+
+    let options = CacheOptions::default().with_namespace("shared-caf-cfar");
+    let first_result = first.execute_detailed_with_options(false, None, options.clone());
+    let second_result = second.execute_detailed_with_options(false, None, options);
+
+    assert_eq!(
+        first_result.get("det").and_then(|value| value.as_int()),
+        Some(21)
+    );
+    assert_eq!(
+        second_result.get("det").and_then(|value| value.as_int()),
+        Some(22)
+    );
+    assert_eq!(source_runs.load(Ordering::SeqCst), 1);
+    assert_eq!(caf_runs.load(Ordering::SeqCst), 1);
+    assert_eq!(cfar_runs.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        second_result
+            .node_cache_status
+            .get(&0)
+            .map(|status| status.hit),
+        Some(true)
+    );
+    assert_eq!(
+        second_result
+            .node_cache_status
+            .get(&1)
+            .map(|status| status.hit),
+        Some(true)
+    );
+    assert_eq!(
+        second_result
+            .node_cache_status
+            .get(&2)
+            .and_then(|status| status.reason),
+        Some(dagex::CacheMissReason::CodeChanged)
+    );
+}
+
+#[test]
+fn clearing_a_specific_node_marks_following_miss_as_invalidated() {
+    let mut graph = Graph::new();
+    graph.set_cache_version_for("Source", "source-v1");
+    graph.add(
+        |_| output_int("value", 12),
+        Some("Source"),
+        None,
+        Some(vec![("value", "value")]),
+    );
+    let dag = graph.build();
+    let options = CacheOptions::default().with_namespace("node-invalidation");
+
+    dag.execute_detailed_with_options(false, None, options.clone());
+    dag.clear_cache_node("node-invalidation", 0, Some("source-v1"));
+    let second = dag.execute_detailed_with_options(false, None, options);
+
+    assert_eq!(
+        second
+            .node_cache_status
+            .get(&0)
+            .and_then(|status| status.reason),
+        Some(dagex::CacheMissReason::Invalidated)
+    );
+}
+
+#[test]
+fn backend_can_be_injected_via_build_and_execute_paths() {
+    let shared_backend: Arc<dyn CacheBackend> =
+        Arc::new(MemoryCacheBackend::new(MemoryCacheConfig::default()));
+    let run_counter = Arc::new(AtomicUsize::new(0));
+
+    let mut graph = Graph::new();
+    graph.set_cache_version_for("Source", "source-v1");
+    let counter = Arc::clone(&run_counter);
+    graph.add(
+        move |_| {
+            counter.fetch_add(1, Ordering::SeqCst);
+            output_int("value", 5)
+        },
+        Some("Source"),
+        None,
+        Some(vec![("value", "value")]),
+    );
+
+    let dag = graph.build_with_cache_backend(Arc::clone(&shared_backend));
+    let options = CacheOptions::default().with_namespace("build-execute-injection");
+    dag.execute_detailed_with_options(false, None, options.clone());
+    let second = dag.execute_detailed_with_backend_options(
+        false,
+        None,
+        options,
+        Arc::clone(&shared_backend),
+    );
+
+    assert_eq!(run_counter.load(Ordering::SeqCst), 1);
+    assert_eq!(second.cache_stats.hits, 1);
 }

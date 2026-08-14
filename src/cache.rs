@@ -102,6 +102,7 @@ pub enum CacheMissReason {
     MissingVersion,
     NonCacheable,
     NotFound,
+    Invalidated,
     Expired,
     CodeChanged,
     InputChanged,
@@ -116,6 +117,7 @@ impl fmt::Display for CacheMissReason {
             Self::MissingVersion => write!(f, "missing_version"),
             Self::NonCacheable => write!(f, "non_cacheable"),
             Self::NotFound => write!(f, "not_found"),
+            Self::Invalidated => write!(f, "invalidated"),
             Self::Expired => write!(f, "expired"),
             Self::CodeChanged => write!(f, "code_changed"),
             Self::InputChanged => write!(f, "input_changed"),
@@ -223,11 +225,7 @@ pub enum CacheLookupResult {
 
 /// Pluggable cache backend interface.
 pub trait CacheBackend: Send + Sync {
-    fn get(
-        &self,
-        namespace: &str,
-        lookup: &CacheLookup,
-    ) -> CacheLookupResult;
+    fn get(&self, namespace: &str, lookup: &CacheLookup) -> CacheLookupResult;
 
     fn put(&self, namespace: &str, key: String, entry: CacheEntry);
 
@@ -236,6 +234,7 @@ pub trait CacheBackend: Send + Sync {
     fn clear_all(&self);
 
     fn clear_namespace(&self, namespace: &str);
+    fn clear_node(&self, namespace: &str, node_id: usize, version: Option<&str>);
 
     fn begin_compute(&self, namespace: &str, key: &str) -> bool;
 
@@ -255,6 +254,7 @@ struct MemoryCacheState {
     config: MemoryCacheConfig,
     entries: HashMap<String, StoredEntry>,
     identity_index: HashMap<(String, String), IdentityFingerprint>,
+    invalidated_identities: HashSet<(String, String)>,
     lru: VecDeque<(u64, String)>,
     pending: HashSet<String>,
     access_clock: u64,
@@ -280,21 +280,25 @@ impl MemoryCacheBackend {
     pub fn new(config: MemoryCacheConfig) -> Self {
         let max_entries = config.max_entries.max(1);
         Self {
-            inner: Arc::new((Mutex::new(MemoryCacheState {
-                stats: CacheBackendStats {
-                    max_entries,
-                    ..CacheBackendStats::default()
-                },
-                config: MemoryCacheConfig {
-                    max_entries,
-                    ttl: config.ttl,
-                },
-                entries: HashMap::new(),
-                identity_index: HashMap::new(),
-                lru: VecDeque::new(),
-                pending: HashSet::new(),
-                access_clock: 0,
-            }), Condvar::new())),
+            inner: Arc::new((
+                Mutex::new(MemoryCacheState {
+                    stats: CacheBackendStats {
+                        max_entries,
+                        ..CacheBackendStats::default()
+                    },
+                    config: MemoryCacheConfig {
+                        max_entries,
+                        ttl: config.ttl,
+                    },
+                    entries: HashMap::new(),
+                    identity_index: HashMap::new(),
+                    invalidated_identities: HashSet::new(),
+                    lru: VecDeque::new(),
+                    pending: HashSet::new(),
+                    access_clock: 0,
+                }),
+                Condvar::new(),
+            )),
         }
     }
 
@@ -347,11 +351,7 @@ impl MemoryCacheState {
 }
 
 impl CacheBackend for MemoryCacheBackend {
-    fn get(
-        &self,
-        namespace: &str,
-        lookup: &CacheLookup,
-    ) -> CacheLookupResult {
+    fn get(&self, namespace: &str, lookup: &CacheLookup) -> CacheLookupResult {
         let storage_key = Self::storage_key(namespace, &lookup.key);
         let (lock, _) = &*self.inner;
         let mut state = lock.lock().unwrap();
@@ -383,6 +383,9 @@ impl CacheBackend for MemoryCacheBackend {
 
         state.stats.misses += 1;
         let identity_key = (namespace.to_string(), lookup.node_identity.clone());
+        if state.invalidated_identities.contains(&identity_key) {
+            return CacheLookupResult::Miss(CacheMissReason::Invalidated);
+        }
         let indexed = state.identity_index.get(&identity_key).cloned();
         let reason = match indexed {
             Some(identity) if identity.storage_key != storage_key => {
@@ -412,7 +415,8 @@ impl CacheBackend for MemoryCacheBackend {
         let mut state = lock.lock().unwrap();
         let token = state.next_access_token();
         let expires_at = state.config.ttl.map(|ttl| Instant::now() + ttl);
-        let identity_key = (namespace.to_string(), entry.node_identity.clone());
+        let node_identity = entry.node_identity.clone();
+        let identity_key = (namespace.to_string(), node_identity.clone());
         let fingerprint = IdentityFingerprint {
             storage_key: storage_key.clone(),
             code_fingerprint: entry.code_fingerprint.clone(),
@@ -429,6 +433,9 @@ impl CacheBackend for MemoryCacheBackend {
             },
         );
         state.identity_index.insert(identity_key, fingerprint);
+        state
+            .invalidated_identities
+            .remove(&(namespace.to_string(), node_identity));
         state.lru.push_back((token, storage_key));
         state.stats.entries = state.entries.len();
         state.evict_if_needed();
@@ -444,6 +451,7 @@ impl CacheBackend for MemoryCacheBackend {
         let mut state = lock.lock().unwrap();
         state.entries.clear();
         state.identity_index.clear();
+        state.invalidated_identities.clear();
         state.lru.clear();
         state.pending.clear();
         state.stats.entries = 0;
@@ -454,6 +462,12 @@ impl CacheBackend for MemoryCacheBackend {
         let (lock, cv) = &*self.inner;
         let mut state = lock.lock().unwrap();
         let prefix = format!("{namespace}::");
+        let invalidated_identities: Vec<String> = state
+            .identity_index
+            .iter()
+            .filter(|((ns, _), _)| ns == namespace)
+            .map(|((_, node_identity), _)| node_identity.clone())
+            .collect();
         let keys: Vec<String> = state
             .entries
             .keys()
@@ -463,8 +477,48 @@ impl CacheBackend for MemoryCacheBackend {
         for key in keys {
             state.remove_entry(&key);
         }
+        for node_identity in invalidated_identities {
+            state
+                .invalidated_identities
+                .insert((namespace.to_string(), node_identity));
+        }
         state.lru.retain(|(_, key)| !key.starts_with(&prefix));
         state.pending.retain(|key| !key.starts_with(&prefix));
+        state.stats.entries = state.entries.len();
+        cv.notify_all();
+    }
+
+    fn clear_node(&self, namespace: &str, node_id: usize, version: Option<&str>) {
+        let (lock, cv) = &*self.inner;
+        let mut state = lock.lock().unwrap();
+        let expected_code_fingerprint = version.map(|value| hash_canonical(value.as_bytes()));
+
+        let matching: Vec<(String, IdentityFingerprint)> = state
+            .identity_index
+            .iter()
+            .filter(|((ns, node_identity), identity)| {
+                if ns != namespace || !node_identity_matches_id(node_identity, node_id) {
+                    return false;
+                }
+                expected_code_fingerprint
+                    .as_ref()
+                    .map(|expected| identity.code_fingerprint == *expected)
+                    .unwrap_or(true)
+            })
+            .map(|((_, node_identity), identity)| (node_identity.clone(), identity.clone()))
+            .collect();
+
+        let mut removed_storage_keys: HashSet<String> = HashSet::new();
+        for (node_identity, identity) in matching {
+            removed_storage_keys.insert(identity.storage_key.clone());
+            state.remove_entry(&identity.storage_key);
+            state
+                .invalidated_identities
+                .insert((namespace.to_string(), node_identity));
+        }
+        state
+            .lru
+            .retain(|(_, key)| !removed_storage_keys.contains(key));
         state.stats.entries = state.entries.len();
         cv.notify_all();
     }
@@ -519,11 +573,7 @@ impl FileCacheBackend {
 }
 
 impl CacheBackend for FileCacheBackend {
-    fn get(
-        &self,
-        _namespace: &str,
-        _lookup: &CacheLookup,
-    ) -> CacheLookupResult {
+    fn get(&self, _namespace: &str, _lookup: &CacheLookup) -> CacheLookupResult {
         let _ = &self.root;
         CacheLookupResult::Miss(CacheMissReason::NotFound)
     }
@@ -539,6 +589,8 @@ impl CacheBackend for FileCacheBackend {
     fn clear_all(&self) {}
 
     fn clear_namespace(&self, _namespace: &str) {}
+
+    fn clear_node(&self, _namespace: &str, _node_id: usize, _version: Option<&str>) {}
 
     fn begin_compute(&self, _namespace: &str, _key: &str) -> bool {
         true
@@ -557,7 +609,9 @@ pub enum CacheNormalizeError {
 impl fmt::Display for CacheNormalizeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UnsupportedType(kind) => write!(f, "unsupported cache normalization type: {kind}"),
+            Self::UnsupportedType(kind) => {
+                write!(f, "unsupported cache normalization type: {kind}")
+            }
         }
     }
 }
@@ -581,6 +635,10 @@ pub(crate) fn build_cache_lookup(
         input_fingerprint,
         dependency_signature,
     }
+}
+
+pub(crate) fn node_identity_matches_id(node_identity: &str, node_id: usize) -> bool {
+    node_identity.starts_with(&format!("id={node_id};"))
 }
 
 pub(crate) fn build_cache_entry(
@@ -629,7 +687,10 @@ pub(crate) fn dependency_signature(
 }
 
 fn build_node_identity(node: &Node) -> String {
-    let label = node.label.clone().unwrap_or_else(|| format!("node-{}", node.id));
+    let label = node
+        .label
+        .clone()
+        .unwrap_or_else(|| format!("node-{}", node.id));
     let inputs = normalize_string_map(&node.input_mapping);
     let outputs = normalize_string_map(&node.output_mapping);
     let variant_params =
@@ -742,7 +803,10 @@ mod tests {
             ("b".to_string(), GraphData::int(2)),
         ]);
 
-        assert_eq!(normalize_inputs(&left).unwrap(), normalize_inputs(&right).unwrap());
+        assert_eq!(
+            normalize_inputs(&left).unwrap(),
+            normalize_inputs(&right).unwrap()
+        );
     }
 
     #[test]
@@ -755,13 +819,20 @@ mod tests {
             input_fingerprint: "input".to_string(),
             dependency_signature: "dep".to_string(),
         };
-        backend.put("alpha", lookup.key.clone(), build_cache_entry(&lookup, sample_outputs(1)));
+        backend.put(
+            "alpha",
+            lookup.key.clone(),
+            build_cache_entry(&lookup, sample_outputs(1)),
+        );
 
         assert!(matches!(
             backend.get("beta", &lookup),
             CacheLookupResult::Miss(CacheMissReason::NotFound)
         ));
-        assert!(matches!(backend.get("alpha", &lookup), CacheLookupResult::Hit(_)));
+        assert!(matches!(
+            backend.get("alpha", &lookup),
+            CacheLookupResult::Hit(_)
+        ));
     }
 
     #[test]
@@ -777,7 +848,11 @@ mod tests {
             input_fingerprint: "input".to_string(),
             dependency_signature: "dep".to_string(),
         };
-        backend.put("ns", lookup.key.clone(), build_cache_entry(&lookup, sample_outputs(1)));
+        backend.put(
+            "ns",
+            lookup.key.clone(),
+            build_cache_entry(&lookup, sample_outputs(1)),
+        );
         thread::sleep(Duration::from_millis(10));
 
         assert!(matches!(
@@ -815,16 +890,34 @@ mod tests {
             dependency_signature: "dep".to_string(),
         };
 
-        backend.put("ns", first.key.clone(), build_cache_entry(&first, sample_outputs(1)));
-        backend.put("ns", second.key.clone(), build_cache_entry(&second, sample_outputs(2)));
+        backend.put(
+            "ns",
+            first.key.clone(),
+            build_cache_entry(&first, sample_outputs(1)),
+        );
+        backend.put(
+            "ns",
+            second.key.clone(),
+            build_cache_entry(&second, sample_outputs(2)),
+        );
         let _ = backend.get("ns", &second);
-        backend.put("ns", third.key.clone(), build_cache_entry(&third, sample_outputs(3)));
+        backend.put(
+            "ns",
+            third.key.clone(),
+            build_cache_entry(&third, sample_outputs(3)),
+        );
 
         assert!(matches!(
             backend.get("ns", &first),
             CacheLookupResult::Miss(CacheMissReason::NotFound)
         ));
-        assert!(matches!(backend.get("ns", &second), CacheLookupResult::Hit(_)));
-        assert!(matches!(backend.get("ns", &third), CacheLookupResult::Hit(_)));
+        assert!(matches!(
+            backend.get("ns", &second),
+            CacheLookupResult::Hit(_)
+        ));
+        assert!(matches!(
+            backend.get("ns", &third),
+            CacheLookupResult::Hit(_)
+        ));
     }
 }

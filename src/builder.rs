@@ -73,7 +73,8 @@ impl Graph {
 
     /// Set an explicit cache version token for all nodes with the given label.
     pub fn set_cache_version_for(&mut self, label: &str, version: impl Into<String>) -> &mut Self {
-        self.cache_versions.insert(label.to_string(), version.into());
+        self.cache_versions
+            .insert(label.to_string(), version.into());
         self
     }
 
@@ -85,14 +86,13 @@ impl Graph {
     }
 
     /// Restrict cache-key fingerprinting to the given impl-var inputs for nodes with this label.
-    pub fn set_cache_key_inputs_for(
-        &mut self,
-        label: &str,
-        impl_vars: Vec<&str>,
-    ) -> &mut Self {
+    pub fn set_cache_key_inputs_for(&mut self, label: &str, impl_vars: Vec<&str>) -> &mut Self {
         self.cache_key_inputs.insert(
             label.to_string(),
-            impl_vars.into_iter().map(|value| value.to_string()).collect(),
+            impl_vars
+                .into_iter()
+                .map(|value| value.to_string())
+                .collect(),
         );
         self
     }
@@ -146,11 +146,8 @@ impl Graph {
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
-        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
-            + Send
-            + Sync
-            + 'static,
-    {   
+        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData> + Send + Sync + 'static,
+    {
         // Build input_mapping: broadcast_var -> impl_var
         let input_mapping: HashMap<String, String> = inputs
             .unwrap_or_default()
@@ -343,10 +340,7 @@ impl Graph {
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
-        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
-            + Send
-            + Sync
-            + 'static,
+        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData> + Send + Sync + 'static,
     {
         // Determine parent attach points (frontier). If frontier is empty, treat as a single None parent
         let parents: Vec<Option<NodeId>> = if self.frontier.is_empty() {
@@ -465,10 +459,7 @@ impl Graph {
         outputs: Option<Vec<(&str, &str)>>,
     ) -> &mut Self
     where
-        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData>
-            + Send
-            + Sync
-            + 'static,
+        F: Fn(&HashMap<String, GraphData>) -> HashMap<String, GraphData> + Send + Sync + 'static,
     {
         // First, integrate all pending branches into the main graph
         let branches = std::mem::take(&mut self.branches);
@@ -588,17 +579,24 @@ impl Graph {
         Dag::new(self.nodes, cache_backend)
     }
 
+    /// Build the final DAG while explicitly injecting a cache backend.
+    pub fn build_with_cache_backend(mut self, cache_backend: Arc<dyn CacheBackend>) -> Dag {
+        self.cache_backend = Some(cache_backend);
+        self.build()
+    }
+
     /// Resolve dependencies based on data flow (input/output mappings)
-    /// 
+    ///
     /// For each node, determine which other nodes it depends on by finding
     /// nodes that produce the broadcast variables it consumes.
     fn resolve_data_dependencies(&mut self) {
         // Build a map of which nodes produce which broadcast variables
         let mut producers: HashMap<String, Vec<NodeId>> = HashMap::new();
-        
+
         for node in &self.nodes {
             for broadcast_var in node.output_mapping.values() {
-                producers.entry(broadcast_var.clone())
+                producers
+                    .entry(broadcast_var.clone())
                     .or_default()
                     .push(node.id);
             }
@@ -609,12 +607,12 @@ impl Graph {
             let node = &self.nodes[i];
             let required_inputs: Vec<String> = node.input_mapping.keys().cloned().collect();
             let node_id = node.id;
-            
+
             let mut dependencies: HashSet<NodeId> = HashSet::new();
-            
+
             // Keep any existing dependencies (from merge_targets or branches)
             dependencies.extend(node.dependencies.iter().copied());
-            
+
             // Add dependencies based on data flow
             for input_key in &required_inputs {
                 // Handle merge node special format: "branch_id:broadcast_var"
@@ -624,7 +622,7 @@ impl Graph {
                 } else {
                     input_key.as_str()
                 };
-                
+
                 if let Some(producer_ids) = producers.get(broadcast_var) {
                     for &producer_id in producer_ids {
                         // Don't depend on ourselves
@@ -634,7 +632,7 @@ impl Graph {
                     }
                 }
             }
-            
+
             // Update the node's dependencies
             self.nodes[i].dependencies = dependencies.into_iter().collect();
         }
